@@ -1,5 +1,5 @@
 /*****************************************************************************
- *   Ledger App Boilerplate.
+ *   Zcash Ledger App.
  *   (c) 2021 Ledger SAS.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
