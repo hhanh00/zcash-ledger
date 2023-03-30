@@ -21,10 +21,11 @@
 
 #include "key.h"
 #include "prf.h"
+#include "fr.h"
 
 #include "globals.h"
 
-int crypto_derive_spending_key(uint8_t *raw_private_key) {
+int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
     uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000, 0, 0};
 
     int error = 0;
@@ -43,18 +44,21 @@ int crypto_derive_spending_key(uint8_t *raw_private_key) {
             memmove(xsk, spending_key, 32); // ask
             error = prf_expand_seed(xsk, 0);
             if (error != 0) return error;
-
-            // TODO - 64 bytes to jubjub point
+            error = fr_from_wide(xsk);
+            if (error != 0) return error;
+            memmove(&exp_sk->ask, xsk, 32);
 
             memmove(xsk, spending_key, 32); // nsk
             error = prf_expand_seed(xsk, 1);
             if (error != 0) return error;
+            error = fr_from_wide(xsk);
+            if (error != 0) return error;
+            memmove(&exp_sk->nsk, xsk, 32);
 
             memmove(xsk, spending_key, 32); // ovk
             error = prf_expand_seed(xsk, 2);
             if (error != 0) return error;
-
-            memmove(raw_private_key, xsk, 32);
+            memmove(&exp_sk->ovk, xsk, 32);
         }
         CATCH_OTHER(e) {
             error = e;

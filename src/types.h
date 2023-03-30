@@ -53,9 +53,20 @@ typedef enum {
     CONFIRM_TRANSACTION  /// confirm transaction information
 } request_type_e;
 
+typedef uint8_t fr_t[32];
+typedef uint8_t hash_t[32];
 typedef uint8_t jubjub_point_t[32];
 typedef uint8_t ovk_t[32];
 typedef uint8_t dk_t[32];
+
+/**
+ * Diversifiable viewing key
+*/ 
+typedef struct {
+    fr_t ask;
+    fr_t nsk;
+    hash_t ovk;
+} expanded_spending_key_t;
 
 /**
  * Diversifiable viewing key
@@ -77,6 +88,7 @@ typedef struct {
     state_e state;  /// state of the context
     union {
         fvk_ctx_t fvk_info;
+        expanded_spending_key_t exp_sk_info;
     };
     request_type_e req_type;              /// user request
 } global_ctx_t;

@@ -16,29 +16,36 @@
  *****************************************************************************/
 
 #include <stdint.h>   // uint*_t
-#include <stdbool.h>  // bool
-#include <stddef.h>   // size_t
 #include <string.h>   // memset, explicit_bzero
+#include <stdbool.h>  // bool
+#include <lcx_math.h>
 
-#include "os.h"
-#include "cx.h"
+#include "fr.h"
 
-#include "get_fvk.h"
-#include "../globals.h"
-#include "../types.h"
-#include "../io.h"
-#include "../sw.h"
-#include "../common/buffer.h"
-#include "../ui/display.h"
-#include "../helper/send_response.h"
-#include "../crypto/key.h"
+#include "globals.h"
 
-int handler_test_math() {
-    explicit_bzero(&G_context, sizeof(G_context));
-    expanded_spending_key_t response;
-    
-    int error = crypto_derive_spending_key(&response);
-    if (error != 0) return io_send_sw(error);
+/// r = 0x0e7db4ea6533afa906673b0101343b00a6682093ccc81082d0970e5ed6f72cb7
+static const uint8_t fr_m[32] = {
+  0x0e, 0x7d, 0xb4, 0xea, 0x65, 0x33, 0xaf, 0xa9, 
+  0x06, 0x67, 0x3b, 0x01, 0x01, 0x34, 0x3b, 0x00, 
+  0xa6, 0x68, 0x20, 0x93, 0xcc, 0xc8, 0x10, 0x82, 
+  0xd0, 0x97, 0x0e, 0x5e, 0xd6, 0xf7, 0x2c, 0xb7
+};
 
-    return helper_send_response_bytes((u_int8_t *)&response, 96);
+void swap_endian(uint8_t *data, int8_t len) {
+    for (int8_t i = 0; i < len / 2; i++) {
+        uint8_t t = data[len - i - 1];
+        data[len - i - 1] = data[i];
+        data[i] = t;
+    }
+}
+
+int fr_from_wide(uint8_t *data_512) {
+    int error = 0;
+
+    swap_endian(data_512, 64);
+    error = cx_math_modm_no_throw(data_512, 64, fr_m, 32);
+    memmove(data_512, data_512 + 32, 32);
+
+    return error;
 }

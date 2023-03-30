@@ -2,4 +2,4 @@
 
 #include "../types.h"
 
-int crypto_derive_spending_key(uint8_t *raw_private_key);
+int crypto_derive_spending_key(expanded_spending_key_t *exp_sk);
