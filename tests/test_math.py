@@ -11,3 +11,5 @@ def test_math(backend, capsys):
     # Use an helper to parse the response, assert the values
     with capsys.disabled():
         print(binascii.hexlify(unpack_bn_response(rapdu.data)))
+    assert(false)
+    

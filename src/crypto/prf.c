@@ -18,43 +18,22 @@
 #include <stdint.h>   // uint*_t
 #include <string.h>   // memset, explicit_bzero
 #include <stdbool.h>  // bool
+#include <lcx_blake2.h>
 
-#include "key.h"
 #include "prf.h"
 
 #include "globals.h"
 
-int crypto_derive_spending_key(uint8_t *raw_private_key) {
-    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000, 0, 0};
-
+int prf_expand_seed(uint8_t *key, uint8_t t) {
     int error = 0;
-    uint8_t spending_key[32];
-
+    
     BEGIN_TRY {
         TRY {
-            // derive the seed with bip32_path
-            os_perso_derive_node_bip32(CX_CURVE_256K1,
-                                       bip32_path,
-                                       5,
-                                       spending_key,
-                                       NULL);
+            cx_blake2b_t hash_ctx;
 
-            uint8_t xsk[64];
-            memmove(xsk, spending_key, 32); // ask
-            error = prf_expand_seed(xsk, 0);
-            if (error != 0) return error;
-
-            // TODO - 64 bytes to jubjub point
-
-            memmove(xsk, spending_key, 32); // nsk
-            error = prf_expand_seed(xsk, 1);
-            if (error != 0) return error;
-
-            memmove(xsk, spending_key, 32); // ovk
-            error = prf_expand_seed(xsk, 2);
-            if (error != 0) return error;
-
-            memmove(raw_private_key, xsk, 32);
+            cx_blake2b_init2_no_throw(&hash_ctx, 512, NULL, 0, (uint8_t *)"Zcash_ExpandSeed", 16);
+            cx_hash((cx_hash_t *)&hash_ctx, 0, key, 32, NULL, 0);
+            cx_hash((cx_hash_t *)&hash_ctx, CX_LAST, &t, 1, key, 64);
         }
         CATCH_OTHER(e) {
             error = e;
@@ -66,3 +45,4 @@ int crypto_derive_spending_key(uint8_t *raw_private_key) {
 
     return error;
 }
+

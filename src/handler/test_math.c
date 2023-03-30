@@ -35,9 +35,10 @@
 
 int handler_test_math() {
     explicit_bzero(&G_context, sizeof(G_context));
-    uint8_t response[32];
+    uint8_t response[64];
     
-    crypto_derive_spending_key(response);
+    int error = crypto_derive_spending_key(response);
+    if (error != 0) return io_send_sw(error);
 
-    return helper_send_response_bytes(response, 32);
+    return helper_send_response_bytes(response, 64);
 }
