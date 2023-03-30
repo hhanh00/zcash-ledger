@@ -15,22 +15,29 @@
  *  limitations under the License.
  *****************************************************************************/
 
-#include <stddef.h>  // size_t
-#include <stdint.h>  // uint*_t
-#include <string.h>  // memmove
+#include <stdint.h>   // uint*_t
+#include <stdbool.h>  // bool
+#include <stddef.h>   // size_t
+#include <string.h>   // memset, explicit_bzero
 
-#include "send_response.h"
-#include "../constants.h"
+#include "os.h"
+#include "cx.h"
+
+#include "get_fvk.h"
 #include "../globals.h"
+#include "../types.h"
+#include "../io.h"
 #include "../sw.h"
-#include "common/buffer.h"
+#include "../common/buffer.h"
+#include "../ui/display.h"
+#include "../helper/send_response.h"
+#include "../crypto/key.h"
 
-int helper_send_response_fvk() {
-    uint8_t resp[FVK_LEN] = {0};
-    memmove(resp, &G_context.fvk_info, FVK_LEN);
-    return io_send_response(&(const buffer_t){.ptr = resp, .size = FVK_LEN, .offset = 0}, SW_OK);
-}
+int handler_test_math() {
+    explicit_bzero(&G_context, sizeof(G_context));
+    uint8_t response[32];
+    
+    crypto_derive_spending_key(response);
 
-int helper_send_response_bytes(const u_int8_t *data, int data_len) {
-    return io_send_response(&(const buffer_t){.ptr = data, .size = data_len, .offset = 0}, SW_OK);
+    return helper_send_response_bytes(response, 32);
 }

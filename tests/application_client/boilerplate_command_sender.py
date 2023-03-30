@@ -29,6 +29,7 @@ class InsType(IntEnum):
     GET_APP_NAME   = 0x04
     GET_PUBLIC_KEY = 0x05
     SIGN_TX        = 0x06
+    TEST_MATH      = 0x07
 
 class Errors(IntEnum):
     SW_DENY                    = 0x6985
@@ -71,6 +72,13 @@ class BoilerplateCommandSender:
                                      p2=P2.P2_LAST,
                                      data=b"")
 
+
+    def test_math(self) -> RAPDU:
+        return self.backend.exchange(cla=CLA,
+                                     ins=InsType.TEST_MATH,
+                                     p1=P1.P1_START,
+                                     p2=P2.P2_LAST,
+                                     data=b"")
 
     def get_app_name(self) -> RAPDU:
         return self.backend.exchange(cla=CLA,

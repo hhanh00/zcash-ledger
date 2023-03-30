@@ -20,7 +20,8 @@ typedef enum {
 typedef enum {
     GET_VERSION = 0x03,     /// version of the application
     GET_APP_NAME = 0x04,    /// name of the application
-    GET_FVK = 0x05,    /// full viewing key (diversifiable viewing key)
+    GET_FVK = 0x05,         /// full viewing key (diversifiable viewing key)
+    TEST_MATH = 0x07,
 } command_e;
 
 /**

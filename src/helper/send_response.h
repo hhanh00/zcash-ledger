@@ -19,3 +19,5 @@
  *
  */
 int helper_send_response_fvk(void);
+
+int helper_send_response_bytes(const u_int8_t *data, int data_len);

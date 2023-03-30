@@ -28,6 +28,7 @@
 #include "../handler/get_version.h"
 #include "../handler/get_app_name.h"
 #include "../handler/get_fvk.h"
+#include "../handler/test_math.h"
 
 int apdu_dispatcher(const command_t *cmd) {
     if (cmd->cla != CLA) {
@@ -53,7 +54,13 @@ int apdu_dispatcher(const command_t *cmd) {
             }
 
             return handler_get_fvk((bool) cmd->p1);
-         default:
+        case TEST_MATH:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+
+            return handler_test_math();
+        default:
             return io_send_sw(SW_INS_NOT_SUPPORTED);
     }
 }

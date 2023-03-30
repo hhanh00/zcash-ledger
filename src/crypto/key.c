@@ -15,22 +15,35 @@
  *  limitations under the License.
  *****************************************************************************/
 
-#include <stddef.h>  // size_t
-#include <stdint.h>  // uint*_t
-#include <string.h>  // memmove
+#include <stdint.h>   // uint*_t
+#include <string.h>   // memset, explicit_bzero
+#include <stdbool.h>  // bool
 
-#include "send_response.h"
-#include "../constants.h"
-#include "../globals.h"
-#include "../sw.h"
-#include "common/buffer.h"
+#include "key.h"
 
-int helper_send_response_fvk() {
-    uint8_t resp[FVK_LEN] = {0};
-    memmove(resp, &G_context.fvk_info, FVK_LEN);
-    return io_send_response(&(const buffer_t){.ptr = resp, .size = FVK_LEN, .offset = 0}, SW_OK);
-}
+#include "globals.h"
 
-int helper_send_response_bytes(const u_int8_t *data, int data_len) {
-    return io_send_response(&(const buffer_t){.ptr = data, .size = data_len, .offset = 0}, SW_OK);
+int crypto_derive_spending_key(uint8_t *raw_private_key) {
+    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000, 0, 0};
+
+    int error = 0;
+
+    BEGIN_TRY {
+        TRY {
+            // derive the seed with bip32_path
+            os_perso_derive_node_bip32(CX_CURVE_256K1,
+                                       bip32_path,
+                                       5,
+                                       raw_private_key,
+                                       NULL);
+        }
+        CATCH_OTHER(e) {
+            error = e;
+        }
+        FINALLY {
+        }
+    }
+    END_TRY;
+
+    return error;
 }
