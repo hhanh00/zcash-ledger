@@ -32,7 +32,71 @@
 #include "../globals.h"
 #include "../io.h"
 #include "../sw.h"
+#include "action/validate.h"
 #include "../common/format.h"
-// #include "../menu.h"
+#include "menu.h"
+
+static action_validate_cb g_validate_callback;
+static char g_address[ADDRESS_LEN];
+
+static void ui_action_validate_fvk(bool choice) {
+    validate_fvk(choice);
+    ui_menu_main();
+}
+
+// Step with icon and text
+UX_STEP_NOCB(ux_display_confirm_addr_step, pn, {&C_icon_eye, "Confirm Address"});
+// Step with title/text for address
+UX_STEP_NOCB(ux_display_address_step,
+             bnnn_paging,
+             {
+                 .title = "Address",
+                 .text = g_address,
+             });
+// Step with approve button
+UX_STEP_CB(ux_display_approve_step,
+           pb,
+           (*g_validate_callback)(true),
+           {
+               &C_icon_validate_14,
+               "Approve",
+           });
+// Step with reject button
+UX_STEP_CB(ux_display_reject_step,
+           pb,
+           (*g_validate_callback)(false),
+           {
+               &C_icon_crossmark,
+               "Reject",
+           });
+
+// FLOW to display address:
+// #1 screen: eye icon + "Confirm Address"
+// #2 screen: display address
+// #3 screen: approve button
+// #4 screen: reject button
+UX_FLOW(ux_display_fvk_flow,
+        &ux_display_confirm_addr_step,
+        &ux_display_address_step,
+        &ux_display_approve_step,
+        &ux_display_reject_step);
+
+int ui_display_address() {
+    if (G_context.req_type != CONFIRM_ADDRESS || G_context.state != STATE_NONE) {
+        G_context.state = STATE_NONE;
+        return io_send_sw(SW_BAD_STATE);
+    }
+
+    memset(g_address, 0, sizeof(g_address));
+    uint8_t address[ADDRESS_LEN-1] = {0};
+    // TODO encode default address of fvk
+
+    snprintf(g_address, sizeof(g_address), "0x%.*H", sizeof(address), address);
+
+    g_validate_callback = &ui_action_validate_fvk;
+
+    ux_flow_init(0, ux_display_fvk_flow, NULL);
+    return 0;
+}
 
 #endif

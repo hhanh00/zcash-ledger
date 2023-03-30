@@ -20,6 +20,7 @@ typedef enum {
 typedef enum {
     GET_VERSION = 0x03,     /// version of the application
     GET_APP_NAME = 0x04,    /// name of the application
+    GET_FVK = 0x05,    /// full viewing key (diversifiable viewing key)
 } command_e;
 
 /**
@@ -51,10 +52,30 @@ typedef enum {
     CONFIRM_TRANSACTION  /// confirm transaction information
 } request_type_e;
 
+typedef uint8_t jubjub_point_t[32];
+typedef uint8_t ovk_t[32];
+typedef uint8_t dk_t[32];
+
+/**
+ * Diversifiable viewing key
+ * We display it as a full viewing key because it has no official 
+ * encoding
+ * It is ok because we are not deriving any child key from it
+*/
+typedef struct {
+    jubjub_point_t ak; // authorizing key
+    jubjub_point_t nk; // nullifier key
+    ovk_t ovk;         // outgoing viewing key
+    dk_t dk;           // diviersifier key
+} fvk_ctx_t;
+
 /**
  * Structure for global context.
  */
 typedef struct {
     state_e state;  /// state of the context
+    union {
+        fvk_ctx_t fvk_info;
+    };
     request_type_e req_type;              /// user request
 } global_ctx_t;

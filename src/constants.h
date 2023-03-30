@@ -34,3 +34,5 @@
  * Exponent used to convert mBOL to BOL unit (N BOL = N * 10^3 mBOL).
  */
 #define EXPONENT_SMALLEST_UNIT 3
+
+#define ADDRESS_LEN 43
