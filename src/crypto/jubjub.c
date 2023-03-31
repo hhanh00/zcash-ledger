@@ -120,8 +120,39 @@ int ext_double(extended_point_t *v) {
     return 0;
 }
 
+int ext_add(extended_point_t *x, const extended_niels_point_t *y) {
+    fq_t a;
+    fq_t b;
+    fq_sub(&a, &x->v, &x->u);
+    fq_mult(&a, &a, &y->vmu);
+    fq_add(&b, &x->v, &x->u);
+    fq_mult(&b, &b, &y->vpu);
+
+    fq_t u;
+    fq_t v;
+    fq_sub(&u, &b, &a);
+    fq_add(&v, &b, &a);
+
+    fq_mult(&a, &x->t1, &x->t2);
+    fq_mult(&a, &a, &y->t2d);
+    fq_mult(&b, &x->z, &y->z);
+    fq_double(&b);
+
+    memmove(&x->t1, &u, 32);
+    memmove(&x->t2, &v, 32);
+
+    fq_add(&u, &b, &a);
+    fq_sub(&v, &b, &a);
+
+    fq_mult(&x->u, &x->t1, &v);
+    fq_mult(&x->v, &x->t2, &u);
+    fq_mult(&x->z, &u, &v);
+
+    return 0;
+}
+
 int jubjub_test(extended_point_t *v) {
     memmove(v, &SPENDING_GENERATOR, sizeof(SPENDING_GENERATOR));
-    ext_double(v);
+    ext_add(v, &SPENDING_GENERATOR_NIELS);
     return 0;
 }

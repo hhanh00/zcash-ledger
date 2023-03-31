@@ -23,7 +23,7 @@ typedef struct {
 } extended_niels_point_t;
 
 int ext_double(extended_point_t *v);
-int ext_add(extended_point_t *v, extended_niels_point_t *a);
-int to_affine(affine_point_t *v, extended_point_t *a);
+int ext_add(extended_point_t *v, const extended_niels_point_t *a);
+int to_affine(affine_point_t *v, const extended_point_t *a);
 
 int jubjub_test(extended_point_t *v);
