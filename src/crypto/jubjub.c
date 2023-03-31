@@ -214,13 +214,25 @@ int ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t 
     return 0;
 }
 
+int ext_to_bytes(uint8_t *v, const extended_point_t *a) {
+    fq_t zinv;
+    memmove(&zinv, &a->z, 32);
+    fq_inv(&zinv);
 
-int jubjub_test(extended_point_t *v) {
-    fr_t x;
-    memset(&x, 0, 32);
-    x[31] = 12;
+    fq_t u;
+    fq_mult(&u, &a->u, &zinv);
+    fq_mult((fq_t *)v, &a->v, &zinv);
 
-    ext_base_mult(v, &SPENDING_GENERATOR_NIELS, &x);
+    uint8_t sign = u[31] & 1;
+    v[0] |= sign << 7;
+    return 0;
+}
+
+int jubjub_test(fq_t *r) {
+    extended_point_t v;
+
+    ext_base_mult(&v, &SPENDING_GENERATOR_NIELS, r);
+    ext_to_bytes((uint8_t *)r, &v);
     return 0;
 }
 

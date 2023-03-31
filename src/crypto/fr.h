@@ -44,3 +44,7 @@ static inline int fq_sub(fq_t *v, const fq_t *a, const fq_t *b) {
 static inline int fq_mult(fq_t *v, const fq_t *a, const fq_t *b) {
     return cx_math_multm_no_throw((uint8_t *)v, (uint8_t *)a, (uint8_t *)b, fq_m, 32);
 }
+
+static inline int fq_inv(fq_t *v) {
+    return cx_math_invprimem_no_throw((uint8_t *)v, (uint8_t *)v, fq_m, 32);
+}

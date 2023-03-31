@@ -39,12 +39,12 @@ int handler_test_math() {
     // expanded_spending_key_t response;
     // int error = crypto_derive_spending_key(&response);
 
-    extended_point_t p;
+    fr_t p;
+    memset(&p, 0, 32);
+    p[31] = 12;
     int error = jubjub_test(&p);
     if (error != 0) return io_send_sw(error);
 
-    for (int i = 0; i < 5; i++) {
-    swap_endian((u_int8_t *)&p+i*32, 32);
-    }
-    return helper_send_response_bytes((u_int8_t *)&p, 5*32);
+    swap_endian((u_int8_t *)&p, 32);
+    return helper_send_response_bytes((u_int8_t *)&p, 32);
 }
