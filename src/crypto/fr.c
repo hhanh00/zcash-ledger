@@ -18,19 +18,10 @@
 #include <stdint.h>   // uint*_t
 #include <string.h>   // memset, explicit_bzero
 #include <stdbool.h>  // bool
-#include <lcx_math.h>
 
 #include "fr.h"
 
 #include "globals.h"
-
-/// r = 0x0e7db4ea6533afa906673b0101343b00a6682093ccc81082d0970e5ed6f72cb7
-static const uint8_t fr_m[32] = {
-  0x0e, 0x7d, 0xb4, 0xea, 0x65, 0x33, 0xaf, 0xa9, 
-  0x06, 0x67, 0x3b, 0x01, 0x01, 0x34, 0x3b, 0x00, 
-  0xa6, 0x68, 0x20, 0x93, 0xcc, 0xc8, 0x10, 0x82, 
-  0xd0, 0x97, 0x0e, 0x5e, 0xd6, 0xf7, 0x2c, 0xb7
-};
 
 void swap_endian(uint8_t *data, int8_t len) {
     for (int8_t i = 0; i < len / 2; i++) {
@@ -49,3 +40,4 @@ int fr_from_wide(uint8_t *data_512) {
 
     return error;
 }
+

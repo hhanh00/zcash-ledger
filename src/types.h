@@ -54,6 +54,7 @@ typedef enum {
 } request_type_e;
 
 typedef uint8_t fr_t[32];
+typedef uint8_t fq_t[32];
 typedef uint8_t hash_t[32];
 typedef uint8_t jubjub_point_t[32];
 typedef uint8_t ovk_t[32];
