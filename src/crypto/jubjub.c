@@ -84,6 +84,49 @@ static const extended_niels_point_t SPENDING_GENERATOR_NIELS = {
         },
 };
 
+static const extended_niels_point_t IDENTITY_NIELS = {
+    .vpu =
+        {
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        },
+    .vmu =
+        {
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        },
+    .z =
+        {
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        },
+    .t2d =
+        {
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        },
+};
+
+int ext_set_identity(extended_point_t *v) {
+    memset(v, 0, sizeof(extended_point_t));
+    v->v[31] = 1;
+    v->z[31] = 1;
+    return 0;
+}
+
+int extn_set_identity(extended_niels_point_t *v) {
+    memset(v, 0, sizeof(extended_point_t));
+    v->vpu[31] = 1;
+    v->vmu[31] = 1;
+    v->z[31] = 1;
+    return 0;
+}
+
+
 int ext_double(extended_point_t *v) {
     fq_t uu;
     memmove(&uu, &v->u, 32);
@@ -151,8 +194,33 @@ int ext_add(extended_point_t *x, const extended_niels_point_t *y) {
     return 0;
 }
 
-int jubjub_test(extended_point_t *v) {
-    memmove(v, &SPENDING_GENERATOR, sizeof(SPENDING_GENERATOR));
-    ext_add(v, &SPENDING_GENERATOR_NIELS);
+int ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t *x) {
+    ext_set_identity(v);
+
+    int j0 = 4; // skip highest 4 bits (always set to 0 for Fr)
+    for (int i = 0; i < 32; i++) {
+        uint8_t c = (*x)[i];
+        for (int j = j0; j < 8; j++) {
+            ext_double(v);
+            if (((c >> (7-j)) & 1) != 0) {
+                ext_add(v, base);
+            }
+            else {
+                ext_add(v, &IDENTITY_NIELS);
+            }
+        }
+        j0 = 0;
+    }
     return 0;
 }
+
+
+int jubjub_test(extended_point_t *v) {
+    fr_t x;
+    memset(&x, 0, 32);
+    x[31] = 12;
+
+    ext_base_mult(v, &SPENDING_GENERATOR_NIELS, &x);
+    return 0;
+}
+
