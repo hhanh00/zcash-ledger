@@ -48,4 +48,5 @@ int handler_test_math() {
 
     // swap_endian((u_int8_t *)&p, 32);
     return helper_send_response_bytes((u_int8_t *)&G_context.address, 78);
+    // return helper_send_response_bytes((u_int8_t *)&G_context.exp_sk_info.out, 160);
 }

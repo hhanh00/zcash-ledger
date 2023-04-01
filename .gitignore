@@ -27,3 +27,6 @@ __pycache__/
 # Doxygen
 doc/html
 doc/latex
+
+*.png
+scratchpad.txt

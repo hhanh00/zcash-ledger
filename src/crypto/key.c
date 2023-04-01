@@ -85,15 +85,11 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
 
                 uint8_t gd_hash[32];
                 jubjub_hash(gd_hash, (uint8_t *)&exp_sk->d, 11);
+                // memmove(&G_context.exp_sk_info.out, gd_hash, 32);
 
                 error = extn_from_bytes(&g_d, gd_hash);
                 if (!error) break;
             }
-
-            // ivk
-            // pk_d = gd_p * ivk
-            // address = (d, pk_d)
-            // bech32
 
             uint8_t ak[32];
             uint8_t nk[32];
@@ -102,15 +98,26 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
             n_to_pk(nk, &exp_sk->nsk);
             calc_ivk((uint8_t *)&exp_sk->ivk, (uint8_t *)&ak, (uint8_t *)&nk);
 
-            memmove(&exp_sk->out, &exp_sk->ivk, 32);
+            // memmove(&exp_sk->out, &exp_sk->ivk, 32);
 
             extended_point_t pk_d;
-            ext_base_mult(&pk_d, &g_d, &exp_sk->ivk);
+            fr_t ivk;
+            memmove(&ivk, &exp_sk->ivk, 32);
+            swap_endian((uint8_t *)&ivk, 32);
+            ext_base_mult(&pk_d, &g_d, &ivk);
+            // memmove(&G_context.exp_sk_info.out, &ivk, 32);
+            // swap_endian(&G_context.exp_sk_info.out[0], 32);
+            // memmove(&G_context.exp_sk_info.out, &pk_d, 160);
+            // for (int i = 0; i < 5; i++)
+            //   swap_endian(&G_context.exp_sk_info.out[i], 32);
 
             uint8_t pk_d_bytes[32];
             ext_to_bytes(pk_d_bytes, &pk_d);
+            // memmove(&G_context.exp_sk_info.out, &pk_d_bytes, 32);
 
             to_address_bech32(G_context.address, exp_sk->d, pk_d_bytes);
+            // memset(&G_context.exp_sk_info.out, 0, 160);
+            // memmove(&G_context.exp_sk_info.out, &G_context.address, 80);
         }
         CATCH_OTHER(e) {
             error = e;

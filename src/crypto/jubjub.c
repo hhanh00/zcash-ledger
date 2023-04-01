@@ -171,38 +171,39 @@ int ext_to_bytes(uint8_t *v, const extended_point_t *a) {
     return 0;
 }
 
-int extn_from_bytes(extended_niels_point_t *v, const uint8_t *a) {
+int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     int error = 0;
-    fq_t b;
-    memmove(&b, a, 32);
+    fq_t v;
+    memmove(&v, v0, 32);
 
-    uint8_t *pb = (uint8_t *)&b;
+    uint8_t *pv = (uint8_t *)&v;
 
-    uint8_t sign = pb[31] >> 7;
-    pb[31] &= 0x7F;
-    swap_endian(pb, 32);
+    uint8_t sign = pv[31] >> 7;
+    pv[31] &= 0x7F;
+    swap_endian(pv, 32);
 
-    if (!fq_ok(&b)) return CX_INVALID_PARAMETER;
+    if (!fq_ok(&v)) return CX_INVALID_PARAMETER;
 
-    fq_square(&b);
+    fq_t v2;
+    memmove(&v2, v, 32);
+    fq_square(&v2);
 
-    fq_t b2;
-    memmove(&b2, b, 32);
+    fq_t v2m1;
+    fq_sub(&v2m1, &v2, &fq_1); // v2-1
 
-    fq_sub(&b, &b, &fq_1); // v2-1
-
-    fq_mult(&b2, &b2, &fq_D); //v2*D
-    fq_add(&b2, &b2, &fq_1); //v2*D+1
-    fq_inv(&b2); // 1/(v2*D+1)
-    fq_mult(&b, &b, &b2); // (v2-1)/(v2*D+1)
+    fq_mult(&v2, &v2, &fq_D); //v2*D
+    fq_add(&v2, &v2, &fq_1); //v2*D+1
+    fq_inv(&v2); // 1/(v2*D+1)
+    fq_mult(&v2, &v2m1, &v2); // v2 = (v2-1)/(v2*D+1)
+    // memmove(&G_context.exp_sk_info.out, &v2, 32);
 
     cx_bn_lock(32, 0);
     cx_bn_t u2, m, bn_u;
-    cx_bn_alloc_init(&u2, 32, (uint8_t *)&b, 32);
+    cx_bn_alloc_init(&u2, 32, (uint8_t *)&v2, 32);
     cx_bn_alloc_init(&m, 32, (uint8_t *)&fq_m, 32);
     cx_bn_alloc(&bn_u, 32);
 
-    error = cx_bn_mod_sqrt(bn_u, u2, m, 1);
+    error = cx_bn_mod_sqrt(bn_u, u2, m, sign);
 
     fq_t u;
     cx_bn_export(bn_u, (uint8_t *)&u, 32);
@@ -210,18 +211,25 @@ int extn_from_bytes(extended_niels_point_t *v, const uint8_t *a) {
 
     if (error) return error;
 
-    bool flip_sign = (u[31] ^ sign) != 0;
-    if (flip_sign)
-        fq_neg(&u);
+    extended_point_t p;
+    memmove(&p.u, &u, 32);
+    memmove(&p.v, &v, 32);
+    memmove(&p.z, &fq_1, 32);
+    memmove(&p.t1, &u, 32);
+    memmove(&p.t2, &v, 32);
+    
+    ext_double(&p);
+    ext_double(&p);
+    ext_double(&p); // * by cofactor
 
-    fq_add(&v->vpu, &b, &u);
-    fq_sub(&v->vmu, &b, &u);
-    memmove(&v->z, &fq_1, 32);
-    memmove(&v->t2d, fq_D, 32);
-    fq_square(&v->t2d);
-    fq_mult(&v->t2d, &v->t2d, &u);
-    fq_mult(&v->t2d, &v->t2d, &b);
+    fq_add(&r->vpu, &p.v, &p.u);
+    fq_sub(&r->vmu, &p.v, &p.u);
+    memmove(&r->z, &p.z, 32);
+    memmove(&r->t2d, fq_D2, 32);
+    fq_mult(&r->t2d, &r->t2d, &p.t1);
+    fq_mult(&r->t2d, &r->t2d, &p.t2);
 
+    // memmove(&G_context.exp_sk_info.out, r, 32*4);
     return 0;
 }
 

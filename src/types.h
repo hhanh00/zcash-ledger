@@ -65,7 +65,7 @@ typedef uint8_t div_t[11];
  * Diversifiable viewing key
 */ 
 typedef struct {
-    hash_t out;
+    hash_t out[5];
     jubjub_point_t ask;
     jubjub_point_t nsk;
     ovk_t ovk;
