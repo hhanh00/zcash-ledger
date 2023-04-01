@@ -71,6 +71,7 @@ typedef struct {
     ovk_t ovk;
     dk_t dk;
     div_t d;
+    fr_t ivk;
 } expanded_spending_key_t;
 
 /**

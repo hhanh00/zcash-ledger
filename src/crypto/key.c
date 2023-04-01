@@ -24,6 +24,7 @@
 #include "fr.h"
 #include "ff1.h"
 #include "jubjub.h"
+#include "blake2s.h"
 
 #include "globals.h"
 
@@ -94,8 +95,15 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
             // bech32
 
             memmove(&exp_sk->out, &gd_p.u, 32);
-            memset(&exp_sk->out, 0, 32);
-            memmove(&exp_sk->out, &exp_sk->d, 11);
+
+            uint8_t ak[32];
+            uint8_t nk[32];
+
+            a_to_pk(ak, &exp_sk->ask);
+            n_to_pk(nk, &exp_sk->nsk);
+            calc_ivk((uint8_t *)&exp_sk->ivk, (uint8_t *)&ak, (uint8_t *)&nk);
+
+            memmove(&exp_sk->out, &exp_sk->ivk, 32);
 
             // initialize diversifier_index = [0; 11]
             // loop:
@@ -127,4 +135,23 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
     END_TRY;
 
     return error;
+}
+
+int calc_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk) {
+    blake2s_state hash_ctx;
+    blake2s_param hash_params;
+    memset(&hash_params, 0, sizeof(hash_params));
+    hash_params.digest_length = 32;
+    hash_params.fanout = 1;
+    hash_params.depth = 1;
+    memmove(&hash_params.personal, "Zcashivk", 8);
+
+    blake2s_init_param(&hash_ctx, &hash_params);
+    blake2s_update(&hash_ctx, ak, 32);
+    blake2s_update(&hash_ctx, nk, 32);
+    blake2s_final(&hash_ctx, ivk, 32);
+
+    ivk[31] &= 0x07;
+
+    return 0;
 }
