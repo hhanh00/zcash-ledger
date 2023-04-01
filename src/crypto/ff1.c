@@ -60,6 +60,9 @@ Res = A | B
 
 int ff1(uint8_t *d, const uint8_t *dk, uint8_t *di) {
     int error = 0;
+
+    swap_bit_endian(di, 11);
+
     uint8_t a[6];
     uint8_t b[6];
 
@@ -118,14 +121,7 @@ int ff1(uint8_t *d, const uint8_t *dk, uint8_t *di) {
     }
     d[5] = a[5] << 4 | (b[0] & 0x0F);
 
-    // reverse each byte bit by bit
-    for (int i = 0; i < 11; i++) {
-        uint8_t b = d[i];
-        b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
-        b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
-        b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-        d[i] = b;
-    }
+    swap_bit_endian(d, 11);
 
     return error;
 }

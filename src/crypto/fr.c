@@ -31,6 +31,16 @@ void swap_endian(uint8_t *data, int8_t len) {
     }
 }
 
+void swap_bit_endian(uint8_t *data, int8_t len) {
+    for (int i = 0; i < len; i++) {
+        uint8_t b = data[i];
+        b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+        b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+        b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+        data[i] = b;
+    }
+}
+
 int fr_from_wide(uint8_t *data_512) {
     int error = 0;
 

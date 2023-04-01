@@ -48,38 +48,54 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
             uint8_t xsk[64];
             memmove(xsk, spending_key, 32); // ask
             error = prf_expand_seed(xsk, 0);
-            if (error != 0) return error;
+            if (error) return error;
             error = fr_from_wide(xsk);
-            if (error != 0) return error;
+            if (error) return error;
             memmove(&exp_sk->ask, xsk, 32);
 
             memmove(xsk, spending_key, 32); // nsk
             error = prf_expand_seed(xsk, 1);
-            if (error != 0) return error;
+            if (error) return error;
             error = fr_from_wide(xsk);
-            if (error != 0) return error;
+            if (error) return error;
             memmove(&exp_sk->nsk, xsk, 32);
 
             memmove(xsk, spending_key, 32); // ovk
             error = prf_expand_seed(xsk, 2);
-            if (error != 0) return error;
+            if (error) return error;
             memmove(&exp_sk->ovk, xsk, 32);
 
             // dk - diversifier key
             memmove(xsk, spending_key, 32); // ovk
             error = prf_expand_seed(xsk, 0x10);
-            if (error != 0) return error;
+            if (error) return error;
             memmove(&exp_sk->dk, xsk, 32);
 
             uint8_t di[11];
             memset(di, 0, 11);
 
-            error = ff1((uint8_t *)&exp_sk->d, (uint8_t *)&exp_sk->dk, di);
+            extended_point_t gd_p;
+            for (uint32_t i = 0; ; i++) {
+                memset(di, 0, 11);
+                memmove(di, &i, 4);
 
-            uint8_t gd[32];
-            jubjub_hash(gd, (uint8_t *)&exp_sk->d, 11);
+                ff1((uint8_t *)&exp_sk->d, (uint8_t *)&exp_sk->dk, di);
 
-            memmove(&exp_sk->out, gd, 32);
+                uint8_t gd[32];
+                jubjub_hash(gd, (uint8_t *)&exp_sk->d, 11);
+
+                error = ext_from_bytes(&gd_p, gd);
+                if (!error) break;
+            }
+
+            // ivk
+            // pk_d = gd_p * ivk
+            // address = (d, pk_d)
+            // bech32
+
+            memmove(&exp_sk->out, &gd_p.u, 32);
+            memset(&exp_sk->out, 0, 32);
+            memmove(&exp_sk->out, &exp_sk->d, 11);
 
             // initialize diversifier_index = [0; 11]
             // loop:

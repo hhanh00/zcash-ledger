@@ -226,6 +226,58 @@ int ext_to_bytes(uint8_t *v, const extended_point_t *a) {
 
     uint8_t sign = u[31] & 1;
     v[0] |= sign << 7;
+
+    swap_endian(v, 32);
+    return 0;
+}
+
+int ext_from_bytes(extended_point_t *v, const uint8_t *a) {
+    int error = 0;
+    fq_t b;
+    memmove(&b, a, 32);
+
+    uint8_t *pb = (uint8_t *)&b;
+
+    uint8_t sign = pb[31] >> 7;
+    pb[31] &= 0x7F;
+    swap_endian(pb, 32);
+
+    if (!fq_ok(&b)) return CX_INVALID_PARAMETER;
+
+    fq_square(&b);
+
+    fq_t b2;
+    memmove(&b2, b, 32);
+
+    fq_sub(&b, &b, &fq_1); // v2-1
+
+    fq_mult(&b2, &b2, &fq_D); //v2*D
+    fq_add(&b2, &b2, &fq_1); //v2*D+1
+    fq_inv(&b2); // 1/(v2*D+1)
+    fq_mult(&b, &b, &b2); // (v2-1)/(v2*D+1)
+
+    cx_bn_lock(32, 0);
+    cx_bn_t u2, m, bn_u;
+    cx_bn_alloc_init(&u2, 32, (uint8_t *)&b, 32);
+    cx_bn_alloc_init(&m, 32, (uint8_t *)&fq_m, 32);
+    cx_bn_alloc(&bn_u, 32);
+
+    error = cx_bn_mod_sqrt(bn_u, u2, m, 1);
+
+    fq_t u;
+    cx_bn_export(bn_u, (uint8_t *)&u, 32);
+    cx_bn_unlock();
+
+    if (error) return error;
+
+    bool flip_sign = (u[31] ^ sign) != 0;
+    if (flip_sign)
+        fq_neg(&u);
+
+    ext_set_identity(v);
+    memmove(&v->u, &u, 32);
+    memmove(&v->v, &v, 32);
+
     return 0;
 }
 
@@ -248,9 +300,6 @@ int jubjub_hash(uint8_t *gd, const uint8_t *d, size_t len) {
     return error;
 }
 
-int ext_from_bytes(extended_point_t *v, const uint8_t *a) {
-    return 0;
-}
 
 
 int jubjub_test(fq_t *r) {
