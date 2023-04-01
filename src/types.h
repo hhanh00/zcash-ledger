@@ -59,6 +59,7 @@ typedef uint8_t hash_t[32];
 typedef uint8_t jubjub_point_t[32];
 typedef uint8_t ovk_t[32];
 typedef uint8_t dk_t[32];
+typedef uint8_t div_t[11];
 
 /**
  * Diversifiable viewing key
@@ -66,7 +67,9 @@ typedef uint8_t dk_t[32];
 typedef struct {
     fr_t ask;
     fr_t nsk;
-    hash_t ovk;
+    ovk_t ovk;
+    dk_t dk;
+    div_t d;
 } expanded_spending_key_t;
 
 /**

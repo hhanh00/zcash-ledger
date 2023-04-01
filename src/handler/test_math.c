@@ -36,15 +36,16 @@
 
 int handler_test_math() {
     explicit_bzero(&G_context, sizeof(G_context));
-    // expanded_spending_key_t response;
-    // int error = crypto_derive_spending_key(&response);
-
-    fr_t p;
-    memset(&p, 0, 32);
-    p[31] = 12;
-    int error = jubjub_test(&p);
+    expanded_spending_key_t response;
+    int error = crypto_derive_spending_key(&response);
     if (error != 0) return io_send_sw(error);
 
-    swap_endian((u_int8_t *)&p, 32);
-    return helper_send_response_bytes((u_int8_t *)&p, 32);
+    // fr_t p;
+    // memset(&p, 0, 32);
+    // p[31] = 12;
+    // int error = jubjub_test(&p);
+    // if (error != 0) return io_send_sw(error);
+
+    // swap_endian((u_int8_t *)&p, 32);
+    return helper_send_response_bytes((u_int8_t *)&response + 128, 11);
 }
