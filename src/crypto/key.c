@@ -45,7 +45,8 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
                                        NULL);
 
             // set spending key to 0 for testing
-            memset(spending_key, 0, 32);                                       
+            // memset(spending_key, 0, 32);
+            // memmove(&G_context.exp_sk_info.out, spending_key, 32);
 
             uint8_t xsk[64];
             memmove(xsk, spending_key, 32); // ask
