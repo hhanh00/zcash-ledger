@@ -23,6 +23,7 @@
 #include "prf.h"
 #include "fr.h"
 #include "ff1.h"
+#include "jubjub.h"
 
 #include "globals.h"
 
@@ -74,6 +75,11 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
             memset(di, 0, 11);
 
             error = ff1((uint8_t *)&exp_sk->d, (uint8_t *)&exp_sk->dk, di);
+
+            uint8_t gd[32];
+            jubjub_hash(gd, (uint8_t *)&exp_sk->d, 11);
+
+            memmove(&exp_sk->out, gd, 32);
 
             // initialize diversifier_index = [0; 11]
             // loop:

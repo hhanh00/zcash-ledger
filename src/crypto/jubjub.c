@@ -18,6 +18,7 @@
 #include <stdint.h>   // uint*_t
 #include <string.h>   // memset, explicit_bzero
 #include <stdbool.h>  // bool
+#include <blake2s.h>
 
 #include "fr.h"
 #include "jubjub.h"
@@ -227,6 +228,30 @@ int ext_to_bytes(uint8_t *v, const extended_point_t *a) {
     v[0] |= sign << 7;
     return 0;
 }
+
+int jubjub_hash(uint8_t *gd, const uint8_t *d, size_t len) {
+    int error = 0;
+
+    blake2s_state hash_ctx;
+    blake2s_param hash_params;
+    memset(&hash_params, 0, sizeof(hash_params));
+    hash_params.digest_length = 32;
+    hash_params.fanout = 1;
+    hash_params.depth = 1;
+    memmove(&hash_params.personal, "Zcash_gd", 8);
+
+    blake2s_init_param(&hash_ctx, &hash_params);
+    blake2s_update(&hash_ctx, "096b36a5804bfacef1691e173c366a47ff5ba84a44f26ddd7e8d9f79d5b42df0", 64);
+    blake2s_update(&hash_ctx, d, len);
+    blake2s_final(&hash_ctx, gd, 32);
+
+    return error;
+}
+
+int ext_from_bytes(extended_point_t *v, const uint8_t *a) {
+    return 0;
+}
+
 
 int jubjub_test(fq_t *r) {
     extended_point_t v;

@@ -47,5 +47,5 @@ int handler_test_math() {
     // if (error != 0) return io_send_sw(error);
 
     // swap_endian((u_int8_t *)&p, 32);
-    return helper_send_response_bytes((u_int8_t *)&response + 128, 11);
+    return helper_send_response_bytes((u_int8_t *)&response, 32);
 }
