@@ -37,7 +37,6 @@
 #include "menu.h"
 
 static action_validate_cb g_validate_callback;
-static char g_address[ADDRESS_LEN];
 
 static void ui_action_validate_fvk(bool choice) {
     validate_fvk(choice);
@@ -51,7 +50,7 @@ UX_STEP_NOCB(ux_display_address_step,
              bnnn_paging,
              {
                  .title = "Address",
-                 .text = g_address,
+                 .text = G_context.address,
              });
 // Step with approve button
 UX_STEP_CB(ux_display_approve_step,
@@ -86,12 +85,6 @@ int ui_display_address() {
         G_context.state = STATE_NONE;
         return io_send_sw(SW_BAD_STATE);
     }
-
-    memset(g_address, 0, sizeof(g_address));
-    uint8_t address[ADDRESS_LEN-1] = {0};
-    // TODO encode default address of fvk
-
-    snprintf(g_address, sizeof(g_address), "0x%.*H", sizeof(address), address);
 
     g_validate_callback = &ui_action_validate_fvk;
 

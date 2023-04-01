@@ -82,7 +82,7 @@ int extn_set_identity(extended_niels_point_t *v);
 int ext_double(extended_point_t *v);
 int ext_add(extended_point_t *v, const extended_niels_point_t *a);
 int ext_to_bytes(uint8_t *v, const extended_point_t *a);
-int ext_from_bytes(extended_point_t *v, const uint8_t *a);
+int extn_from_bytes(extended_niels_point_t *v, const uint8_t *a);
 
 int ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t *x);
 

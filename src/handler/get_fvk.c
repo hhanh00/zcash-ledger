@@ -31,21 +31,18 @@
 #include "../common/buffer.h"
 #include "../ui/display.h"
 #include "../helper/send_response.h"
+#include "../crypto/key.h"
 
 int handler_get_fvk(bool display) {
     explicit_bzero(&G_context, sizeof(G_context));
     G_context.req_type = CONFIRM_ADDRESS;
     G_context.state = STATE_NONE;
 
-    // TODO: derive the spending key
-    // and the fvk
-    // store fvk in the global context
-
     int error = 0;
 
-    if (error != 0) {
-        return io_send_sw(error);
-    }
+    expanded_spending_key_t esk;
+    error = crypto_derive_spending_key(&esk);
+    if (error != 0) return io_send_sw(error);
 
     if (display) {
         return ui_display_address();

@@ -35,4 +35,4 @@
  */
 #define EXPONENT_SMALLEST_UNIT 3
 
-#define ADDRESS_LEN 43
+#define ADDRESS_LEN 80

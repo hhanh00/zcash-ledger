@@ -171,7 +171,7 @@ int ext_to_bytes(uint8_t *v, const extended_point_t *a) {
     return 0;
 }
 
-int ext_from_bytes(extended_point_t *v, const uint8_t *a) {
+int extn_from_bytes(extended_niels_point_t *v, const uint8_t *a) {
     int error = 0;
     fq_t b;
     memmove(&b, a, 32);
@@ -214,9 +214,13 @@ int ext_from_bytes(extended_point_t *v, const uint8_t *a) {
     if (flip_sign)
         fq_neg(&u);
 
-    ext_set_identity(v);
-    memmove(&v->u, &u, 32);
-    memmove(&v->v, &v, 32);
+    fq_add(&v->vpu, &b, &u);
+    fq_sub(&v->vmu, &b, &u);
+    memmove(&v->z, &fq_1, 32);
+    memmove(&v->t2d, fq_D, 32);
+    fq_square(&v->t2d);
+    fq_mult(&v->t2d, &v->t2d, &u);
+    fq_mult(&v->t2d, &v->t2d, &b);
 
     return 0;
 }

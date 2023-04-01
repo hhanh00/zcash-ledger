@@ -66,8 +66,8 @@ typedef uint8_t div_t[11];
 */ 
 typedef struct {
     hash_t out;
-    fr_t ask;
-    fr_t nsk;
+    jubjub_point_t ask;
+    jubjub_point_t nsk;
     ovk_t ovk;
     dk_t dk;
     div_t d;
@@ -84,7 +84,7 @@ typedef struct {
     jubjub_point_t ak; // authorizing key
     jubjub_point_t nk; // nullifier key
     ovk_t ovk;         // outgoing viewing key
-    dk_t dk;           // diviersifier key
+    dk_t dk;           // diversifier key
 } fvk_ctx_t;
 
 /**
@@ -96,5 +96,6 @@ typedef struct {
         fvk_ctx_t fvk_info;
         expanded_spending_key_t exp_sk_info;
     };
+    char address[80];
     request_type_e req_type;              /// user request
 } global_ctx_t;

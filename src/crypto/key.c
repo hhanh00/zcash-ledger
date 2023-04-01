@@ -25,6 +25,7 @@
 #include "ff1.h"
 #include "jubjub.h"
 #include "blake2s.h"
+#include "bech32.h"
 
 #include "globals.h"
 
@@ -75,17 +76,17 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
             uint8_t di[11];
             memset(di, 0, 11);
 
-            extended_point_t gd_p;
+            extended_niels_point_t g_d;
             for (uint32_t i = 0; ; i++) {
                 memset(di, 0, 11);
                 memmove(di, &i, 4);
 
                 ff1((uint8_t *)&exp_sk->d, (uint8_t *)&exp_sk->dk, di);
 
-                uint8_t gd[32];
-                jubjub_hash(gd, (uint8_t *)&exp_sk->d, 11);
+                uint8_t gd_hash[32];
+                jubjub_hash(gd_hash, (uint8_t *)&exp_sk->d, 11);
 
-                error = ext_from_bytes(&gd_p, gd);
+                error = extn_from_bytes(&g_d, gd_hash);
                 if (!error) break;
             }
 
@@ -93,8 +94,6 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
             // pk_d = gd_p * ivk
             // address = (d, pk_d)
             // bech32
-
-            memmove(&exp_sk->out, &gd_p.u, 32);
 
             uint8_t ak[32];
             uint8_t nk[32];
@@ -105,26 +104,13 @@ int crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
 
             memmove(&exp_sk->out, &exp_sk->ivk, 32);
 
-            // initialize diversifier_index = [0; 11]
-            // loop:
-            // map di to diversifier:
-            // use FF1::<Aes256> with key = dk, radix = 2
-            // encrypt di
-            // check if di is valid:
-            // group_hash = blake2s(di)
-            // extended_point from gh bytes
-            // check if valid point gd
-            // return (di, d, gd)
-            // increment di
-            // end loop
+            extended_point_t pk_d;
+            ext_base_mult(&pk_d, &g_d, &exp_sk->ivk);
 
-            // ivk:
-            // blake2s(ak|nk)
-            // cast to Fr
-            // pkd = gd * ivk
-            
-            // address: 11+32 bytes
-            // bech32(d, pkd)
+            uint8_t pk_d_bytes[32];
+            ext_to_bytes(pk_d_bytes, &pk_d);
+
+            to_address_bech32(G_context.address, exp_sk->d, pk_d_bytes);
         }
         CATCH_OTHER(e) {
             error = e;
@@ -155,3 +141,15 @@ int calc_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk) {
 
     return 0;
 }
+
+int to_address_bech32(char *address, uint8_t *d, uint8_t *pk_d) {
+    uint8_t buffer[70];
+    uint8_t data[43];
+    memmove(data, d, 11);
+    memmove(data + 11, pk_d, 32);
+    size_t buffer_len = 0;
+    convert_bits(buffer, &buffer_len, 5, data, 43, 8, 1);
+    bech32_encode(address, "zs", buffer, buffer_len, BECH32_ENCODING_BECH32);
+    return 0;
+}
+
