@@ -44,3 +44,10 @@ make DEBUG=1  # compile optionally with PRINTF
 make load     # load the app on the Nano using ledgerblue
 ```
 
+## Run in Speculos
+
+```
+docker run --rm -it -v $(pwd)/bin:/speculos/apps --publish 9999:9999 speculos --display headless --apdu-port 9999 apps/app.elf
+```
+
+Send APDU: `echo 'e006000000' | LEDGER_PROXY_ADDRESS=127.0.0.1 LEDGER_PROXY_PORT=9999 ledgerctl send -`
