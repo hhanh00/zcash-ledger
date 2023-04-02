@@ -52,23 +52,20 @@ static const extended_niels_point_t IDENTITY_NIELS = {
         },
 };
 
-int ext_set_identity(extended_point_t *v) {
+void ext_set_identity(extended_point_t *v) {
     memset(v, 0, sizeof(extended_point_t));
     v->v[31] = 1;
     v->z[31] = 1;
-    return 0;
 }
 
-int extn_set_identity(extended_niels_point_t *v) {
-    memset(v, 0, sizeof(extended_point_t));
+void extn_set_identity(extended_niels_point_t *v) {
+    memset(v, 0, sizeof(extended_niels_point_t));
     v->vpu[31] = 1;
     v->vmu[31] = 1;
     v->z[31] = 1;
-    return 0;
 }
 
-
-int ext_double(extended_point_t *v) {
+void ext_double(extended_point_t *v) {
     fq_t uu;
     memmove(&uu, &v->u, 32);
     fq_square(&uu);
@@ -100,11 +97,9 @@ int ext_double(extended_point_t *v) {
     fq_mult(&v->u, &v->t1, &t);
     fq_mult(&v->v, &v->t2, &vmu);
     fq_mult(&v->z, &vmu, &t);
-
-    return 0;
 }
 
-int ext_add(extended_point_t *x, const extended_niels_point_t *y) {
+void ext_add(extended_point_t *x, const extended_niels_point_t *y) {
     fq_t a;
     fq_t b;
     fq_sub(&a, &x->v, &x->u);
@@ -131,11 +126,9 @@ int ext_add(extended_point_t *x, const extended_niels_point_t *y) {
     fq_mult(&x->u, &x->t1, &v);
     fq_mult(&x->v, &x->t2, &u);
     fq_mult(&x->z, &u, &v);
-
-    return 0;
 }
 
-int ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t *x) {
+void ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t *x) {
     ext_set_identity(v);
 
     int j0 = 4; // skip highest 4 bits (always set to 0 for Fr)
@@ -152,10 +145,9 @@ int ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t 
         }
         j0 = 0;
     }
-    return 0;
 }
 
-int ext_to_bytes(uint8_t *v, const extended_point_t *a) {
+void ext_to_bytes(uint8_t *v, const extended_point_t *a) {
     fq_t zinv;
     memmove(&zinv, &a->z, 32);
     fq_inv(&zinv);
@@ -168,7 +160,6 @@ int ext_to_bytes(uint8_t *v, const extended_point_t *a) {
     v[0] |= sign << 7;
 
     swap_endian(v, 32);
-    return 0;
 }
 
 int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
@@ -233,9 +224,7 @@ int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     return 0;
 }
 
-int jubjub_hash(uint8_t *gd, const uint8_t *d, size_t len) {
-    int error = 0;
-
+void jubjub_hash(uint8_t *gd, const uint8_t *d, size_t len) {
     blake2s_state hash_ctx;
     blake2s_param hash_params;
     memset(&hash_params, 0, sizeof(hash_params));
@@ -248,22 +237,10 @@ int jubjub_hash(uint8_t *gd, const uint8_t *d, size_t len) {
     blake2s_update(&hash_ctx, "096b36a5804bfacef1691e173c366a47ff5ba84a44f26ddd7e8d9f79d5b42df0", 64);
     blake2s_update(&hash_ctx, d, len);
     blake2s_final(&hash_ctx, gd, 32);
-
-    return error;
 }
 
-int jubjub_to_pk(uint8_t *pk, const extended_niels_point_t *gen, fr_t *sk) {
+void jubjub_to_pk(uint8_t *pk, const extended_niels_point_t *gen, fr_t *sk) {
     extended_point_t temp;
     ext_base_mult(&temp, gen, sk);
     ext_to_bytes(pk, &temp);
-    return 0;
 }
-
-int jubjub_test(fq_t *r) {
-    extended_point_t v;
-
-    ext_base_mult(&v, &SPENDING_GENERATOR_NIELS, r);
-    ext_to_bytes((uint8_t *)r, &v);
-    return 0;
-}
-

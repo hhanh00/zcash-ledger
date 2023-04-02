@@ -24,25 +24,11 @@
 
 #include "globals.h"
 
-int prf_expand_seed(uint8_t *key, uint8_t t) {
-    int error = 0;
-    
-    BEGIN_TRY {
-        TRY {
-            cx_blake2b_t hash_ctx;
+void prf_expand_seed(uint8_t *key, uint8_t t) {
+    cx_blake2b_t hash_ctx;
 
-            cx_blake2b_init2_no_throw(&hash_ctx, 512, NULL, 0, (uint8_t *)"Zcash_ExpandSeed", 16);
-            cx_hash((cx_hash_t *)&hash_ctx, 0, key, 32, NULL, 0);
-            cx_hash((cx_hash_t *)&hash_ctx, CX_LAST, &t, 1, key, 64);
-        }
-        CATCH_OTHER(e) {
-            error = e;
-        }
-        FINALLY {
-        }
-    }
-    END_TRY;
-
-    return error;
+    cx_blake2b_init2_no_throw(&hash_ctx, 512, NULL, 0, (uint8_t *)"Zcash_ExpandSeed", 16);
+    cx_hash((cx_hash_t *)&hash_ctx, 0, key, 32, NULL, 0);
+    cx_hash((cx_hash_t *)&hash_ctx, CX_LAST, &t, 1, key, 64);
 }
 

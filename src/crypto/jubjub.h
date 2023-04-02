@@ -2,11 +2,16 @@
 
 #include "../types.h"
 
+/// @brief point on JJ given by u,v coordinates
+/// -u^2 + v^2 = 1 + d.u^2.v^2 where d is a constant parameter
 typedef struct {
     fq_t u;
     fq_t v;
 } affine_point_t;
 
+/// @brief extended point on JJ
+/// we have T1 * T2 = UV/Z
+/// and u = U/Z and v = V/Z
 typedef struct {
     fq_t u;
     fq_t v;
@@ -15,6 +20,11 @@ typedef struct {
     fq_t t2;
 } extended_point_t;
 
+/// @brief extended niels point on JJ
+/// vpu = V+U
+/// vmu = V-U
+/// z = Z
+/// t2d = T1*T2*2*D
 typedef struct {
     fq_t vpu;
     fq_t vmu;
@@ -22,6 +32,8 @@ typedef struct {
     fq_t t2d;
 } extended_niels_point_t;
 
+/// @brief Generator point for the spending authorization key pair
+/// in Niels form
 static const extended_niels_point_t SPENDING_GENERATOR_NIELS = {
     .vpu =
         {
@@ -49,6 +61,8 @@ static const extended_niels_point_t SPENDING_GENERATOR_NIELS = {
         },
 };
 
+/// @brief Generator point for the nullifier key pair
+/// in Niels form
 static const extended_niels_point_t PROOF_GENERATOR_NIELS = {
     .vpu =
         {
@@ -76,26 +90,66 @@ static const extended_niels_point_t PROOF_GENERATOR_NIELS = {
         },
 };
 
-int ext_set_identity(extended_point_t *v);
-int extn_set_identity(extended_niels_point_t *v);
+/// @brief Set to the identity point
+/// @param v extended point
+void ext_set_identity(extended_point_t *v);
 
-int ext_double(extended_point_t *v);
-int ext_add(extended_point_t *v, const extended_niels_point_t *a);
-int ext_to_bytes(uint8_t *v, const extended_point_t *a);
+/// @brief Set to the identity point
+/// @param v extended Niels point
+void extn_set_identity(extended_niels_point_t *v);
+
+/// @brief v+v -> v
+/// @param v 
+void ext_double(extended_point_t *v);
+
+/// @brief v + a -> v
+/// @param v 
+/// @param a 
+/// Note that a is a extended Niels point but v is not
+void ext_add(extended_point_t *v, const extended_niels_point_t *a);
+
+/// @brief convert a point to a 32-byte value
+/// @param v v coordinate of a with sign of u encoded in highest bit
+/// @param a 
+void ext_to_bytes(uint8_t *v, const extended_point_t *a);
+
+/// @brief convert a 32-byte array to a point
+/// It fails if there is no point that has a v coordinate == a 
+/// @param v 
+/// @param a 
+/// @return CX_OK success, 
+///         CX_INVALID_PARAMETER a does not match a point on JJ
 int extn_from_bytes(extended_niels_point_t *v, const uint8_t *a);
 
-int ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t *x);
+/// @brief multiply base by x
+/// This is the trapdoor function to go from secret key to public key
+/// @param v 
+/// @param base 
+/// @param x 
+void ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t *x);
 
-int jubjub_hash(uint8_t *gd, const uint8_t *d, size_t len);
+/// @brief hashes an array of len bytes
+/// @param hash hash value (may not belong to JJ)
+/// @param data pointer to the beginning of the array
+/// @param len length of the array
+void jubjub_hash(uint8_t *hash, const uint8_t *data, size_t len);
 
-int jubjub_to_pk(uint8_t *pk, const extended_niels_point_t *gen, fr_t *sk);
+/// @brief compute a public key by multiplying the generator gen with sk
+/// @param pk 
+/// @param gen 
+/// @param sk 
+void jubjub_to_pk(uint8_t *pk, const extended_niels_point_t *gen, fr_t *sk);
 
-static inline int a_to_pk(uint8_t *ak, fr_t *ask) {
-    return jubjub_to_pk(ak, &SPENDING_GENERATOR_NIELS, ask);
+/// @brief helper function to go from ask to ak (authorization)
+/// @param ak 
+/// @param ask 
+static inline void a_to_pk(uint8_t *ak, fr_t *ask) {
+    jubjub_to_pk(ak, &SPENDING_GENERATOR_NIELS, ask);
 }
 
-static inline int n_to_pk(uint8_t *nk, fr_t *nsk) {
-    return jubjub_to_pk(nk, &PROOF_GENERATOR_NIELS, nsk);
+/// @brief helper function to go from nsk to nk (nullifier)
+/// @param nk 
+/// @param nsk 
+static inline void n_to_pk(uint8_t *nk, fr_t *nsk) {
+    jubjub_to_pk(nk, &PROOF_GENERATOR_NIELS, nsk);
 }
-
-int jubjub_test(fq_t *r);

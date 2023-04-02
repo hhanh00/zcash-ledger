@@ -26,9 +26,7 @@
 #include "common/buffer.h"
 
 int helper_send_response_fvk() {
-    uint8_t resp[FVK_LEN] = {0};
-    memmove(resp, &G_context.fvk_info, FVK_LEN);
-    return io_send_response(&(const buffer_t){.ptr = resp, .size = FVK_LEN, .offset = 0}, SW_OK);
+    return io_send_response(&(const buffer_t){.ptr = (uint8_t *)&G_context.fvk_info, .size = sizeof(fvk_ctx_t), .offset = 0}, SW_OK);
 }
 
 int helper_send_response_bytes(const u_int8_t *data, int data_len) {

@@ -41,13 +41,12 @@ void swap_bit_endian(uint8_t *data, int8_t len) {
     }
 }
 
-int fr_from_wide(uint8_t *data_512) {
-    int error = 0;
-
+void fr_from_wide(uint8_t *data_512) {
     swap_endian(data_512, 64);
-    error = cx_math_modm_no_throw(data_512, 64, fr_m, 32);
+    cx_math_modm_no_throw(data_512, 64, fr_m, 32);
+    // Once we do the mod operation, the 32 most significant bytes are 0
+    // because the modulus is < 2^256
+    // pick the lower part
     memmove(data_512, data_512 + 32, 32);
-
-    return error;
 }
 

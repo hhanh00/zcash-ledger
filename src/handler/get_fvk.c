@@ -40,13 +40,24 @@ int handler_get_fvk(bool display) {
 
     int error = 0;
 
-    expanded_spending_key_t esk;
-    error = crypto_derive_spending_key(&esk);
-    if (error != 0) return io_send_sw(error);
+    BEGIN_TRY {
+        TRY {
+            crypto_derive_spending_key(&G_context.exp_sk_info);
 
-    if (display) {
-        return ui_display_address();
+            if (display) {
+                return ui_display_address();
+            }
+        }
+        CATCH_OTHER(e) {
+            error = e;
+        }
+        FINALLY {
+        }
     }
+    END_TRY;
 
-    return helper_send_response_fvk();
+    if (error != 0) return io_send_sw(error);
+    // not implemented
+    // return helper_send_response_fvk();
+    return helper_send_response_bytes(NULL, 0);
 }

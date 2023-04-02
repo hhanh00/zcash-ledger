@@ -2,6 +2,12 @@
 
 #include "../types.h"
 
+/**
+ * Reference implementation of the  Blake2s
+ * hashing function
+ *
+*/
+
 enum blake2s_constant
 {
     BLAKE2S_BLOCKBYTES = 64,
