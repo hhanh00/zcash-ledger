@@ -4,7 +4,7 @@
 
 /// @brief derive the expanded spending key
 /// @param exp_sk 
-void crypto_derive_spending_key(expanded_spending_key_t *exp_sk);
+void crypto_derive_spending_key(int account);
 
 /// @brief calculate the incoming viewing key
 /// @param ivk 

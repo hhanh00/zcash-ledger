@@ -29,10 +29,13 @@
 
 #include "globals.h"
 
-// TODO: Add account index
-void crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
-    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000, 0, 0};
+/**
+ * 
+*/
+void crypto_derive_spending_key(int account) {
+    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | account, 0, 0};
 
+    expanded_spending_key_t exp_sk;
     uint8_t spending_key[32];
 
     // derive the seed with bip32_path
@@ -50,21 +53,23 @@ void crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
     memmove(xsk, spending_key, 32); // ask
     prf_expand_seed(xsk, 0);
     fr_from_wide(xsk);
-    memmove(&exp_sk->ask, xsk, 32);
+    memmove(&exp_sk.ask, xsk, 32);
 
     memmove(xsk, spending_key, 32); // nsk
     prf_expand_seed(xsk, 1);
     fr_from_wide(xsk);
-    memmove(&exp_sk->nsk, xsk, 32);
+    memmove(&exp_sk.nsk, xsk, 32);
 
     memmove(xsk, spending_key, 32); // ovk
     prf_expand_seed(xsk, 2);
-    memmove(&exp_sk->ovk, xsk, 32);
+    memmove(&exp_sk.ovk, xsk, 32);
+    memmove(&G_context.fvk_info.ovk, xsk, 32);
 
     // dk - diversifier key
     memmove(xsk, spending_key, 32); // ovk
     prf_expand_seed(xsk, 0x10);
-    memmove(&exp_sk->dk, xsk, 32);
+    memmove(&exp_sk.dk, xsk, 32);
+    memmove(&G_context.fvk_info.dk, xsk, 32);
 
     uint8_t di[11];
     memset(di, 0, 11);
@@ -74,11 +79,10 @@ void crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
         memset(di, 0, 11);
         memmove(di, &i, 4);
 
-        ff1((uint8_t *)&exp_sk->d, (uint8_t *)&exp_sk->dk, di);
+        ff1((uint8_t *)&exp_sk.d, (uint8_t *)&exp_sk.dk, di);
 
         uint8_t gd_hash[32];
-        jubjub_hash(gd_hash, (uint8_t *)&exp_sk->d, 11);
-        // memmove(&G_context.exp_sk_info.out, gd_hash, 32);
+        jubjub_hash(gd_hash, (uint8_t *)&exp_sk.d, 11);
 
         int error = extn_from_bytes(&g_d, gd_hash);
         // if error, retry with next di
@@ -88,30 +92,24 @@ void crypto_derive_spending_key(expanded_spending_key_t *exp_sk) {
     uint8_t ak[32];
     uint8_t nk[32];
 
-    a_to_pk(ak, &exp_sk->ask);
-    n_to_pk(nk, &exp_sk->nsk);
-    calc_ivk((uint8_t *)&exp_sk->ivk, (uint8_t *)&ak, (uint8_t *)&nk);
+    a_to_pk(ak, &exp_sk.ask);
+    memmove(&G_context.fvk_info.ak, ak, 32);
 
-    // memmove(&exp_sk->out, &exp_sk->ivk, 32);
+    n_to_pk(nk, &exp_sk.nsk);
+    memmove(&G_context.fvk_info.nk, nk, 32);
+
+    calc_ivk((uint8_t *)&exp_sk.ivk, (uint8_t *)&ak, (uint8_t *)&nk);
 
     extended_point_t pk_d;
     fr_t ivk;
-    memmove(&ivk, &exp_sk->ivk, 32);
+    memmove(&ivk, &exp_sk.ivk, 32);
     swap_endian((uint8_t *)&ivk, 32);
     ext_base_mult(&pk_d, &g_d, &ivk);
-    // memmove(&G_context.exp_sk_info.out, &ivk, 32);
-    // swap_endian(&G_context.exp_sk_info.out[0], 32);
-    // memmove(&G_context.exp_sk_info.out, &pk_d, 160);
-    // for (int i = 0; i < 5; i++)
-    //   swap_endian(&G_context.exp_sk_info.out[i], 32);
 
     uint8_t pk_d_bytes[32];
     ext_to_bytes(pk_d_bytes, &pk_d);
-    // memmove(&G_context.exp_sk_info.out, &pk_d_bytes, 32);
 
-    to_address_bech32(G_context.address, exp_sk->d, pk_d_bytes);
-    // memset(&G_context.exp_sk_info.out, 0, 160);
-    // memmove(&G_context.exp_sk_info.out, &G_context.address, 80);
+    to_address_bech32(G_context.address, exp_sk.d, pk_d_bytes);
 }
 
 void calc_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk) {

@@ -38,8 +38,8 @@
 
 static action_validate_cb g_validate_callback;
 
-static void ui_action_validate_fvk(bool choice) {
-    validate_fvk(choice);
+static void ui_action_validate_address(bool choice) {
+    validate_address(choice);
     ui_menu_main();
 }
 
@@ -86,7 +86,7 @@ int ui_display_address() {
         return io_send_sw(SW_BAD_STATE);
     }
 
-    g_validate_callback = &ui_action_validate_fvk;
+    g_validate_callback = &ui_action_validate_address;
 
     ux_flow_init(0, ux_display_fvk_flow, NULL);
     return 0;

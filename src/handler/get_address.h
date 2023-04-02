@@ -9,9 +9,8 @@
 
 /**
  * Handler for GET_FULL_VIEWING_KEY command. 
- * Derive fvk and send APDU\ response.
+ * Derive fvk and send APDU response.
  *
  * @return zero or positive integer if success, negative integer otherwise.
- *
  */
-int handler_get_fvk(int account);
+int handler_get_address(bool display);

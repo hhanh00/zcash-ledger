@@ -39,8 +39,7 @@ int handler_test_math() {
     BEGIN_TRY {
         TRY {
             explicit_bzero(&G_context, sizeof(G_context));
-            expanded_spending_key_t response;
-            crypto_derive_spending_key(&response);
+            crypto_derive_spending_key(0);
         }
         CATCH_OTHER(e) {
             error = e;

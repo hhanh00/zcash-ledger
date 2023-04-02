@@ -28,6 +28,7 @@
 #include "../handler/get_version.h"
 #include "../handler/get_app_name.h"
 #include "../handler/get_fvk.h"
+#include "../handler/get_address.h"
 #include "../handler/test_math.h"
 
 int apdu_dispatcher(const command_t *cmd) {
@@ -49,11 +50,17 @@ int apdu_dispatcher(const command_t *cmd) {
 
             return handler_get_app_name();
         case GET_FVK:
+            if (cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+
+            return handler_get_fvk(cmd->p1);
+        case GET_ADDRESS:
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
 
-            return handler_get_fvk((bool) cmd->p1);
+            return handler_get_address(cmd->p1 == 1);
         case TEST_MATH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);

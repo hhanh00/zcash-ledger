@@ -23,9 +23,9 @@
 #include "../../globals.h"
 #include "../../helper/send_response.h"
 
-void validate_fvk(bool choice) {
+void validate_address(bool choice) {
     if (choice) {
-        helper_send_response_fvk();
+        helper_send_response_address();
     } else {
         io_send_sw(SW_DENY);
     }

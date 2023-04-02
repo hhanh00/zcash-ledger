@@ -21,37 +21,13 @@
 #include <string.h>   // memset, explicit_bzero
 
 #include "os.h"
-#include "cx.h"
-
-#include "get_fvk.h"
-#include "../globals.h"
-#include "../types.h"
-#include "../io.h"
-#include "../sw.h"
-#include "../common/buffer.h"
 #include "../ui/display.h"
 #include "../helper/send_response.h"
-#include "../crypto/key.h"
+#include "get_address.h"
 
-int handler_get_fvk(int account) {
-    explicit_bzero(&G_context, sizeof(G_context));
-    G_context.req_type = CONFIRM_ADDRESS;
-    G_context.state = STATE_NONE;
+int handler_get_address(bool display) {
+    if (display)
+        return ui_display_address();
 
-    int error = 0;
-
-    BEGIN_TRY {
-        TRY {
-            crypto_derive_spending_key(account);
-        }
-        CATCH_OTHER(e) {
-            error = e;
-        }
-        FINALLY {
-        }
-    }
-    END_TRY;
-
-    if (error != 0) return io_send_sw(error);
-    return helper_send_response_fvk();
+    return helper_send_response_address();
 }

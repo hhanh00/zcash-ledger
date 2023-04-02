@@ -29,6 +29,10 @@ int helper_send_response_fvk() {
     return io_send_response(&(const buffer_t){.ptr = (uint8_t *)&G_context.fvk_info, .size = sizeof(fvk_ctx_t), .offset = 0}, SW_OK);
 }
 
+int helper_send_response_address() {
+    return io_send_response(&(const buffer_t){.ptr = (uint8_t *)&G_context.address, .size = 78, .offset = 0}, SW_OK);
+}
+
 int helper_send_response_bytes(const u_int8_t *data, int data_len) {
     return io_send_response(&(const buffer_t){.ptr = data, .size = data_len, .offset = 0}, SW_OK);
 }

@@ -9,4 +9,4 @@
  *   User choice (either approved or rejected).
  *
  */
-void validate_fvk(bool choice);
+void validate_address(bool choice);
