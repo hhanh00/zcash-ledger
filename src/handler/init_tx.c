@@ -20,11 +20,14 @@
 #include <stddef.h>   // size_t
 #include <string.h>   // memset, explicit_bzero
 
-#include "os.h"
+#include <lcx_blake2.h>
 
-#include "get_fvk.h"
+#include "../globals.h"
+#include "init_tx.h"
+#include "../crypto/txid.h"
 #include "../helper/send_response.h"
 
-int handler_get_fvk() {
-    return helper_send_response_fvk();
+int handler_init_tx(uint32_t expiry_height) {
+    init_tx_v5(expiry_height);
+    return 0;
 }

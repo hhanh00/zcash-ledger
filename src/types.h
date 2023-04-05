@@ -20,9 +20,11 @@ typedef enum {
 typedef enum {
     GET_VERSION = 0x03,     /// version of the application
     GET_APP_NAME = 0x04,    /// name of the application
-    GET_FVK = 0x05,         /// full viewing key (diversifiable viewing key)
-    GET_ADDRESS = 0x06,
-    TEST_MATH = 0x07,
+    BUILD = 0x05,
+    GET_FVK = 0x06,         /// full viewing key (diversifiable viewing key)
+    GET_ADDRESS = 0x07,
+    INIT_TX = 0x08,
+    TEST_MATH = 0xFF,
 } command_e;
 
 /**
@@ -66,13 +68,11 @@ typedef uint8_t div_t[11];
  * Diversifiable viewing key
 */ 
 typedef struct {
-    hash_t out[5];
     jubjub_point_t ask;
     jubjub_point_t nsk;
     ovk_t ovk;
     dk_t dk;
     div_t d;
-    fr_t ivk;
 } expanded_spending_key_t;
 
 /**
@@ -84,8 +84,13 @@ typedef struct {
 typedef struct {
     jubjub_point_t ak; // authorizing key
     jubjub_point_t nk; // nullifier key
-    ovk_t ovk;         // outgoing viewing key
-    dk_t dk;           // diversifier key
+} proofk_ctx_t;
+
+typedef struct {
+    jubjub_point_t ak; // authorizing key
+    jubjub_point_t nk; // nullifier key
+    ovk_t ovk;
+    dk_t dk;
 } fvk_ctx_t;
 
 /**
@@ -93,10 +98,13 @@ typedef struct {
  */
 typedef struct {
     state_e state;  /// state of the context
-    union {
-        fvk_ctx_t fvk_info;
-        expanded_spending_key_t exp_sk_info;
-    };
+    uint8_t account;
+    expanded_spending_key_t exp_sk_info;
+    proofk_ctx_t proofk_info;
     char address[80];
     request_type_e req_type;              /// user request
 } global_ctx_t;
+
+typedef struct {
+    uint8_t header[32];
+} tx_hashes_t;

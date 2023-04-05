@@ -21,10 +21,30 @@
 #include <string.h>   // memset, explicit_bzero
 
 #include "os.h"
-
-#include "get_fvk.h"
+#include "../globals.h"
 #include "../helper/send_response.h"
+#include "build.h"
+#include "../crypto/key.h"
 
-int handler_get_fvk() {
-    return helper_send_response_fvk();
+int handler_build(uint8_t account) {
+    if (account != G_context.account) {
+        G_context.account = account;
+        explicit_bzero(&G_context, sizeof(G_context));
+        int error = 0;
+
+        BEGIN_TRY {
+            TRY {
+                crypto_derive_spending_key(account);
+            }
+            CATCH_OTHER(e) {
+                error = e;
+            }
+            FINALLY {
+            }
+        }
+        END_TRY;
+
+        if (error != 0) return io_send_sw(error);
+    }
+    return helper_send_response_bytes(NULL, 0);
 }

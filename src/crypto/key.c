@@ -32,8 +32,8 @@
 /**
  * 
 */
-void crypto_derive_spending_key(int account) {
-    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | account, 0, 0};
+void crypto_derive_spending_key(int8_t account) {
+    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
 
     expanded_spending_key_t exp_sk;
     uint8_t spending_key[32];
@@ -63,13 +63,13 @@ void crypto_derive_spending_key(int account) {
     memmove(xsk, spending_key, 32); // ovk
     prf_expand_seed(xsk, 2);
     memmove(&exp_sk.ovk, xsk, 32);
-    memmove(&G_context.fvk_info.ovk, xsk, 32);
+    memmove(&G_context.exp_sk_info.ovk, xsk, 32);
 
     // dk - diversifier key
     memmove(xsk, spending_key, 32); // ovk
     prf_expand_seed(xsk, 0x10);
     memmove(&exp_sk.dk, xsk, 32);
-    memmove(&G_context.fvk_info.dk, xsk, 32);
+    memmove(&G_context.exp_sk_info.dk, xsk, 32);
 
     uint8_t di[11];
     memset(di, 0, 11);
@@ -93,16 +93,15 @@ void crypto_derive_spending_key(int account) {
     uint8_t nk[32];
 
     a_to_pk(ak, &exp_sk.ask);
-    memmove(&G_context.fvk_info.ak, ak, 32);
+    memmove(&G_context.proofk_info.ak, ak, 32);
 
     n_to_pk(nk, &exp_sk.nsk);
-    memmove(&G_context.fvk_info.nk, nk, 32);
+    memmove(&G_context.proofk_info.nk, nk, 32);
 
-    calc_ivk((uint8_t *)&exp_sk.ivk, (uint8_t *)&ak, (uint8_t *)&nk);
+    fr_t ivk;
+    calc_ivk((uint8_t *)&ivk, (uint8_t *)&ak, (uint8_t *)&nk);
 
     extended_point_t pk_d;
-    fr_t ivk;
-    memmove(&ivk, &exp_sk.ivk, 32);
     swap_endian((uint8_t *)&ivk, 32);
     ext_base_mult(&pk_d, &g_d, &ivk);
 

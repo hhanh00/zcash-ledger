@@ -31,15 +31,33 @@
 #include "../common/buffer.h"
 #include "../ui/display.h"
 #include "../helper/send_response.h"
-#include "../crypto/key.h"
-#include "../crypto/jubjub.h"
+#include "../crypto/txid.h"
 
 int handler_test_math() {
     int error = 0;
     BEGIN_TRY {
         TRY {
-            explicit_bzero(&G_context, sizeof(G_context));
-            crypto_derive_spending_key(0);
+            init_tx_v5(2039570);
+            t_in_t tin = {
+                .index = 0,
+                .prev_tx_hash = { 0xb9, 0x96, 0x31, 0x92, 0xa7, 0x76, 0x5d, 0x7e, 0xad, 0x70, 0x4d, 0x6d, 0xe1, 0xa4, 0xc1, 0x28, 0x00, 0x91, 0x6a, 0xe3, 0x54, 0x4e, 0x9c, 0x56, 0x6e, 0xd5, 0xc2, 0xe0, 0x93, 0x8a, 0xd1, 0xd3 },
+                .amount = 1000000,
+            };
+            add_transparent_input(&tin);
+            t_out_t tout1 = {
+                .amount = 100000,
+                .pkh = { 0xcb, 0xe3, 0x57, 0x94, 0x75, 0xf2, 0xc7, 0xed, 0x1f, 0xa8, 0x65, 0x03, 0x4f, 0x75, 0xb6, 0x8c, 0x0f, 0x23, 0xaa, 0x04 },
+            };
+            add_transparent_output(&tout1);
+            t_out_t tout2 = {
+                .amount = 899000,
+                .pkh = { 0xcb, 0xe3, 0x57, 0x94, 0x75, 0xf2, 0xc7, 0xed, 0x1f, 0xa8, 0x65, 0x03, 0x4f, 0x75, 0xb6, 0x8c, 0x0f, 0x23, 0xaa, 0x04 },
+            };
+            add_transparent_output(&tout2);
+
+            confirm_tx();
+
+            sign_transparent_input(&tin);
         }
         CATCH_OTHER(e) {
             error = e;

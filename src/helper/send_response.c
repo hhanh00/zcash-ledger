@@ -26,7 +26,12 @@
 #include "common/buffer.h"
 
 int helper_send_response_fvk() {
-    return io_send_response(&(const buffer_t){.ptr = (uint8_t *)&G_context.fvk_info, .size = sizeof(fvk_ctx_t), .offset = 0}, SW_OK);
+    fvk_ctx_t fvk;
+    memmove(&fvk.ak, &G_context.proofk_info.ak, 32);
+    memmove(&fvk.nk, &G_context.proofk_info.nk, 32);
+    memmove(&fvk.ovk, &G_context.exp_sk_info.ovk, 32);
+    memmove(&fvk.dk, &G_context.exp_sk_info.dk, 32);
+    return io_send_response(&(const buffer_t){.ptr = (uint8_t *)&fvk, .size = sizeof(fvk_ctx_t), .offset = 0}, SW_OK);
 }
 
 int helper_send_response_address() {

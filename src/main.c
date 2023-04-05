@@ -33,6 +33,7 @@ uint8_t G_io_seproxyhal_spi_buffer[IO_SEPROXYHAL_BUFFER_SIZE_B];
 ux_state_t G_ux;
 bolos_ux_params_t G_ux_params;
 global_ctx_t G_context;
+tx_hashes_t G_tx_hashes;
 
 /**
  * Handle APDU command received and send back APDU response using handlers.
@@ -47,6 +48,7 @@ void app_main() {
 
     // Reset context
     explicit_bzero(&G_context, sizeof(G_context));
+    G_context.account = 0xFF;
 
     for (;;) {
         BEGIN_TRY {
