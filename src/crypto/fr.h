@@ -126,3 +126,21 @@ static inline bool fq_ok(fq_t *v) {
     cx_math_cmp_no_throw((uint8_t *)v, fq_m, 32, &diff);
     return diff < 0;
 }
+
+/// @brief a + b -> v
+/// @param v 
+/// @param a 
+/// @param b 
+static inline void fr_add(fr_t *v, const fr_t *a, const fr_t *b) {
+    cx_math_addm_no_throw((uint8_t *)v, (uint8_t *)a, (uint8_t *)b, fr_m, 32);
+}
+
+static inline void fr_double(fr_t *v) {
+    cx_math_addm_no_throw((uint8_t *)v, (uint8_t *)v, (uint8_t *)v, fr_m, 32);
+}
+
+static inline void fr_negate(fr_t *v) {
+    fr_t zero;
+    memset(&zero, 0, 32);
+    cx_math_subm_no_throw((uint8_t *)v, (uint8_t *)zero, (uint8_t *)v, fr_m, 32);
+}

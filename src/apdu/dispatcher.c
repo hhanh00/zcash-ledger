@@ -77,7 +77,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != sizeof(uint32_t))
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return handler_init_tx(*(uint32_t *)cmd->data);
+            return handler_init_tx();
         case TEST_MATH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);

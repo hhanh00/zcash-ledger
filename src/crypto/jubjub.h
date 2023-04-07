@@ -98,6 +98,8 @@ void ext_set_identity(extended_point_t *v);
 /// @param v extended Niels point
 void extn_set_identity(extended_niels_point_t *v);
 
+void ext_to_niels(extended_niels_point_t *v, const extended_point_t *a);
+
 /// @brief v+v -> v
 /// @param v 
 void ext_double(extended_point_t *v);
@@ -112,6 +114,8 @@ void ext_add(extended_point_t *v, const extended_niels_point_t *a);
 /// @param v v coordinate of a with sign of u encoded in highest bit
 /// @param a 
 void ext_to_bytes(uint8_t *v, const extended_point_t *a);
+
+void ext_to_u(uint8_t *u, const extended_point_t *a);
 
 /// @brief convert a 32-byte array to a point
 /// It fails if there is no point that has a v coordinate == a 

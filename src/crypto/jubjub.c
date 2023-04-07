@@ -65,6 +65,15 @@ void extn_set_identity(extended_niels_point_t *v) {
     v->z[31] = 1;
 }
 
+void ext_to_niels(extended_niels_point_t *v, const extended_point_t *a) {
+    fq_add(&v->vpu, &a->v, &a->u);
+    fq_sub(&v->vmu, &a->v, &a->u);
+    memmove(&v->z, &a->z, sizeof(fq_t));
+    memmove(&v->t2d, fq_D2, 32);
+    fq_mult(&v->t2d, &v->t2d, &a->t1);
+    fq_mult(&v->t2d, &v->t2d, &a->t2);
+}
+
 void ext_double(extended_point_t *v) {
     fq_t uu;
     memmove(&uu, &v->u, 32);
@@ -162,6 +171,15 @@ void ext_to_bytes(uint8_t *v, const extended_point_t *a) {
     swap_endian(v, 32);
 }
 
+void ext_to_u(uint8_t *u, const extended_point_t *a) {
+    fq_t zinv;
+    memmove(&zinv, &a->z, 32);
+    fq_inv(&zinv);
+
+    fq_mult(u, &a->u, &zinv);
+    swap_endian(u, 32);
+}
+
 int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     int error = 0;
     fq_t v;
@@ -213,7 +231,7 @@ int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     ext_double(&p);
     ext_double(&p); // * by cofactor
 
-    fq_add(&r->vpu, &p.v, &p.u);
+    fq_add(&r->vpu, &p.v, &p.u); // Reuse to_niels?
     fq_sub(&r->vmu, &p.v, &p.u);
     memmove(&r->z, &p.z, 32);
     memmove(&r->t2d, fq_D2, 32);

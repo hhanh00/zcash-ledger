@@ -27,7 +27,6 @@
 #include "../crypto/txid.h"
 #include "../helper/send_response.h"
 
-int handler_init_tx(uint32_t expiry_height) {
-    init_tx_v5(expiry_height);
+int handler_init_tx() {
     return 0;
 }

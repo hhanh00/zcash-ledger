@@ -7,4 +7,4 @@
 #include "../types.h"
 #include "../tx.h"
 
-int handler_init_tx(uint32_t expiry_height);
+int handler_init_tx();
