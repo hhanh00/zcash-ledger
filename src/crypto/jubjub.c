@@ -176,7 +176,7 @@ void ext_to_u(uint8_t *u, const extended_point_t *a) {
     memmove(&zinv, &a->z, 32);
     fq_inv(&zinv);
 
-    fq_mult(u, &a->u, &zinv);
+    fq_mult((fq_t *)u, &a->u, &zinv);
     swap_endian(u, 32);
 }
 

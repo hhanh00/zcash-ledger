@@ -28,27 +28,6 @@
 
 #include "os.h"
 
-int init_tx() { return 0; }
-
-int add_t_input_amount(uint64_t amount) { return 0; }
-int add_t_output(t_out_t *tout) { return 0; }
-int get_rseed() { return 0; }
-int add_s_output(s_out_t *tout) { return 0; }
-int set_sapling_balance(int64_t value) { return 0; }
-int transparent_merkle_proof(
-    uint8_t *prevouts_sig_digest,
-    uint8_t *scriptpubkeys_sig_digest,
-    uint8_t *sequence_sig_digest,
-    uint8_t *txin_sig_digest
-) { return 0; }
-int sapling_merkle_proof(
-    uint8_t *sapling_spends_digest,
-    uint8_t *sapling_outputs_memos_digest,
-    uint8_t *sapling_outputs_noncompact_digest
-) { return 0; }
-int sign_t_in(t_in_t *tin) { return 0; }
-int sign_s_in() { return 0; }
-
 int calc_cmu(uint8_t *address, uint8_t *rseed, uint64_t value) {
     int error = 0;
     PRINTF("Address: %.*H\n", 43, address);

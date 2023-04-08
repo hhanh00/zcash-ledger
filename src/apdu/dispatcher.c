@@ -31,7 +31,7 @@
 #include "../handler/build.h"
 #include "../handler/get_fvk.h"
 #include "../handler/get_address.h"
-#include "../handler/init_tx.h"
+#include "../handler/tx.h"
 #include "../handler/test_math.h"
 
 int apdu_dispatcher(const command_t *cmd) {
@@ -77,7 +77,62 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != sizeof(uint32_t))
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return handler_init_tx();
+            return init_tx();
+
+        case ADD_T_IN:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != sizeof(uint64_t))
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return add_t_input_amount(*(uint64_t *)cmd->data);
+
+        case ADD_T_OUT:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != sizeof(t_out_t))
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return add_t_output((t_out_t *)cmd->data);
+
+        case ADD_S_OUT:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != sizeof(s_out_t))
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return add_s_output((s_out_t *)cmd->data);
+
+        case SET_S_NET:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != sizeof(int64_t))
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return set_sapling_net(*(int64_t *)cmd->data);
+
+        case SET_T_MERKLE_PROOF:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != sizeof(4 * 32))
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return set_t_merkle_proof((t_proofs_t *)cmd->data);
+
+        case SET_S_MERKLE_PROOF:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != sizeof(3 * 32))
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return set_s_merkle_proof((s_proofs_t *)cmd->data);
+
         case TEST_MATH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);

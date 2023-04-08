@@ -23,10 +23,15 @@
 #include <lcx_blake2.h>
 
 #include "../globals.h"
-#include "init_tx.h"
+#include "tx.h"
 #include "../crypto/txid.h"
 #include "../helper/send_response.h"
 
-int handler_init_tx() {
-    return 0;
-}
+int init_tx() { return 0; }
+int add_t_input_amount(uint64_t amount) { return 0; }
+int add_t_output(t_out_t *output) { return 0; }
+int add_s_output(s_out_t *output) { return 0; }
+int set_sapling_net(int64_t balance) { return 0; }
+int set_t_merkle_proof(t_proofs_t *t_proofs) { return 0; }
+int set_s_merkle_proof(s_proofs_t *s_proofs) { return 0; }
+

@@ -3,7 +3,9 @@
 #include <stddef.h>  // size_t
 #include <stdint.h>  // uint*_t
 
+#include <lcx_blake2.h>
 #include "constants.h"
+#include "tx.h"
 
 /**
  * Enumeration for the status of IO.
@@ -24,6 +26,12 @@ typedef enum {
     GET_FVK = 0x06,         /// full viewing key (diversifiable viewing key)
     GET_ADDRESS = 0x07,
     INIT_TX = 0x08,
+    ADD_T_IN = 0x09,
+    ADD_T_OUT = 0x0A,
+    ADD_S_OUT = 0x0B,
+    SET_S_NET = 0x0C,
+    SET_T_MERKLE_PROOF = 0x0D,
+    SET_S_MERKLE_PROOF = 0x0E,
     TEST_MATH = 0xFF,
 } command_e;
 
@@ -108,3 +116,13 @@ typedef struct {
 typedef struct {
     uint8_t header[32];
 } tx_hashes_t;
+
+typedef struct {
+    uint8_t rseed[32];
+    cx_blake2b_t hasher;
+    uint8_t amount_hash[32];
+    t_proofs_t t_proofs;
+    s_proofs_t s_proofs;
+    int64_t s_net;
+    uint8_t s_compact_hash[32];
+} tx_signing_ctx_t;
