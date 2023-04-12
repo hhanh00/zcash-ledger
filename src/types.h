@@ -32,6 +32,8 @@ typedef enum {
     SET_S_NET = 0x0C,
     SET_T_MERKLE_PROOF = 0x0D,
     SET_S_MERKLE_PROOF = 0x0E,
+    CHANGE_STAGE = 0x0F,
+    SIG_HASH = 0x10,
     TEST_MATH = 0xFF,
 } command_e;
 
@@ -101,6 +103,27 @@ typedef struct {
     dk_t dk;
 } fvk_ctx_t;
 
+typedef enum {
+    T_IN,
+    T_OUT,
+    S_OUT,
+    S_NET,
+} signing_stage_t;
+
+typedef struct {
+    uint8_t mseed[32];
+    uint8_t rseed[32];
+    cx_blake2b_t hasher;
+    uint8_t header_hash[32];
+    uint8_t amount_hash[32];
+    uint8_t t_outputs_hash[32];
+    t_proofs_t t_proofs;
+    s_proofs_t s_proofs;
+    uint8_t s_compact_hash[32];
+    int64_t s_net;
+    signing_stage_t stage;
+} tx_signing_ctx_t;
+
 /**
  * Structure for global context.
  */
@@ -110,6 +133,7 @@ typedef struct {
     expanded_spending_key_t exp_sk_info;
     proofk_ctx_t proofk_info;
     char address[80];
+    tx_signing_ctx_t signing_ctx;
     request_type_e req_type;              /// user request
 } global_ctx_t;
 
@@ -117,12 +141,3 @@ typedef struct {
     uint8_t header[32];
 } tx_hashes_t;
 
-typedef struct {
-    uint8_t rseed[32];
-    cx_blake2b_t hasher;
-    uint8_t amount_hash[32];
-    t_proofs_t t_proofs;
-    s_proofs_t s_proofs;
-    int64_t s_net;
-    uint8_t s_compact_hash[32];
-} tx_signing_ctx_t;

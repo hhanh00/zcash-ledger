@@ -33,6 +33,7 @@
 #include "../handler/get_address.h"
 #include "../handler/tx.h"
 #include "../handler/test_math.h"
+#include "../helper/send_response.h"
 
 int apdu_dispatcher(const command_t *cmd) {
     if (cmd->cla != CLA) {
@@ -74,10 +75,10 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != sizeof(uint32_t))
+            if (cmd->lc != 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return init_tx();
+            return init_tx(cmd->data);
 
         case ADD_T_IN:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -86,7 +87,8 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != sizeof(uint64_t))
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return add_t_input_amount(*(uint64_t *)cmd->data);
+            uint64_t amount = *(uint64_t *)cmd->data;
+            return add_t_input_amount(amount);
 
         case ADD_T_OUT:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -119,7 +121,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != sizeof(4 * 32))
+            if (cmd->lc != 3 * 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             return set_t_merkle_proof((t_proofs_t *)cmd->data);
@@ -128,10 +130,28 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != sizeof(3 * 32))
+            if (cmd->lc != 3 * 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             return set_s_merkle_proof((s_proofs_t *)cmd->data);
+
+        case CHANGE_STAGE:
+            if (cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+
+            return change_stage(cmd->p1);
+
+        case SIG_HASH:
+            if (cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 32)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            uint8_t sig_hash[32];
+            sighash(sig_hash, cmd->data);
+            return helper_send_response_bytes(sig_hash, 32);
 
         case TEST_MATH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

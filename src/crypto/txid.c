@@ -28,7 +28,7 @@
 
 #include "os.h"
 
-int calc_cmu(uint8_t *address, uint8_t *rseed, uint64_t value) {
+int calc_cmu(uint8_t *cmu, uint8_t *address, uint8_t *rseed, uint64_t value) {
     int error = 0;
     PRINTF("Address: %.*H\n", 43, address);
     PRINTF("Rseed: %.*H\n", 32, rseed);
@@ -51,11 +51,11 @@ int calc_cmu(uint8_t *address, uint8_t *rseed, uint64_t value) {
     fr_from_wide(rcm);
     PRINTF("rcm: %.*H\n", 32, rcm);
 
-    pedersen_hash_cmu(value, gd_hash, address + 11, (fr_t *)rcm);
+    pedersen_hash_cmu(cmu, value, gd_hash, address + 11, (fr_t *)rcm);
     return error;
 }
 
-void pedersen_hash_cmu(uint64_t value, uint8_t *g_d, uint8_t *pk_d, fr_t *rcm) {
+void pedersen_hash_cmu(uint8_t *cmu, uint64_t value, uint8_t *g_d, uint8_t *pk_d, fr_t *rcm) {
     // we have 6 bits of personalization 
     // value has 64 bits
     // g_d and pk_d have 256 bits
@@ -139,7 +139,6 @@ void pedersen_hash_cmu(uint64_t value, uint8_t *g_d, uint8_t *pk_d, fr_t *rcm) {
     ext_to_niels(&tmp_pn, &tmp_p);
     ext_add(&pedersen_hash, &tmp_pn);
 
-    uint8_t hash[32];
-    ext_to_u(hash, &pedersen_hash);
-    PRINTF("PH: %.*H\n", 32, hash);
+    ext_to_u(cmu, &pedersen_hash);
+    PRINTF("PH: %.*H\n", 32, cmu);
 }

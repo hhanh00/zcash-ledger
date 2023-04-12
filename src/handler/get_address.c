@@ -24,10 +24,11 @@
 #include "../ui/display.h"
 #include "../helper/send_response.h"
 #include "get_address.h"
+#include "globals.h"
 
 int handler_get_address(bool display) {
     if (display)
         return ui_display_address();
 
-    return helper_send_response_address();
+    return helper_send_response_bytes((uint8_t *)G_context.address, 78);
 }

@@ -18,13 +18,19 @@
 #include <stdint.h>   // uint*_t
 #include <stdbool.h>  // bool
 #include <stddef.h>   // size_t
-#include <string.h>   // memset, explicit_bzero
+#include <string.h>  // memmove
 
 #include "os.h"
 
 #include "get_fvk.h"
 #include "../helper/send_response.h"
+#include "globals.h"
 
 int handler_get_fvk() {
-    return helper_send_response_fvk();
+    fvk_ctx_t fvk;
+    memmove(&fvk.ak, &G_context.proofk_info.ak, 32);
+    memmove(&fvk.nk, &G_context.proofk_info.nk, 32);
+    memmove(&fvk.ovk, &G_context.exp_sk_info.ovk, 32);
+    memmove(&fvk.dk, &G_context.exp_sk_info.dk, 32);
+    return helper_send_response_bytes((uint8_t *)&fvk, sizeof(fvk_ctx_t));
 }
