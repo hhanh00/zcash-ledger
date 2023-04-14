@@ -22,8 +22,8 @@
 #include "../tx.h"
 #include "fr.h"
 #include "jubjub.h"
-#include "txid.h"
 #include "ph.h"
+#include "phash.h"
 #include "prf.h"
 
 #include "os.h"

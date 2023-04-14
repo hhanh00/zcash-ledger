@@ -6,7 +6,6 @@
 #include "chacha.h"
 
 #include "../types.h"
-#include "../tx.h"
 
 int change_stage(uint8_t new_stage);
 int init_tx(uint8_t *header_hash);

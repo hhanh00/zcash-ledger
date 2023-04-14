@@ -27,11 +27,11 @@
 #include "../tx.h"
 #include "../common/buffer.h"
 #include "../crypto/key.h"
+#include "../crypto/tx.h"
 #include "../handler/get_version.h"
 #include "../handler/get_app_name.h"
 #include "../handler/get_fvk.h"
 #include "../handler/get_address.h"
-#include "../handler/tx.h"
 #include "../handler/test_math.h"
 #include "../helper/send_response.h"
 

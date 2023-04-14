@@ -25,8 +25,8 @@
 
 #include "../globals.h"
 #include "tx.h"
-#include "../crypto/txid.h"
-#include "../crypto/jubjub.h"
+#include "phash.h"
+#include "jubjub.h"
 #include "../helper/send_response.h"
 
 const uint8_t orchard_hash[] = {0x9F, 0xBE, 0x4E, 0xD1, 0x3B, 0x0C, 0x08, 0xE6, 0x71, 0xC1, 0x1A,
