@@ -18,6 +18,7 @@
 #include <stdint.h>   // uint*_t
 #include <string.h>   // memset, explicit_bzero
 #include <stdbool.h>  // bool
+#include <os.h>       // sprintf
 
 #include "key.h"
 #include "prf.h"
@@ -28,6 +29,7 @@
 #include "bech32.h"
 
 #include "globals.h"
+#include "../helper/send_response.h"
 
 /**
  * 
@@ -35,7 +37,7 @@
 void crypto_derive_spending_key(int8_t account) {
     uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
 
-    expanded_spending_key_t exp_sk;
+    expanded_spending_key_t *exp_sk = &G_context.exp_sk_info;
     uint8_t spending_key[32];
 
     // derive the seed with bip32_path
@@ -45,31 +47,37 @@ void crypto_derive_spending_key(int8_t account) {
                                 spending_key,
                                 NULL);
 
+
     // set spending key to 0 for testing
-    // memset(spending_key, 0, 32);
-    // memmove(&G_context.exp_sk_info.out, spending_key, 32);
+    memset(spending_key, 0, 32);
+    cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
+                              NULL, 0,
+                              (uint8_t *) "ZMSeedPRNG__Hash", 16);
+    cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
+            CX_LAST,
+            spending_key, 32,
+            spending_key, 32);
+    PRINTF("SPENDING KEY: %.*H\n", 32, spending_key);
 
     uint8_t xsk[64];
     memmove(xsk, spending_key, 32); // ask
     prf_expand_seed(xsk, 0);
     fr_from_wide(xsk);
-    memmove(&exp_sk.ask, xsk, 32);
+    memmove(exp_sk->ask, xsk, 32);
 
     memmove(xsk, spending_key, 32); // nsk
     prf_expand_seed(xsk, 1);
     fr_from_wide(xsk);
-    memmove(&exp_sk.nsk, xsk, 32);
+    memmove(exp_sk->nsk, xsk, 32);
 
     memmove(xsk, spending_key, 32); // ovk
     prf_expand_seed(xsk, 2);
-    memmove(&exp_sk.ovk, xsk, 32);
-    memmove(&G_context.exp_sk_info.ovk, xsk, 32);
+    memmove(exp_sk->ovk, xsk, 32);
 
     // dk - diversifier key
     memmove(xsk, spending_key, 32); // ovk
     prf_expand_seed(xsk, 0x10);
-    memmove(&exp_sk.dk, xsk, 32);
-    memmove(&G_context.exp_sk_info.dk, xsk, 32);
+    memmove(exp_sk->dk, xsk, 32);
 
     uint8_t di[11];
     memset(di, 0, 11);
@@ -79,10 +87,10 @@ void crypto_derive_spending_key(int8_t account) {
         memset(di, 0, 11);
         memmove(di, &i, 4);
 
-        ff1((uint8_t *)&exp_sk.d, (uint8_t *)&exp_sk.dk, di);
+        ff1(exp_sk->d, exp_sk->dk, di);
 
         uint8_t gd_hash[32];
-        jubjub_hash(gd_hash, (uint8_t *)&exp_sk.d, 11);
+        jubjub_hash(gd_hash, exp_sk->d, 11);
 
         int error = extn_from_bytes(&g_d, gd_hash);
         // if error, retry with next di
@@ -92,23 +100,23 @@ void crypto_derive_spending_key(int8_t account) {
     uint8_t ak[32];
     uint8_t nk[32];
 
-    a_to_pk(ak, &exp_sk.ask);
-    memmove(&G_context.proofk_info.ak, ak, 32);
+    a_to_pk(ak, &exp_sk->ask);
+    memmove(G_context.proofk_info.ak, ak, 32);
 
-    n_to_pk(nk, &exp_sk.nsk);
-    memmove(&G_context.proofk_info.nk, nk, 32);
+    n_to_pk(nk, &exp_sk->nsk);
+    memmove(G_context.proofk_info.nk, nk, 32);
 
     fr_t ivk;
-    calc_ivk((uint8_t *)&ivk, (uint8_t *)&ak, (uint8_t *)&nk);
+    calc_ivk(ivk, ak, nk);
 
     extended_point_t pk_d;
-    swap_endian((uint8_t *)&ivk, 32);
+    swap_endian(ivk, 32);
     ext_base_mult(&pk_d, &g_d, &ivk);
 
     uint8_t pk_d_bytes[32];
     ext_to_bytes(pk_d_bytes, &pk_d);
 
-    to_address_bech32(G_context.address, exp_sk.d, pk_d_bytes);
+    to_address_bech32(G_context.address, exp_sk->d, pk_d_bytes);
 }
 
 void calc_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk) {
@@ -138,3 +146,10 @@ void to_address_bech32(char *address, uint8_t *d, uint8_t *pk_d) {
     bech32_encode(address, "zs", buffer, buffer_len, BECH32_ENCODING_BECH32);
 }
 
+int get_proofgen_key() {
+    proofgen_key_t proof_gen_key;
+    memmove(proof_gen_key.ak, G_context.proofk_info.ak, 32);
+    memmove(proof_gen_key.nsk, G_context.exp_sk_info.nsk, 32);
+    swap_endian(proof_gen_key.nsk, 32);
+    return helper_send_response_bytes((uint8_t *)&proof_gen_key, 64);
+}

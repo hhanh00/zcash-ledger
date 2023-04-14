@@ -144,3 +144,7 @@ static inline void fr_negate(fr_t *v) {
     memset(&zero, 0, 32);
     cx_math_subm_no_throw((uint8_t *)v, (uint8_t *)zero, (uint8_t *)v, fr_m, 32);
 }
+
+static inline void fr_mult(fr_t *v, const fr_t *a, const fr_t *b) {
+    cx_math_multm_no_throw((uint8_t *)v, (uint8_t *)a, (uint8_t *)b, fr_m, 32);
+}

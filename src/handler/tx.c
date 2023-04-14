@@ -21,21 +21,20 @@
 #include <string.h>   // memset, explicit_bzero
 
 #include <lcx_blake2.h>
-#include "chacha.h"
 #include "sw.h"
 
 #include "../globals.h"
 #include "tx.h"
 #include "../crypto/txid.h"
+#include "../crypto/jubjub.h"
 #include "../helper/send_response.h"
 
 const uint8_t orchard_hash[] = {0x9F, 0xBE, 0x4E, 0xD1, 0x3B, 0x0C, 0x08, 0xE6, 0x71, 0xC1, 0x1A,
                                 0x34, 0x07, 0xD8, 0x4E, 0x11, 0x17, 0xCD, 0x45, 0x02, 0x8A, 0x2E,
                                 0xEE, 0x1B, 0x9F, 0xEA, 0xE7, 0x8B, 0x48, 0xA6, 0xE2, 0xC1};
 
-cx_chacha_context_t chacha_rng;
-
-static int prf_rseed(uint8_t *rseed);
+cx_chacha_context_t chacha_rseed_rng;
+cx_chacha_context_t chacha_alpha_rng;
 
 int init_tx(uint8_t *header_digest) {
     memset(&G_context.signing_ctx, 0, sizeof(tx_signing_ctx_t));
@@ -43,16 +42,29 @@ int init_tx(uint8_t *header_digest) {
     G_context.signing_ctx.stage = T_IN;
     cx_get_random_bytes(G_context.signing_ctx.mseed, 32);
 
+    uint8_t seed_rng[32];
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
                               NULL, 0,
                               (uint8_t *) "ZRSeedPRNG__Hash", 16);
     cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
             CX_LAST,
             G_context.signing_ctx.mseed, 32,
-            G_context.signing_ctx.rseed, 32);
+            seed_rng, 32);
 
-    cx_chacha_init(&chacha_rng, 20);
-    cx_chacha_set_key(&chacha_rng, G_context.signing_ctx.rseed, 32);
+    cx_chacha_init(&chacha_rseed_rng, 20);
+    cx_chacha_set_key(&chacha_rseed_rng, seed_rng, 32);
+
+    cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
+                              NULL, 0,
+                              (uint8_t *) "ZAlphaPRNG__Hash", 16);
+    cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
+            CX_LAST,
+            G_context.signing_ctx.mseed, 32,
+            seed_rng, 32);
+
+    PRINTF("ALPHA SEED: %.*H\n", 32, seed_rng);
+    cx_chacha_init(&chacha_alpha_rng, 20);
+    cx_chacha_set_key(&chacha_alpha_rng, seed_rng, 32);
 
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher,
                               256,
@@ -115,12 +127,14 @@ const uint32_t PAY2PKH_1 = 0x14A97619;  // First part of the pay2pkh bitcoin scr
 const uint16_t PAY2PKH_2 = 0xAC88;      // Second part of the pay2pkh bitcoin script (reversed)
 
 int add_t_input_amount(uint64_t amount) {
+    G_context.signing_ctx.has_t_in = true;
     cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher, 0, (uint8_t *) &amount, 8, NULL, 0);
 
     return helper_send_response_bytes(NULL, 0);
 }
 
 int add_t_output(t_out_t *output) {
+    G_context.signing_ctx.has_t_out = true;
     if (output->address_type != 0)  // only p2pkh for now
         return SW_INVALID_PARAM;
 
@@ -135,8 +149,7 @@ int add_t_output(t_out_t *output) {
 
 int add_s_output(s_out_t *output) {
     uint8_t rseed[32];
-    prf_rseed(rseed);
-    // memmove(rseed, output->rseed, 32);
+    prf_chacha(&chacha_rseed_rng, rseed, 32);
     PRINTF("RSEED: %.*H\n", 32, rseed);
 
     uint8_t cmu[32];
@@ -173,9 +186,6 @@ int set_sapling_net(int64_t balance) {
                               0,
                               (uint8_t *) "ZTxIdSaplingHash",
                               16);
-    PRINTF("SAPLING BUNDLE 1: %.*H\n", 32, G_context.signing_ctx.s_proofs.sapling_spends_digest);
-    PRINTF("SAPLING BUNDLE 2: %.*H\n", 32, G_context.signing_ctx.s_compact_hash);
-    PRINTF("SAPLING BUNDLE 3: %.*H\n", 8, (uint8_t *)&balance);
     cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_spends_digest, 32, NULL, 0);
     cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
     cx_hash(ph, CX_LAST, (uint8_t *) &balance, 8, G_context.signing_ctx.s_compact_hash, 32);
@@ -188,15 +198,23 @@ int set_sapling_net(int64_t balance) {
                               0,
                               (uint8_t *) "ZTxIdTranspaHash",
                               16);
-    uint8_t hash_type = 1;
-    cx_hash(ph, 0, &hash_type, 1, NULL, 0);
-    cx_hash(ph, 0, G_context.signing_ctx.t_proofs.prevouts_sig_digest, 32, NULL, 0);
-    cx_hash(ph, 0, G_context.signing_ctx.amount_hash, 32, NULL, 0);
-    cx_hash(ph, 0, G_context.signing_ctx.t_proofs.scriptpubkeys_sig_digest, 32, NULL, 0);
-    cx_hash(ph, 0, G_context.signing_ctx.t_proofs.sequence_sig_digest, 32, NULL, 0);
-    cx_hash(ph, 0, G_context.signing_ctx.t_outputs_hash, 32, NULL, 0);
-    // hasher has transparent mid state
 
+    if (G_context.signing_ctx.has_t_in || G_context.signing_ctx.has_t_out) {
+        if (G_context.signing_ctx.has_t_in) {
+            uint8_t hash_type = 1;
+            cx_hash(ph, 0, &hash_type, 1, NULL, 0);
+        }
+        cx_hash(ph, 0, G_context.signing_ctx.t_proofs.prevouts_sig_digest, 32, NULL, 0);
+        if (G_context.signing_ctx.has_t_in) {
+            cx_hash(ph, 0, G_context.signing_ctx.amount_hash, 32, NULL, 0);
+            cx_hash(ph, 0, G_context.signing_ctx.t_proofs.scriptpubkeys_sig_digest, 32, NULL, 0);
+        }
+        cx_hash(ph, 0, G_context.signing_ctx.t_proofs.sequence_sig_digest, 32, NULL, 0);
+        cx_hash(ph, 0, G_context.signing_ctx.t_outputs_hash, 32, NULL, 0);
+        // hasher has transparent mid state
+    }
+
+    sighash(G_context.signing_ctx.sig_hash, NULL); // Compute the shielded sighash
     return helper_send_response_bytes(NULL, 0);
 }
 
@@ -217,7 +235,11 @@ int sighash(uint8_t *sighash, uint8_t *txin_sig_digest) {
     memmove(&tx_t_hasher, &G_context.signing_ctx.hasher, sizeof(cx_blake2b_t));
     cx_hash_t *ph = (cx_hash_t *) &tx_t_hasher;
     uint8_t transparent_hash[32];
-    cx_hash(ph, CX_LAST, txin_sig_digest, 32, transparent_hash, 32);
+    if (txin_sig_digest) 
+        cx_hash(ph, CX_LAST, txin_sig_digest, 32, transparent_hash, 32);
+    else
+        cx_hash(ph, CX_LAST, NULL, 0, transparent_hash, 32);
+
     PRINTF("TRANSPARENT SIG BUNDLE: %.*H\n", 32, transparent_hash);
 
     cx_blake2b_init2_no_throw(&tx_t_hasher,
@@ -236,9 +258,34 @@ int sighash(uint8_t *sighash, uint8_t *txin_sig_digest) {
     return 0;
 }
 
-int prf_rseed(uint8_t *rseed) {
-    memset(rseed, 0, 32);
-    cx_chacha_update(&chacha_rng, rseed, rseed, 32);
+int get_sighash() {
+    return helper_send_response_bytes(G_context.signing_ctx.sig_hash, 32);
+}
+
+int sign_sapling() {
+    uint8_t alpha[64];
+    prf_chacha(&chacha_alpha_rng, alpha, 64);
+    fr_from_wide(alpha);
+    PRINTF("ALPHA: %.*H\n", 32, alpha);
+
+    fr_t ask;
+
+    fr_add(&ask, &G_context.exp_sk_info.ask, (fr_t *)alpha);
+
+    uint8_t msg[64];
+    a_to_pk(msg, &ask); // first 32 bytes are re-randomized pk
+    memmove(msg + 32, G_context.signing_ctx.sig_hash, 32);
+    PRINTF("MSG: %.*H\n", 64, msg);
+
+    uint8_t signature[64];
+    sign(signature, &ask, msg);
+
+    return helper_send_response_bytes(signature, 64);
+}
+
+int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len) {
+    memset(v, 0, len);
+    cx_chacha_update(rng, v, v, len);
 
     return 0;
 }

@@ -22,7 +22,7 @@ typedef enum {
 typedef enum {
     GET_VERSION = 0x03,     /// version of the application
     GET_APP_NAME = 0x04,    /// name of the application
-    BUILD = 0x05,
+    INITIALIZE = 0x05,
     GET_FVK = 0x06,         /// full viewing key (diversifiable viewing key)
     GET_ADDRESS = 0x07,
     INIT_TX = 0x08,
@@ -33,7 +33,9 @@ typedef enum {
     SET_T_MERKLE_PROOF = 0x0D,
     SET_S_MERKLE_PROOF = 0x0E,
     CHANGE_STAGE = 0x0F,
-    SIG_HASH = 0x10,
+    GET_SIGHASH = 0x10,
+    GET_PROOFGEN_KEY = 0x11,
+    SIGN_SAPLING = 0x12,
     TEST_MATH = 0xFF,
 } command_e;
 
@@ -78,8 +80,8 @@ typedef uint8_t div_t[11];
  * Diversifiable viewing key
 */ 
 typedef struct {
-    jubjub_point_t ask;
-    jubjub_point_t nsk;
+    fr_t ask;
+    fr_t nsk;
     ovk_t ovk;
     dk_t dk;
     div_t d;
@@ -98,6 +100,11 @@ typedef struct {
 
 typedef struct {
     jubjub_point_t ak; // authorizing key
+    fr_t nsk; // nullifier key
+} proofgen_key_t;
+
+typedef struct {
+    jubjub_point_t ak; // authorizing key
     jubjub_point_t nk; // nullifier key
     ovk_t ovk;
     dk_t dk;
@@ -112,7 +119,6 @@ typedef enum {
 
 typedef struct {
     uint8_t mseed[32];
-    uint8_t rseed[32];
     cx_blake2b_t hasher;
     uint8_t header_hash[32];
     uint8_t amount_hash[32];
@@ -122,6 +128,9 @@ typedef struct {
     uint8_t s_compact_hash[32];
     int64_t s_net;
     signing_stage_t stage;
+    uint8_t sig_hash[32];
+    bool has_t_in;
+    bool has_t_out;
 } tx_signing_ctx_t;
 
 /**

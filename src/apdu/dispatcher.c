@@ -26,9 +26,9 @@
 #include "../sw.h"
 #include "../tx.h"
 #include "../common/buffer.h"
+#include "../crypto/key.h"
 #include "../handler/get_version.h"
 #include "../handler/get_app_name.h"
-#include "../handler/build.h"
 #include "../handler/get_fvk.h"
 #include "../handler/get_address.h"
 #include "../handler/tx.h"
@@ -53,24 +53,29 @@ int apdu_dispatcher(const command_t *cmd) {
             }
 
             return handler_get_app_name();
-        case BUILD:
+        
+        case INITIALIZE:
             if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
 
-            return handler_build(cmd->p1);
+            crypto_derive_spending_key(cmd->p1);
+            return helper_send_response_bytes(NULL, 0);
+
         case GET_FVK:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
 
             return handler_get_fvk();
+        
         case GET_ADDRESS:
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
 
             return handler_get_address(cmd->p1 == 1);
+        
         case INIT_TX:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -142,16 +147,29 @@ int apdu_dispatcher(const command_t *cmd) {
 
             return change_stage(cmd->p1);
 
-        case SIG_HASH:
-            if (cmd->p2 != 0) {
+        case GET_PROOFGEN_KEY:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 32)
+            return get_proofgen_key();
+
+        case SIGN_SAPLING:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 0)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            uint8_t sig_hash[32];
-            sighash(sig_hash, cmd->data);
-            return helper_send_response_bytes(sig_hash, 32);
+            return sign_sapling();
+
+        case GET_SIGHASH:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 0)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return get_sighash();
 
         case TEST_MATH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

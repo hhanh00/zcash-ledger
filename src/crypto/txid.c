@@ -130,7 +130,6 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t value, uint8_t *g_d, uint8_t *pk_d
         }
     }
 
-    PRINTF("PH ACC: %.*H\n", 32, acc);
     ext_base_mult(&tmp_p, &PEDERSEN_HASH_GENS[3], &acc);
     ext_to_niels(&tmp_pn, &tmp_p);
     ext_add(&pedersen_hash, &tmp_pn);
@@ -140,5 +139,4 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t value, uint8_t *g_d, uint8_t *pk_d
     ext_add(&pedersen_hash, &tmp_pn);
 
     ext_to_u(cmu, &pedersen_hash);
-    PRINTF("PH: %.*H\n", 32, cmu);
 }

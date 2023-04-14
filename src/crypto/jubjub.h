@@ -157,3 +157,5 @@ static inline void a_to_pk(uint8_t *ak, fr_t *ask) {
 static inline void n_to_pk(uint8_t *nk, fr_t *nsk) {
     jubjub_to_pk(nk, &PROOF_GENERATOR_NIELS, nsk);
 }
+
+int sign(uint8_t *signature, fr_t *sk, uint8_t *message);

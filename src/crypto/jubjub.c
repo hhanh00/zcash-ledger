@@ -18,6 +18,7 @@
 #include <stdint.h>   // uint*_t
 #include <string.h>   // memset, explicit_bzero
 #include <stdbool.h>  // bool
+#include <os.h>       // sprintf
 #include <blake2s.h>
 
 #include "fr.h"
@@ -261,4 +262,43 @@ void jubjub_to_pk(uint8_t *pk, const extended_niels_point_t *gen, fr_t *sk) {
     extended_point_t temp;
     ext_base_mult(&temp, gen, sk);
     ext_to_bytes(pk, &temp);
+    PRINTF("SK: %.*H\n", 32, sk);
+    PRINTF("PK: %.*H\n", 32, pk);
+}
+
+int h_star(uint8_t *hash, uint8_t *data, size_t len) {
+    cx_blake2b_t hasher;
+    cx_blake2b_init2_no_throw(&hasher, 512,
+                              NULL, 0, (uint8_t *) "Zcash_RedJubjubH", 16);
+    cx_hash((cx_hash_t *)&hasher, CX_LAST, data, len, hash, 64);
+    fr_from_wide(hash);
+
+    return 0;
+}
+
+int sign(uint8_t *signature, fr_t *sk, uint8_t *message) {
+    uint8_t buffer[144];
+    memset(buffer, 0, sizeof(buffer));
+
+    // cx_get_random_bytes(buffer, 80);
+    memmove(buffer + 80, message, 64);
+
+    uint8_t r_buffer[64]; // we need 64 bytes but only the first 32 will be used as a return value
+    h_star(r_buffer, buffer, 144);
+
+    fr_t r;
+    memmove(&r, r_buffer, 32);
+    a_to_pk(signature, &r); // R = r.G
+
+    memmove(buffer, signature, 32);
+    memmove(buffer + 32, message, 64);
+    h_star(r_buffer, buffer, 96);
+    fr_t *S = (fr_t *)(signature + 32);
+    memmove(S, r_buffer, 32);
+
+    fr_mult(S, S, sk);
+    fr_add(S, S, &r); // S = r + H*(Rbar || M) . sk
+    swap_endian(signature + 32, 32);
+
+    return 0;
 }
