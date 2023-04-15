@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>  // bool
+#include "../tx.h"
 
 /**
  * Callback to reuse action with approve/reject in step FLOW.
@@ -15,3 +16,4 @@ typedef void (*action_validate_cb)(bool);
  */
 int ui_display_address(void);
 
+int ui_confirm_s_out(s_out_t *s_out);

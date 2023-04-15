@@ -27,6 +27,7 @@
 #include "tx.h"
 #include "phash.h"
 #include "jubjub.h"
+#include "../ui/display.h"
 #include "../helper/send_response.h"
 
 const uint8_t orchard_hash[] = {0x9F, 0xBE, 0x4E, 0xD1, 0x3B, 0x0C, 0x08, 0xE6, 0x71, 0xC1, 0x1A,
@@ -133,7 +134,7 @@ int add_t_input_amount(uint64_t amount) {
     return helper_send_response_bytes(NULL, 0);
 }
 
-int add_t_output(t_out_t *output) {
+int add_t_output(t_out_t *output, bool confirmation) {
     G_context.signing_ctx.has_t_out = true;
     if (output->address_type != 0)  // only p2pkh for now
         return SW_INVALID_PARAM;
@@ -147,23 +148,26 @@ int add_t_output(t_out_t *output) {
     return helper_send_response_bytes(NULL, 0);
 }
 
-int add_s_output(s_out_t *output) {
+int add_s_output(s_out_t *output, bool confirmation) {
     uint8_t rseed[32];
     prf_chacha(&chacha_rseed_rng, rseed, 32);
     PRINTF("RSEED: %.*H\n", 32, rseed);
 
     uint8_t cmu[32];
-    calc_cmu(cmu, output->address, rseed, output->amount);
+    calc_cmu(cmu, output->address, rseed, &output->amount);
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
     cx_hash(ph, 0, cmu, 32, NULL, 0);           // cmu
     cx_hash(ph, 0, output->epk, 32, NULL, 0);  // ephemeral key
     cx_hash(ph, 0, output->enc, 52, NULL, 0);  // first 52 bytes of encrypted note
 
+    PRINTF("CONFIRMATION %d\n", confirmation);
+    if (confirmation)
+        return ui_confirm_s_out(output);
     return helper_send_response_bytes(NULL, 0);
 }
 
-int set_sapling_net(int64_t balance) {
+int set_sapling_net(int64_t *balance) {
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher,
                               256,
@@ -188,7 +192,7 @@ int set_sapling_net(int64_t balance) {
                               16);
     cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_spends_digest, 32, NULL, 0);
     cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
-    cx_hash(ph, CX_LAST, (uint8_t *) &balance, 8, G_context.signing_ctx.s_compact_hash, 32);
+    cx_hash(ph, CX_LAST, (uint8_t *)balance, 8, G_context.signing_ctx.s_compact_hash, 32);
     // s_compact_hash has sapling_digest
     PRINTF("SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_compact_hash);
 

@@ -35,6 +35,10 @@
 #include "../handler/test_math.h"
 #include "../helper/send_response.h"
 
+#include "../crypto/jubjub.h"
+#include "../crypto/phash.h"
+#include "../crypto/prf.h"
+
 int apdu_dispatcher(const command_t *cmd) {
     if (cmd->cla != CLA) {
         return io_send_sw(SW_CLA_NOT_SUPPORTED);
@@ -96,22 +100,22 @@ int apdu_dispatcher(const command_t *cmd) {
             return add_t_input_amount(amount);
 
         case ADD_T_OUT:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
+            if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
             if (cmd->lc != sizeof(t_out_t))
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return add_t_output((t_out_t *)cmd->data);
+            return add_t_output((t_out_t *)cmd->data, cmd->p1 == 1);
 
         case ADD_S_OUT:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
+            if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != sizeof(s_out_t))
+            if (cmd->lc != 140)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return add_s_output((s_out_t *)cmd->data);
+            return add_s_output((s_out_t *)cmd->data, cmd->p1 == 1);
 
         case SET_S_NET:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -120,7 +124,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != sizeof(int64_t))
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return set_sapling_net(*(int64_t *)cmd->data);
+            return set_sapling_net((int64_t *)cmd->data);
 
         case SET_T_MERKLE_PROOF:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -170,6 +174,38 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             return get_sighash();
+
+        case TEST_CMU: {
+            uint8_t cmu[32];
+            calc_cmu(cmu, cmd->data + 40, cmd->data + 8, (uint64_t *)cmd->data);
+            return helper_send_response_bytes(cmu, 32);
+        }
+
+        case TEST_JUBJUB_HASH: {
+            uint8_t gd_hash[32];
+            jubjub_hash(gd_hash, cmd->data + 32, 11);
+            extended_niels_point_t g_d_n;
+            extn_from_bytes(&g_d_n, gd_hash);
+
+            extended_point_t g_d;
+            ext_set_identity(&g_d);
+            ext_add(&g_d, &g_d_n);
+            ext_to_bytes(gd_hash, &g_d);
+            PRINTF("G_d: %.*H\n", 32, gd_hash);
+
+            uint8_t rcm[64];
+            memmove(rcm, cmd->data, 32);
+            prf_expand_seed(rcm, 4);
+            fr_from_wide(rcm);
+
+            return helper_send_response_bytes(rcm, 32);
+        }
+
+        case TEST_PEDERSEN_HASH: {
+            uint8_t cmu[32];
+            pedersen_hash_cmu(cmu, (uint64_t *)cmd->data, cmd->data + 8, cmd->data + 40, (fr_t *)(cmd->data + 72));
+            return helper_send_response_bytes(cmu, 32);
+        }
 
         case TEST_MATH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

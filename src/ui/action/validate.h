@@ -10,3 +10,5 @@
  *
  */
 void validate_address(bool choice);
+
+void validate_out(bool choice);

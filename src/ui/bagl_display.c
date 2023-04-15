@@ -34,6 +34,7 @@
 #include "../sw.h"
 #include "action/validate.h"
 #include "../common/format.h"
+#include "../helper/formatters.h"
 #include "menu.h"
 
 static action_validate_cb g_validate_callback;
@@ -51,6 +52,12 @@ UX_STEP_NOCB(ux_display_address_step,
              {
                  .title = "Address",
                  .text = G_context.address,
+             });
+UX_STEP_NOCB(ux_display_amount_step,
+             bnnn_paging,
+             {
+                 .title = "Amount",
+                 .text = G_context.amount,
              });
 // Step with approve button
 UX_STEP_CB(ux_display_approve_step,
@@ -89,6 +96,22 @@ int ui_display_address() {
     g_validate_callback = &ui_action_validate_address;
 
     ux_flow_init(0, ux_display_fvk_flow, NULL);
+    return 0;
+}
+
+UX_FLOW(ux_confirm_s_out_flow,
+        &ux_display_address_step,
+        &ux_display_amount_step,
+        &ux_display_approve_step,
+        &ux_display_reject_step);
+
+int ui_confirm_s_out(s_out_t *s_out) {
+    g_validate_callback = &validate_out;
+
+    format_s_address(s_out->address);
+    format_amount((uint8_t *)&s_out->amount);
+
+    ux_flow_init(0, ux_confirm_s_out_flow, NULL);
     return 0;
 }
 

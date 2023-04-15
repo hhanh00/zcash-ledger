@@ -28,7 +28,7 @@
 
 #include "os.h"
 
-int calc_cmu(uint8_t *cmu, uint8_t *address, uint8_t *rseed, uint64_t value) {
+int calc_cmu(uint8_t *cmu, uint8_t *address, uint8_t *rseed, uint64_t *value) {
     int error = 0;
     PRINTF("Address: %.*H\n", 43, address);
     PRINTF("Rseed: %.*H\n", 32, rseed);
@@ -52,10 +52,16 @@ int calc_cmu(uint8_t *cmu, uint8_t *address, uint8_t *rseed, uint64_t value) {
     PRINTF("rcm: %.*H\n", 32, rcm);
 
     pedersen_hash_cmu(cmu, value, gd_hash, address + 11, (fr_t *)rcm);
+    PRINTF("CMU %.*H\n", 32, cmu);
     return error;
 }
 
-void pedersen_hash_cmu(uint8_t *cmu, uint64_t value, uint8_t *g_d, uint8_t *pk_d, fr_t *rcm) {
+static extended_point_t pedersen_hash;
+static extended_point_t tmp_p;
+static extended_niels_point_t tmp_pn;
+static fr_t acc, cur, tmp;
+
+void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_d, fr_t *rcm) {
     // we have 6 bits of personalization 
     // value has 64 bits
     // g_d and pk_d have 256 bits
@@ -65,7 +71,7 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t value, uint8_t *g_d, uint8_t *pk_d
     
     uint8_t buffer[73]; // 1 + 8 + 32 + 32
     memset(buffer, 0, sizeof(buffer));
-    memmove(buffer, (uint8_t *)&value, 8);
+    memmove(buffer, (uint8_t *)value, 8);
     memmove(buffer + 8, (uint8_t *)g_d, 32);
     memmove(buffer + 40, (uint8_t *)pk_d, 32);
     // shift by 6 bits to make room for the personalization bits
@@ -80,19 +86,16 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t value, uint8_t *g_d, uint8_t *pk_d
 
     PRINTF("PH BUFFER: %.*H\n", 73, buffer);
 
-    extended_point_t pedersen_hash;
     ext_set_identity(&pedersen_hash);
-    extended_point_t tmp_p;
-    extended_niels_point_t tmp_pn;
-
-    fr_t acc, cur, tmp;
     memset(&acc, 0, 32);
     memmove(&cur, fq_1, 32);
 
     uint8_t byte_offset = 0;
     uint8_t bit_offset = 0;
     for (uint8_t chunk = 0; chunk < 194; chunk++) {
-        uint16_t v = buffer[byte_offset] | (uint16_t)buffer[byte_offset + 1] << 8;
+        uint16_t low = buffer[byte_offset];
+        uint16_t high = buffer[byte_offset + 1];
+        uint16_t v = low | high << 8;
         uint8_t n = (v >> bit_offset) & 0x07;
 
         memmove(&tmp, &cur, 32);
@@ -106,7 +109,8 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t value, uint8_t *g_d, uint8_t *pk_d
         if ((n & 4) != 0) {
             fr_negate(&tmp);
         }
-        // PRINTF("PH TMP: %.*H\n", 32, tmp);
+
+        PRINTF("PH TMP: %.*H\n", 32, tmp);
         fr_add(&acc, &acc, &tmp);
         fr_double(&cur);
         fr_double(&cur);

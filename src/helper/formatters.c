@@ -15,26 +15,19 @@
  *  limitations under the License.
  *****************************************************************************/
 
-#include <stdbool.h>  // bool
+#include <stddef.h>  // size_t
+#include <stdint.h>  // uint*_t
 
-#include "validate.h"
-#include "../menu.h"
-#include "../../sw.h"
-#include "../../globals.h"
-#include "../../helper/send_response.h"
+#include "../globals.h"
+#include "../crypto/key.h"
+#include "../common/format.h"
 
-void validate_address(bool choice) {
-    if (choice) {
-        helper_send_response_bytes((uint8_t *)G_context.address, 78);
-    } else {
-        io_send_sw(SW_DENY);
-    }
+void format_amount(uint8_t *amount) {
+    uint64_t value;
+    memmove(&value, amount, sizeof(uint64_t)); // need to copy because of memory alignment 
+    format_fpu64(G_context.amount, sizeof(G_context.amount), value, 8);
 }
 
-void validate_out(bool choice) {
-    if (choice) {
-        helper_send_response_bytes(NULL, 0);
-    } else {
-        io_send_sw(SW_DENY);
-    }
+void format_s_address(uint8_t *address) {
+    to_address_bech32(G_context.address, address, address + 11);
 }

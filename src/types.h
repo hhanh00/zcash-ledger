@@ -36,6 +36,9 @@ typedef enum {
     GET_SIGHASH = 0x10,
     GET_PROOFGEN_KEY = 0x11,
     SIGN_SAPLING = 0x12,
+    TEST_CMU = 0x80,
+    TEST_JUBJUB_HASH = 0x81,
+    TEST_PEDERSEN_HASH = 0x82,
     TEST_MATH = 0xFF,
 } command_e;
 
@@ -142,6 +145,7 @@ typedef struct {
     expanded_spending_key_t exp_sk_info;
     proofk_ctx_t proofk_info;
     char address[80];
+    char amount[40];
     tx_signing_ctx_t signing_ctx;
     request_type_e req_type;              /// user request
 } global_ctx_t;
