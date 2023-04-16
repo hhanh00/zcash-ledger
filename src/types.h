@@ -134,7 +134,7 @@ typedef struct {
     uint8_t s_compact_hash[32];
     int64_t s_net;
     signing_stage_t stage;
-    uint8_t sig_hash[32];
+    uint8_t sapling_sig_hash[32];
     uint64_t amount_s_out;
     bool has_t_in;
     bool has_t_out;
