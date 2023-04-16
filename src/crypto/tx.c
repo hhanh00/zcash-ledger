@@ -21,12 +21,14 @@
 #include <string.h>   // memset, explicit_bzero
 
 #include <lcx_blake2.h>
+#include <lcx_ecdsa.h>
 #include "sw.h"
 
 #include "../globals.h"
-#include "tx.h"
+#include "key.h"
 #include "phash.h"
 #include "jubjub.h"
+#include "tx.h"
 #include "../ui/display.h"
 #include "../helper/send_response.h"
 
@@ -149,6 +151,9 @@ int add_t_output(t_out_t *output, bool confirmation) {
 }
 
 int add_s_output(s_out_t *output, bool confirmation) {
+    G_context.signing_ctx.has_s_out = true;
+    G_context.signing_ctx.amount_s_out += output->amount;
+
     uint8_t rseed[32];
     prf_chacha(&chacha_rseed_rng, rseed, 32);
     PRINTF("RSEED: %.*H\n", 32, rseed);
@@ -168,6 +173,8 @@ int add_s_output(s_out_t *output, bool confirmation) {
 }
 
 int set_sapling_net(int64_t *balance) {
+    G_context.signing_ctx.has_s_in = *balance != G_context.signing_ctx.amount_s_out;
+
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher,
                               256,
@@ -175,14 +182,14 @@ int set_sapling_net(int64_t *balance) {
                               0,
                               (uint8_t *) "ZTxIdSOutputHash",
                               16);
-    cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
-    cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_outputs_memos_digest, 32, NULL, 0);
+    if (G_context.signing_ctx.has_s_out) {                            
+        cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
+        cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_outputs_memos_digest, 32, NULL, 0);
+        cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_outputs_noncompact_digest, 32, NULL, 0);
+    }
     cx_hash(ph,
-            CX_LAST,
-            G_context.signing_ctx.s_proofs.sapling_outputs_noncompact_digest,
-            32,
-            G_context.signing_ctx.s_compact_hash,
-            32);
+            CX_LAST, NULL, 0,
+            G_context.signing_ctx.s_compact_hash, 32);
     // s_compact_hash has sapling_outputs_digest
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher,
                               256,
@@ -190,9 +197,15 @@ int set_sapling_net(int64_t *balance) {
                               0,
                               (uint8_t *) "ZTxIdSaplingHash",
                               16);
-    cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_spends_digest, 32, NULL, 0);
-    cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
-    cx_hash(ph, CX_LAST, (uint8_t *)balance, 8, G_context.signing_ctx.s_compact_hash, 32);
+    if (G_context.signing_ctx.has_s_in || G_context.signing_ctx.has_s_out) {                              
+        PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_proofs.sapling_spends_digest);
+        PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_compact_hash);
+        PRINTF(">> SAPLING BUNDLE: %.*H\n", 8, (uint8_t *)balance);
+        cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_spends_digest, 32, NULL, 0);
+        cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
+        cx_hash(ph, 0, (uint8_t *)balance, 8, NULL, 0);
+    }
+    cx_hash(ph, CX_LAST, NULL, 0, G_context.signing_ctx.s_compact_hash, 32);
     // s_compact_hash has sapling_digest
     PRINTF("SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_compact_hash);
 
@@ -244,6 +257,7 @@ int sighash(uint8_t *sighash, uint8_t *txin_sig_digest) {
     else
         cx_hash(ph, CX_LAST, NULL, 0, transparent_hash, 32);
 
+    PRINTF("HEADER: %.*H\n", 32, G_context.signing_ctx.header_hash);
     PRINTF("TRANSPARENT SIG BUNDLE: %.*H\n", 32, transparent_hash);
 
     cx_blake2b_init2_no_throw(&tx_t_hasher,
@@ -257,6 +271,8 @@ int sighash(uint8_t *sighash, uint8_t *txin_sig_digest) {
     cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
     cx_hash(ph, CX_LAST, orchard_hash, 32, sighash, 32);
 
+    PRINTF("SAPLING SIG BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_compact_hash);
+    PRINTF("ORCHARD SIG BUNDLE: %.*H\n", 32, orchard_hash);
     PRINTF("TXID: %.*H\n", 32, sighash);
 
     return 0;
@@ -285,6 +301,22 @@ int sign_sapling() {
     sign(signature, &ask, msg);
 
     return helper_send_response_bytes(signature, 64);
+}
+
+int sign_transparent(uint8_t *txin_sig_digest) {
+    uint8_t sig_hash[32];
+    sighash(sig_hash, txin_sig_digest);
+    PRINTF("TRANSPARENT SIG HASH: %.*H\n", 32, sig_hash);
+
+    uint8_t tsk[32];
+    derive_tsk(tsk, G_context.account);
+    cx_ecfp_private_key_t t_prvk;
+    uint32_t info;
+    uint8_t signature[80];
+    cx_ecfp_init_private_key_no_throw(CX_CURVE_SECP256K1, tsk, 32, &t_prvk);
+    int sig_len = cx_ecdsa_sign(&t_prvk, CX_RND_RFC6979 | CX_LAST, CX_SHA256, sig_hash,
+        32, signature, sizeof(signature), &info);
+    return helper_send_response_bytes(signature, sig_len); // signature has variable length in DER
 }
 
 int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len) {

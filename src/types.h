@@ -36,6 +36,8 @@ typedef enum {
     GET_SIGHASH = 0x10,
     GET_PROOFGEN_KEY = 0x11,
     SIGN_SAPLING = 0x12,
+    GET_PUBKEY = 0x13,
+    SIGN_TRANSPARENT = 0x14,
     TEST_CMU = 0x80,
     TEST_JUBJUB_HASH = 0x81,
     TEST_PEDERSEN_HASH = 0x82,
@@ -121,6 +123,7 @@ typedef enum {
 } signing_stage_t;
 
 typedef struct {
+    uint8_t tsk[32];
     uint8_t mseed[32];
     cx_blake2b_t hasher;
     uint8_t header_hash[32];
@@ -132,8 +135,11 @@ typedef struct {
     int64_t s_net;
     signing_stage_t stage;
     uint8_t sig_hash[32];
+    uint64_t amount_s_out;
     bool has_t_in;
     bool has_t_out;
+    bool has_s_in;
+    bool has_s_out;
 } tx_signing_ctx_t;
 
 /**

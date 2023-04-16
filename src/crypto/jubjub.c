@@ -205,7 +205,6 @@ int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     fq_add(&v2, &v2, &fq_1); //v2*D+1
     fq_inv(&v2); // 1/(v2*D+1)
     fq_mult(&v2, &v2m1, &v2); // v2 = (v2-1)/(v2*D+1)
-    // memmove(&G_context.exp_sk_info.out, &v2, 32);
 
     cx_bn_lock(32, 0);
     cx_bn_t u2, m, bn_u;
@@ -222,6 +221,7 @@ int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     if (error) return error;
 
     extended_point_t p;
+
     memmove(&p.u, &u, 32);
     memmove(&p.v, &v, 32);
     memmove(&p.z, &fq_1, 32);
@@ -239,7 +239,6 @@ int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     fq_mult(&r->t2d, &r->t2d, &p.t1);
     fq_mult(&r->t2d, &r->t2d, &p.t2);
 
-    // memmove(&G_context.exp_sk_info.out, r, 32*4);
     return 0;
 }
 

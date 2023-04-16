@@ -20,6 +20,11 @@
 #include <stdbool.h>  // bool
 #include <os.h>       // sprintf
 
+#include <lcx_ecfp.h>
+#include <lcx_sha256.h>
+#include <lcx_ripemd160.h>
+#include <lcx_hash.h>
+
 #include "key.h"
 #include "prf.h"
 #include "fr.h"
@@ -31,33 +36,83 @@
 #include "globals.h"
 #include "../helper/send_response.h"
 
-/**
- * 
-*/
-void crypto_derive_spending_key(int8_t account) {
-    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
+const uint8_t TEST_TSK[] = {
+    0xa2, 0xa6, 0xce, 0xf0, 0x15, 0xbb, 0xce, 0x36, 
+    0x7e, 0x91, 0x6d, 0x83, 0x15, 0x20, 0x94, 0xd6, 
+    0x49, 0x2c, 0x42, 0x2b, 0xeb, 0x03, 0x7e, 0xdc, 
+    0xbb, 0xd5, 0x05, 0x93, 0xaa, 0x02, 0xb1, 0x83
+};
 
-    expanded_spending_key_t *exp_sk = &G_context.exp_sk_info;
-    uint8_t spending_key[32];
+int derive_tsk(uint8_t *tsk, uint8_t account) {
+    memmove(tsk, TEST_TSK, 32);
+    return 0;
+}
+
+int derive_ssk(uint8_t *ssk, uint8_t account) {
+    // uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
 
     // derive the seed with bip32_path
-    os_perso_derive_node_bip32(CX_CURVE_256K1,
-                                bip32_path,
-                                5,
-                                spending_key,
-                                NULL);
+    // os_perso_derive_node_bip32(CX_CURVE_256K1,
+    //                             bip32_path,
+    //                             5,
+    //                             spending_key,
+    //                             NULL);
 
-
-    // set spending key to 0 for testing
-    memset(spending_key, 0, 32);
+    // hash 0 for testing
+    memset(ssk, 0, 32);
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
                               NULL, 0,
                               (uint8_t *) "ZMSeedPRNG__Hash", 16);
     cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
             CX_LAST,
-            spending_key, 32,
-            spending_key, 32);
-    PRINTF("SPENDING KEY: %.*H\n", 32, spending_key);
+            ssk, 32,
+            ssk, 32);
+    PRINTF("SPENDING KEY: %.*H\n", 32, ssk);
+    return 0;
+}
+
+int derive_pubkey(uint8_t *pk, uint8_t account) {
+    uint8_t tsk[32];
+    cx_ecfp_private_key_t t_prvk;
+    cx_ecfp_public_key_t t_pubk;
+    derive_tsk(tsk, account);
+    cx_ecfp_init_private_key_no_throw(CX_CURVE_SECP256K1, tsk, 32, &t_prvk);
+    cx_ecfp_generate_pair(CX_CURVE_SECP256K1, &t_pubk, &t_prvk, 1);
+    PRINTF("PK: %.*H\n", 65, t_pubk.W);
+
+    memmove(pk + 1, t_pubk.W + 1, 32); // X
+    pk[0] = ((t_pubk.W[64] & 1) == 0) ? 0x02 : 0x03; // parity of Y
+    PRINTF("CPK: %.*H\n", 33, pk);
+
+    return 0;
+}
+
+int derive_taddress(uint8_t *pkh, uint8_t account) {
+    uint8_t pk[33];
+    derive_pubkey(pk, account);
+    
+    cx_sha256_t sha_hasher;
+    cx_sha256_init_no_throw(&sha_hasher);
+    cx_hash_no_throw((cx_hash_t *)&sha_hasher, CX_LAST, pk, 33, pk, 32);
+    PRINTF("SHA256: %.*H\n", 32, pk);
+
+    cx_ripemd160_t ripemd_hasher;
+    cx_ripemd160_init_no_throw(&ripemd_hasher);
+    cx_hash_no_throw((cx_hash_t *)&ripemd_hasher, CX_LAST, pk, 32, pkh, 20);
+    PRINTF("PKH: %.*H\n", 20, pkh);
+
+    return 0;
+}
+
+/**
+ * 
+*/
+void crypto_derive_spending_key(int8_t account) {
+    expanded_spending_key_t *exp_sk = &G_context.exp_sk_info;
+    uint8_t spending_key[32];
+
+    derive_ssk(spending_key, account);
+    G_context.account = account;
 
     uint8_t xsk[64];
     memmove(xsk, spending_key, 32); // ask
@@ -84,6 +139,7 @@ void crypto_derive_spending_key(int8_t account) {
 
     extended_niels_point_t g_d;
     for (uint32_t i = 0; ; i++) {
+        PRINTF("i %d\n", i);
         memset(di, 0, 11);
         memmove(di, &i, 4);
 

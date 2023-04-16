@@ -17,6 +17,7 @@ int set_t_merkle_proof(t_proofs_t *t_proofs);
 int set_s_merkle_proof(s_proofs_t *s_proofs);
 int sighash(uint8_t *sighash, uint8_t *txin_sig_digest);
 int sign_sapling();
+int sign_transparent(uint8_t *txin_sig_digest);
 int get_sighash();
 
 int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len);

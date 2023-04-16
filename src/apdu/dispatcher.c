@@ -64,6 +64,8 @@ int apdu_dispatcher(const command_t *cmd) {
             }
 
             crypto_derive_spending_key(cmd->p1);
+            PRINTF("00\n");
+
             return helper_send_response_bytes(NULL, 0);
 
         case GET_FVK:
@@ -174,6 +176,26 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             return get_sighash();
+
+        case GET_PUBKEY:
+            if (cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 0)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            uint8_t pk[33];
+            derive_pubkey(pk, cmd->p1);
+
+            return helper_send_response_bytes(pk, 33);
+
+        case SIGN_TRANSPARENT:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 32)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+            return sign_transparent(cmd->data);
 
         case TEST_CMU: {
             uint8_t cmu[32];

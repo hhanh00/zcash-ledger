@@ -56,11 +56,6 @@ int calc_cmu(uint8_t *cmu, uint8_t *address, uint8_t *rseed, uint64_t *value) {
     return error;
 }
 
-static extended_point_t pedersen_hash;
-static extended_point_t tmp_p;
-static extended_niels_point_t tmp_pn;
-static fr_t acc, cur, tmp;
-
 void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_d, fr_t *rcm) {
     // we have 6 bits of personalization 
     // value has 64 bits
@@ -85,6 +80,11 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_
     buffer[0] |= 0x3F;
 
     PRINTF("PH BUFFER: %.*H\n", 73, buffer);
+
+    extended_point_t pedersen_hash;
+    extended_point_t tmp_p;
+    extended_niels_point_t tmp_pn;
+    fr_t acc, cur, tmp;
 
     ext_set_identity(&pedersen_hash);
     memset(&acc, 0, 32);
