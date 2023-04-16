@@ -279,7 +279,7 @@ int sign(uint8_t *signature, fr_t *sk, uint8_t *message) {
     uint8_t buffer[144];
     memset(buffer, 0, sizeof(buffer));
 
-    // cx_get_random_bytes(buffer, 80);
+    // cx_get_random_bytes(buffer, 80); // TODO: Put it back
     memmove(buffer + 80, message, 64);
 
     uint8_t r_buffer[64]; // we need 64 bytes but only the first 32 will be used as a return value

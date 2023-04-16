@@ -4,12 +4,6 @@
 
 typedef struct {
     uint64_t amount;
-    uint32_t index;
-    uint8_t prevout[32];
-} t_in_t;
-
-typedef struct {
-    uint64_t amount;
     uint8_t address_type;
     uint8_t address_hash[20];
 } t_out_t;
@@ -17,7 +11,7 @@ typedef struct {
 typedef struct {
     uint64_t amount;
     uint8_t epk[32];
-    uint8_t address[48]; // 43 + some padding
+    uint8_t address[43]; // 11 (d) + 32 (pk_d)
     uint8_t enc[52];
 } s_out_t;
 

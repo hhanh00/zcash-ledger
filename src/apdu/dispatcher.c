@@ -39,11 +39,14 @@
 #include "../crypto/phash.h"
 #include "../crypto/prf.h"
 
+#define MOVE_FIELD(s,field) memmove(&s.field, p, sizeof(s.field)); p += sizeof(s.field);
+
 int apdu_dispatcher(const command_t *cmd) {
     if (cmd->cla != CLA) {
         return io_send_sw(SW_CLA_NOT_SUPPORTED);
     }
 
+    uint8_t *p;
     switch (cmd->ins) {
         case GET_VERSION:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -95,29 +98,52 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != sizeof(uint64_t))
+            if (cmd->lc != 8)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            uint64_t amount = *(uint64_t *)cmd->data;
+            p = cmd->data;
+            uint64_t amount;
+            memmove(&amount, p, 8);
             return add_t_input_amount(amount);
 
         case ADD_T_OUT:
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != sizeof(t_out_t))
+            if (cmd->lc != 8+1+20)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return add_t_output((t_out_t *)cmd->data, cmd->p1 == 1);
+            {
+                t_out_t t_out;
+                memset(&t_out, 0, sizeof(t_out));
+                p = cmd->data;
+
+                MOVE_FIELD(t_out, amount);
+                MOVE_FIELD(t_out, address_type);
+                MOVE_FIELD(t_out, address_hash);
+
+                return add_t_output(&t_out, cmd->p1 == 1);
+            }
 
         case ADD_S_OUT:
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 140)
+            if (cmd->lc != 135)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return add_s_output((s_out_t *)cmd->data, cmd->p1 == 1);
+            {
+                s_out_t s_out;
+                memset(&s_out, 0, 43+8+32+52);
+                p = cmd->data;
+
+                MOVE_FIELD(s_out, address);
+                MOVE_FIELD(s_out, amount);
+                MOVE_FIELD(s_out, epk);
+                MOVE_FIELD(s_out, enc);
+
+                return add_s_output(&s_out, cmd->p1 == 1);
+            }
 
         case SET_S_NET:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -126,7 +152,10 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != sizeof(int64_t))
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return set_sapling_net((int64_t *)cmd->data);
+            p = cmd->data;
+            int64_t net;
+            memmove(&net, p, 8);
+            return set_sapling_net(&net);
 
         case SET_T_MERKLE_PROOF:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

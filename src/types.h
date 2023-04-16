@@ -132,7 +132,7 @@ typedef struct {
     t_proofs_t t_proofs;
     s_proofs_t s_proofs;
     uint8_t s_compact_hash[32];
-    int64_t s_net;
+    int64_t fee; // TODO
     signing_stage_t stage;
     uint8_t sapling_sig_hash[32];
     uint64_t amount_s_out;
