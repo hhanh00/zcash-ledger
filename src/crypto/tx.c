@@ -245,7 +245,8 @@ int set_sapling_net(int64_t *balance) {
         // hasher has transparent mid state
     }
 
-    finish_sighash(G_context.signing_ctx.sapling_sig_hash, sapling_tx_in_hash); // Compute the shielded sighash
+    finish_sighash(G_context.signing_ctx.sapling_sig_hash, 
+        G_context.signing_ctx.has_t_in ? sapling_tx_in_hash : NULL); // Compute the shielded sighash
     return helper_send_response_bytes(NULL, 0);
 }
 
@@ -271,7 +272,8 @@ int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
     memmove(&tx_t_hasher, &G_context.signing_ctx.hasher, sizeof(cx_blake2b_t));
     cx_hash_t *ph = (cx_hash_t *) &tx_t_hasher;
     uint8_t transparent_hash[32];
-    cx_hash(ph, CX_LAST, txin_sig_digest, 32, transparent_hash, 32);
+    if (txin_sig_digest)
+        cx_hash(ph, 0, txin_sig_digest, 32, NULL, 0);
     cx_hash(ph, CX_LAST, NULL, 0, transparent_hash, 32);
 
     PRINTF("HEADER: %.*H\n", 32, G_context.signing_ctx.header_hash);
