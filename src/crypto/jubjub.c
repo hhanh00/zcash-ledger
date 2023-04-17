@@ -49,6 +49,17 @@ void ext_to_niels(extended_niels_point_t *v, const extended_point_t *a) {
     fq_mult(&v->t2d, &v->t2d, &a->t2);
 }
 
+/**
+ * This is very performance critical code. The SK -> PK
+ * computation does a MSM. It will make thousands of 
+ * modular additions and multiplications.
+ * Therefore we want to tightly optimize this part.
+ * 
+ * - Use bn_ API instead of the math_ API. We don't lock/unlock
+ * the BigNum unit for every op
+ * - Use Montgomery multiplication
+*/
+
 typedef struct {
     cx_bn_t u;
     cx_bn_t v;
@@ -451,7 +462,7 @@ int sign(uint8_t *signature, fr_t *sk, uint8_t *message) {
     uint8_t buffer[144];
     memset(buffer, 0, sizeof(buffer));
 
-    // cx_get_random_bytes(buffer, 80); // TODO: Put it back
+    cx_get_random_bytes(buffer, 80);
     memmove(buffer + 80, message, 64);
 
     uint8_t r_buffer[64]; // we need 64 bytes but only the first 32 will be used as a return value
@@ -474,6 +485,7 @@ int sign(uint8_t *signature, fr_t *sk, uint8_t *message) {
     return 0;
 }
 
+#ifdef DEBUG
 void simple_point_test() {
     extended_point_t p;
     ext_set_identity(&p);
@@ -511,5 +523,5 @@ void simple_point_test() {
     PRINTF("Z: %.*H\n", 32, p.z);
     PRINTF("T1: %.*H\n", 32, p.t1);
     PRINTF("T2: %.*H\n", 32, p.t2);
-
 }
+#endif

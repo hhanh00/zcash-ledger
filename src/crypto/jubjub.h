@@ -160,4 +160,6 @@ static inline void n_to_pk(uint8_t *nk, fr_t *nsk) {
 
 int sign(uint8_t *signature, fr_t *sk, uint8_t *message);
 
+#ifdef DEBUG
 void simple_point_test();
+#endif

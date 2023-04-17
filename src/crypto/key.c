@@ -36,30 +36,34 @@
 #include "globals.h"
 #include "../helper/send_response.h"
 
+#ifdef DEBUG
 const uint8_t TEST_TSK[] = {
     0xa2, 0xa6, 0xce, 0xf0, 0x15, 0xbb, 0xce, 0x36, 
     0x7e, 0x91, 0x6d, 0x83, 0x15, 0x20, 0x94, 0xd6, 
     0x49, 0x2c, 0x42, 0x2b, 0xeb, 0x03, 0x7e, 0xdc, 
     0xbb, 0xd5, 0x05, 0x93, 0xaa, 0x02, 0xb1, 0x83
 };
+#endif
 
 int derive_tsk(uint8_t *tsk, uint8_t account) {
+#ifdef DEBUG
     memmove(tsk, TEST_TSK, 32);
+#else
+    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
+    os_perso_derive_node_bip32(CX_CURVE_256K1, bip32_path, 5,
+        tsk, NULL);
+#endif
     return 0;
 }
 
 int derive_ssk(uint8_t *ssk, uint8_t account) {
-    // uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
+    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
+    os_perso_derive_node_bip32(CX_CURVE_256K1,
+                                bip32_path,
+                                5,
+                                ssk,
+                                NULL);
 
-    // derive the seed with bip32_path
-    // os_perso_derive_node_bip32(CX_CURVE_256K1,
-    //                             bip32_path,
-    //                             5,
-    //                             spending_key,
-    //                             NULL);
-
-    // hash 0 for testing
-    memset(ssk, 0, 32);
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
                               NULL, 0,
                               (uint8_t *) "ZMSeedPRNG__Hash", 16);
@@ -67,7 +71,6 @@ int derive_ssk(uint8_t *ssk, uint8_t account) {
             CX_LAST,
             ssk, 32,
             ssk, 32);
-    PRINTF("SPENDING KEY: %.*H\n", 32, ssk);
     return 0;
 }
 

@@ -67,7 +67,6 @@ int apdu_dispatcher(const command_t *cmd) {
             }
 
             crypto_derive_spending_key(cmd->p1);
-            PRINTF("00\n");
 
             return helper_send_response_bytes(NULL, 0);
 

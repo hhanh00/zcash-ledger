@@ -184,12 +184,9 @@ int set_sapling_net(int64_t *balance) {
     G_context.signing_ctx.has_s_in = *balance != (int64_t)G_context.signing_ctx.amount_s_out;
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
-    cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher,
-                              256,
-                              NULL,
-                              0,
-                              (uint8_t *) "ZTxIdSOutputHash",
-                              16);
+    cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
+                              NULL, 0,
+                              (uint8_t *) "ZTxIdSOutputHash", 16);
     if (G_context.signing_ctx.has_s_out) {                            
         cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
         cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_outputs_memos_digest, 32, NULL, 0);
@@ -199,12 +196,9 @@ int set_sapling_net(int64_t *balance) {
             CX_LAST, NULL, 0,
             G_context.signing_ctx.s_compact_hash, 32);
     // s_compact_hash has sapling_outputs_digest
-    cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher,
-                              256,
-                              NULL,
-                              0,
-                              (uint8_t *) "ZTxIdSaplingHash",
-                              16);
+    cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
+                              NULL, 0,
+                              (uint8_t *) "ZTxIdSaplingHash", 16);
     if (G_context.signing_ctx.has_s_in || G_context.signing_ctx.has_s_out) {                              
         PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_proofs.sapling_spends_digest);
         PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_compact_hash);
@@ -216,16 +210,6 @@ int set_sapling_net(int64_t *balance) {
     cx_hash(ph, CX_LAST, NULL, 0, G_context.signing_ctx.s_compact_hash, 32);
     // s_compact_hash has sapling_digest
     PRINTF("SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_compact_hash);
-
-    // cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
-    //                           NULL, 0,
-    //                           (uint8_t *) "ZTxIdTranspaHash", 16);
-    // if (G_context.signing_ctx.has_t_in || G_context.signing_ctx.has_t_out) {
-    //     cx_hash(ph, 0, G_context.signing_ctx.t_proofs.prevouts_sig_digest, 32, NULL, 0);
-    //     cx_hash(ph, 0, G_context.signing_ctx.t_proofs.sequence_sig_digest, 32, NULL, 0);
-    //     cx_hash(ph, 0, G_context.signing_ctx.t_outputs_hash, 32, NULL, 0);
-    // }
-    // sighash(G_context.signing_ctx.txid, NULL); // Compute the txid
 
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
                               NULL, 0,
@@ -263,8 +247,7 @@ int set_s_merkle_proof(s_proofs_t *s_proofs) {
 }
 
 /**
- * Picks up the sig_hash computation at S.2g
- * 
+ * Picks up the sig_hash computation from step S.2g
  * 
 */
 int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
@@ -279,12 +262,9 @@ int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
     PRINTF("HEADER: %.*H\n", 32, G_context.signing_ctx.header_hash);
     PRINTF("TRANSPARENT SIG BUNDLE: %.*H\n", 32, transparent_hash);
 
-    cx_blake2b_init2_no_throw(&tx_t_hasher,
-                              256,
-                              NULL,
-                              0,
-                              (uint8_t *) "ZcashTxHash_\xB4\xD0\xD6\xC2",
-                              16);
+    cx_blake2b_init2_no_throw(&tx_t_hasher, 256,
+                              NULL, 0,
+                              (uint8_t *) "ZcashTxHash_\xB4\xD0\xD6\xC2", 16);
     cx_hash(ph, 0, G_context.signing_ctx.header_hash, 32, NULL, 0);
     cx_hash(ph, 0, transparent_hash, 32, NULL, 0);
     cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
