@@ -26,33 +26,6 @@
 
 #include "globals.h"
 
-static const extended_niels_point_t IDENTITY_NIELS = {
-    .vpu =
-        {
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-        },
-    .vmu =
-        {
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-        },
-    .z =
-        {
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-        },
-    .t2d =
-        {
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        },
-};
-
 void ext_set_identity(extended_point_t *v) {
     memset(v, 0, sizeof(extended_point_t));
     v->v[31] = 1;
@@ -73,6 +46,182 @@ void ext_to_niels(extended_niels_point_t *v, const extended_point_t *a) {
     memmove(&v->t2d, fq_D2, 32);
     fq_mult(&v->t2d, &v->t2d, &a->t1);
     fq_mult(&v->t2d, &v->t2d, &a->t2);
+}
+
+typedef struct {
+    cx_bn_t u;
+    cx_bn_t v;
+    cx_bn_t z;
+    cx_bn_t t1;
+    cx_bn_t t2;
+} bn_extended_point_t;
+
+typedef struct {
+    cx_bn_t vpu;
+    cx_bn_t vmu;
+    cx_bn_t z;
+    cx_bn_t t2d;
+} bn_extended_niels_point_t;
+
+static void print_bn(const char *label, cx_bn_t bn) {
+    uint8_t v[32];
+    cx_bn_export(bn, v, 32);
+    PRINTF(">> %s %.*H\n", label, 32, v);
+}
+
+void bn_init_identity(bn_extended_point_t *v) {
+    cx_bn_alloc_init(&v->u, 32, fq_0, 32);
+    cx_bn_alloc_init(&v->v, 32, fq_1, 32);
+    cx_bn_alloc_init(&v->z, 32, fq_1, 32);
+    cx_bn_alloc_init(&v->t1, 32, fq_0, 32);
+    cx_bn_alloc_init(&v->t2, 32, fq_0, 32);
+}
+
+void bn_load_extended_niels(bn_extended_niels_point_t *v, const extended_niels_point_t *a) {
+    cx_bn_alloc_init(&v->vpu, 32, a->vpu, 32);
+    cx_bn_alloc_init(&v->vmu, 32, a->vmu, 32);
+    cx_bn_alloc_init(&v->z, 32, a->z, 32);
+    cx_bn_alloc_init(&v->t2d, 32, a->t2d, 32);
+}
+
+void bn_store_extended(extended_point_t *v, const bn_extended_point_t *a) {
+    cx_bn_export(a->u, v->u, 32);
+    cx_bn_export(a->v, v->v, 32);
+    cx_bn_export(a->z, v->z, 32);
+    cx_bn_export(a->t1, v->t1, 32);
+    cx_bn_export(a->t2, v->t2, 32);
+}
+
+static void bn_ext_double(bn_extended_point_t *v, cx_bn_t q_m) {
+    cx_bn_t uu;
+    cx_bn_alloc(&uu, 32);
+    cx_bn_copy(uu, v->u);
+    cx_bn_mod_mul(uu, uu, uu, q_m);
+
+    cx_bn_t vv;
+    cx_bn_alloc(&vv, 32);
+    cx_bn_copy(vv, v->v);
+    cx_bn_mod_mul(vv, vv, vv, q_m);
+
+    cx_bn_t zz2;
+    cx_bn_alloc(&zz2, 32);
+    cx_bn_copy(zz2, v->z);
+    cx_bn_mod_mul(zz2, zz2, zz2, q_m);
+    cx_bn_mod_add(zz2, zz2, zz2, q_m);
+
+    cx_bn_t uv2;
+    cx_bn_alloc(&uv2, 32);
+    
+    cx_bn_mod_add(uv2, v->u, v->v, q_m);
+    cx_bn_mod_mul(uv2, uv2, uv2, q_m);
+
+    cx_bn_t vpu;
+    cx_bn_alloc(&vpu, 32);
+    cx_bn_mod_add(vpu, vv, uu, q_m); // vpu = v*v + u*u
+
+    cx_bn_t vmu;
+    cx_bn_alloc(&vmu, 32);
+    cx_bn_mod_sub(vmu, vv, uu, q_m); // vmu = v*v - u*u
+
+    cx_bn_t t;
+    cx_bn_alloc(&t, 32);
+    cx_bn_mod_sub(t, zz2, vmu, q_m);
+
+    cx_bn_mod_sub(v->t1, uv2, vpu, q_m);
+    cx_bn_copy(v->t2, vpu);
+    cx_bn_mod_mul(v->u, v->t1, t, q_m);
+    cx_bn_mod_mul(v->v, v->t2, vmu, q_m);
+    cx_bn_mod_mul(v->z, vmu, t, q_m);
+
+    cx_bn_destroy(&t);
+    cx_bn_destroy(&vmu);
+    cx_bn_destroy(&vpu);
+    cx_bn_destroy(&uv2);
+    cx_bn_destroy(&zz2);
+    cx_bn_destroy(&vv);
+    cx_bn_destroy(&uu);
+}
+
+static void bn_ext_add(bn_extended_point_t *x, const bn_extended_niels_point_t *y, cx_bn_t q_m) {
+    cx_bn_t a; cx_bn_alloc(&a, 32);
+    cx_bn_t b; cx_bn_alloc(&b, 32);
+    cx_bn_mod_sub(a, x->v, x->u, q_m); // a = (v - u) * vmu
+    cx_bn_mod_mul(a, a, y->vmu, q_m);
+    cx_bn_mod_add(b, x->v, x->u, q_m); // b = (v + u) * vpu
+    cx_bn_mod_mul(b, b, y->vpu, q_m);
+
+    cx_bn_t c; cx_bn_alloc(&c, 32);
+    cx_bn_t d; cx_bn_alloc(&d, 32);
+    cx_bn_mod_mul(c, x->t1, x->t2, q_m); 
+    cx_bn_mod_mul(c, c, y->t2d, q_m); // c = t1 * t2 * t2d
+    cx_bn_mod_mul(d, x->z, y->z, q_m);
+    cx_bn_mod_add(d, d, d, q_m); // d = 2zz
+
+    cx_bn_t u; cx_bn_alloc(&u, 32);
+    cx_bn_t v; cx_bn_alloc(&v, 32);
+    cx_bn_mod_sub(u, b, a, q_m); // u = b - a
+    cx_bn_mod_add(v, b, a, q_m); // v = b + a
+
+    cx_bn_t z; cx_bn_alloc(&z, 32);
+    cx_bn_t t; cx_bn_alloc(&t, 32);
+    cx_bn_mod_add(z, d, c, q_m); // z = d + c
+    cx_bn_mod_sub(t, d, c, q_m); // t = d - c
+
+    // print_bn("A", a);
+    // print_bn("B", b);
+    // print_bn("C", c);
+    // print_bn("D", d);
+    // print_bn("U", u);
+    // print_bn("V", v);
+    // print_bn("Z", z);
+    // print_bn("T", t);
+
+    cx_bn_destroy(&a);
+    cx_bn_destroy(&b);
+    cx_bn_destroy(&c);
+    cx_bn_destroy(&d);
+
+    cx_bn_mod_mul(x->u, u, t, q_m); // u = ut
+    cx_bn_mod_mul(x->v, v, z, q_m); // v = vz
+    cx_bn_mod_mul(x->z, z, t, q_m); // z = zt
+    cx_bn_copy(x->t1, u); // t1 = u
+    cx_bn_copy(x->t2, v); // t2 = v
+
+    cx_bn_destroy(&u);
+    cx_bn_destroy(&v);
+    cx_bn_destroy(&z);
+    cx_bn_destroy(&t);
+}
+
+void ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t *x) {
+    cx_bn_lock(32, 0);
+    cx_bn_t fq_M; cx_bn_alloc_init(&fq_M, 32, fq_m, 32);
+
+    bn_extended_point_t acc;
+    bn_init_identity(&acc);
+
+    bn_extended_niels_point_t b;
+    bn_load_extended_niels(&b, base);
+
+    int j0 = 4; // skip highest 4 bits (always set to 0 for Fr)
+    for (int i = 0; i < 32; i++) {
+        uint8_t c = (*x)[i];
+        for (int j = j0; j < 8; j++) {
+            bn_ext_double(&acc, fq_M);
+            if (((c >> (7-j)) & 1) != 0) {
+                bn_ext_add(&acc, &b, fq_M);
+            }
+        }
+        j0 = 0;
+    }
+    bn_store_extended(v, &acc);
+    PRINTF("U: %.*H\n", 32, v->u);
+    PRINTF("V: %.*H\n", 32, v->v);
+    PRINTF("Z: %.*H\n", 32, v->z);
+    PRINTF("T1: %.*H\n", 32, v->t1);
+    PRINTF("T2: %.*H\n", 32, v->t2);
+
+    cx_bn_unlock();
 }
 
 void ext_double(extended_point_t *v) {
@@ -136,25 +285,6 @@ void ext_add(extended_point_t *x, const extended_niels_point_t *y) {
     fq_mult(&x->u, &x->t1, &v);
     fq_mult(&x->v, &x->t2, &u);
     fq_mult(&x->z, &u, &v);
-}
-
-void ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t *x) {
-    ext_set_identity(v);
-
-    int j0 = 4; // skip highest 4 bits (always set to 0 for Fr)
-    for (int i = 0; i < 32; i++) {
-        uint8_t c = (*x)[i];
-        for (int j = j0; j < 8; j++) {
-            ext_double(v);
-            if (((c >> (7-j)) & 1) != 0) {
-                ext_add(v, base);
-            }
-            else {
-                ext_add(v, &IDENTITY_NIELS);
-            }
-        }
-        j0 = 0;
-    }
 }
 
 void ext_to_bytes(uint8_t *v, const extended_point_t *a) {
@@ -300,4 +430,40 @@ int sign(uint8_t *signature, fr_t *sk, uint8_t *message) {
     swap_endian(signature + 32, 32);
 
     return 0;
+}
+
+void simple_point_test() {
+    extended_point_t p;
+    ext_set_identity(&p);
+    for (int i = 0; i < 3; i++) {
+        ext_add(&p, &SPENDING_GENERATOR_NIELS);
+        ext_double(&p);
+    }
+    PRINTF("U: %.*H\n", 32, p.u);
+    PRINTF("V: %.*H\n", 32, p.v);
+    PRINTF("Z: %.*H\n", 32, p.z);
+    PRINTF("T1: %.*H\n", 32, p.t1);
+    PRINTF("T2: %.*H\n", 32, p.t2);
+
+    cx_bn_lock(32, 0);
+    cx_bn_t fq_M; cx_bn_alloc_init(&fq_M, 32, fq_m, 32);
+
+    bn_extended_point_t p2;
+    bn_init_identity(&p2);
+
+    bn_extended_niels_point_t b;
+    bn_load_extended_niels(&b, &SPENDING_GENERATOR_NIELS);
+    for (int i = 0; i < 3; i++) {
+        bn_ext_add(&p2, &b, fq_M);
+        bn_ext_double(&p2, fq_M);
+    }
+    bn_store_extended(&p, &p2);
+    cx_bn_unlock();
+
+    PRINTF("U: %.*H\n", 32, p.u);
+    PRINTF("V: %.*H\n", 32, p.v);
+    PRINTF("Z: %.*H\n", 32, p.z);
+    PRINTF("T1: %.*H\n", 32, p.t1);
+    PRINTF("T2: %.*H\n", 32, p.t2);
+
 }
