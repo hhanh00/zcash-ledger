@@ -34,17 +34,14 @@
 
 int handler_test_math() {
     int error = 0;
+    fq_t d2;
     BEGIN_TRY {
         TRY {
-            simple_point_test();
+            // simple_point_test();
             
-            fq_t d2;
-
             // cx_math version
             // memmove(&d2, fq_D, 32);
-            // for (int i = 0; i < 10000; i++) {
-            //     fq_square(&d2);
-            // }
+            // fq_square(&d2);
 
             // bn version
             // cx_bn_lock(32, 0);
@@ -57,19 +54,19 @@ int handler_test_math() {
             // cx_bn_export(d, (uint8_t *)&d2, 32);
             // cx_bn_unlock();
 
-            // cx_bn_mont_ctx_t ctx;
-            // cx_bn_t d, m;
-            // cx_bn_lock(32, 0);
-            // cx_bn_alloc_init(&m, 32, fq_m, 32);
-            // cx_mont_init(&ctx, m);
-            // cx_bn_alloc_init(&d, 32, fq_D, 32);
-            // cx_mont_to_montgomery(d, d, &ctx);
-            // for (int i = 0; i < 10000; i++) {
-            //     cx_mont_mul(d, d, d, &ctx);
-            // }
-            // cx_mont_from_montgomery(d, d, &ctx);
-            // cx_bn_export(d, (uint8_t *)&d2, 32);
-            // cx_bn_unlock();
+            cx_bn_mont_ctx_t ctx;
+            cx_bn_t r, d, m;
+            cx_bn_lock(32, 0);
+            CX_THROW(cx_bn_alloc_init(&m, 32, fq_m, 32));
+            CX_THROW(cx_mont_alloc(&ctx, 32));
+            CX_THROW(cx_mont_init(&ctx, m));
+            CX_THROW(cx_bn_alloc(&r, 32));
+            CX_THROW(cx_bn_alloc_init(&d, 32, fq_D, 32));
+            CX_THROW(cx_mont_to_montgomery(d, d, &ctx));
+            CX_THROW(cx_mont_mul(r, d, d, &ctx));
+            CX_THROW(cx_mont_from_montgomery(r, r, &ctx));
+            CX_THROW(cx_bn_export(r, (uint8_t *)&d2, 32));
+            cx_bn_unlock();
         }
         CATCH_OTHER(e) {
             error = e;
@@ -79,5 +76,5 @@ int handler_test_math() {
     }
     END_TRY;
     if (error != 0) return io_send_sw(error);
-    return helper_send_response_bytes(NULL, 0);
+    return helper_send_response_bytes(d2, 32);
 }
