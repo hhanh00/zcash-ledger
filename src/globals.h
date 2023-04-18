@@ -27,8 +27,3 @@ extern bolos_ux_params_t G_ux_params;
  * Global context for user requests.
  */
 extern global_ctx_t G_context;
-
-/**
- * Global context for the tx hash
-*/
-extern tx_hashes_t G_tx_hashes;

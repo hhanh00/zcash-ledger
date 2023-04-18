@@ -12,3 +12,7 @@
 void validate_address(bool choice);
 
 void validate_out(bool choice);
+
+void validate_fee(bool choice);
+
+void reset_app();

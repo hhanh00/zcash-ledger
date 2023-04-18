@@ -45,6 +45,8 @@ static void ui_action_validate_address(bool choice) {
 }
 
 // Step with icon and text
+UX_STEP_NOCB(ux_show_processing_step, pn, {&C_icon_processing, "Processing"});
+// Step with icon and text
 UX_STEP_NOCB(ux_display_confirm_addr_step, pn, {&C_icon_eye, "Confirm Address"});
 // Step with title/text for address
 UX_STEP_NOCB(ux_display_address_step,
@@ -57,6 +59,12 @@ UX_STEP_NOCB(ux_display_amount_step,
              bnnn_paging,
              {
                  .title = "Amount",
+                 .text = G_context.amount,
+             });
+UX_STEP_NOCB(ux_display_fee_step,
+             bnnn_paging,
+             {
+                 .title = "Fee",
                  .text = G_context.amount,
              });
 // Step with approve button
@@ -75,6 +83,14 @@ UX_STEP_CB(ux_display_reject_step,
                &C_icon_crossmark,
                "Reject",
            });
+
+UX_FLOW(ux_processing_flow,
+        &ux_show_processing_step);
+
+int ui_display_processing() {
+    ux_flow_init(0, ux_processing_flow, NULL);
+    return 0;
+}
 
 // FLOW to display address:
 // #1 screen: eye icon + "Confirm Address"
@@ -99,19 +115,43 @@ int ui_display_address() {
     return 0;
 }
 
-UX_FLOW(ux_confirm_s_out_flow,
+UX_FLOW(ux_confirm_out_flow,
         &ux_display_address_step,
         &ux_display_amount_step,
         &ux_display_approve_step,
         &ux_display_reject_step);
 
+UX_FLOW(ux_confirm_fee_flow,
+        &ux_display_fee_step,
+        &ux_display_approve_step,
+        &ux_display_reject_step);
+
+int ui_confirm_t_out(t_out_t *t_out) {
+    g_validate_callback = &validate_out;
+
+    format_t_address(t_out->address_hash);
+    format_amount(t_out->amount);
+
+    ux_flow_init(0, ux_confirm_out_flow, NULL);
+    return 0;
+}
+
 int ui_confirm_s_out(s_out_t *s_out) {
     g_validate_callback = &validate_out;
 
     format_s_address(s_out->address);
-    format_amount((uint8_t *)&s_out->amount);
+    format_amount(s_out->amount);
 
-    ux_flow_init(0, ux_confirm_s_out_flow, NULL);
+    ux_flow_init(0, ux_confirm_out_flow, NULL);
+    return 0;
+}
+
+int ui_confirm_fee(int64_t fee) {
+    g_validate_callback = &validate_fee;
+
+    format_amount(fee);
+
+    ux_flow_init(0, ux_confirm_fee_flow, NULL);
     return 0;
 }
 

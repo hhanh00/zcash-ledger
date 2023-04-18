@@ -87,7 +87,7 @@ void bn_init_identity(bn_extended_point_t *v, cx_bn_mont_ctx_t *ctx) {
     cx_bn_alloc_init(&v->z, 32, fq_1, 32);
     cx_bn_alloc_init(&v->t1, 32, fq_0, 32);
     cx_bn_alloc_init(&v->t2, 32, fq_0, 32);
-    #ifndef DEBUG
+    #ifndef NO_MONTGOMERY
     cx_mont_to_montgomery(v->v, v->v, ctx);
     cx_mont_to_montgomery(v->z, v->z, ctx);
     #endif
@@ -99,7 +99,7 @@ void bn_load_extended_niels(bn_extended_niels_point_t *v, const extended_niels_p
     cx_bn_alloc_init(&v->vmu, 32, a->vmu, 32);
     cx_bn_alloc_init(&v->z, 32, a->z, 32);
     cx_bn_alloc_init(&v->t2d, 32, a->t2d, 32);
-    #ifndef DEBUG
+    #ifndef NO_MONTGOMERY
     cx_mont_to_montgomery(v->vpu, v->vpu, ctx);
     cx_mont_to_montgomery(v->vmu, v->vmu, ctx);
     cx_mont_to_montgomery(v->z, v->z, ctx);
@@ -108,7 +108,7 @@ void bn_load_extended_niels(bn_extended_niels_point_t *v, const extended_niels_p
 }
 
 void bn_store_extended(extended_point_t *v, const bn_extended_point_t *a, cx_bn_mont_ctx_t *ctx) {
-    #ifndef DEBUG
+    #ifndef NO_MONTGOMERY
     cx_mont_from_montgomery(a->u, a->u, ctx);
     cx_mont_from_montgomery(a->v, a->v, ctx);
     cx_mont_from_montgomery(a->z, a->z, ctx);
@@ -122,7 +122,7 @@ void bn_store_extended(extended_point_t *v, const bn_extended_point_t *a, cx_bn_
     cx_bn_export(a->t2, v->t2, 32);
 }
 
-#ifdef DEBUG
+#ifdef NO_MONTGOMERY
 #define CX_MUL(r, a, b) cx_bn_mod_mul(r, a, b, q_m)
 #else
 #define CX_MUL(r, a, b) cx_mont_mul(r, a, b, ctx)
@@ -245,7 +245,7 @@ void ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t
     cx_bn_lock(32, 0);
     cx_bn_t fq_M; cx_bn_alloc_init(&fq_M, 32, fq_m, 32);
     cx_bn_mont_ctx_t ctx;
-    #ifndef DEBUG
+    #ifndef NO_MONTGOMERY
     cx_mont_alloc(&ctx, 32);
     cx_mont_init(&ctx, fq_M);
     #endif
@@ -485,7 +485,7 @@ int sign(uint8_t *signature, fr_t *sk, uint8_t *message) {
     return 0;
 }
 
-#ifdef DEBUG
+#ifdef NO_MONTGOMERY
 void simple_point_test() {
     extended_point_t p;
     ext_set_identity(&p);
@@ -502,7 +502,7 @@ void simple_point_test() {
     cx_bn_lock(32, 0);
     cx_bn_t fq_M; cx_bn_alloc_init(&fq_M, 32, fq_m, 32);
     cx_bn_mont_ctx_t ctx;
-    #ifndef DEBUG
+    #ifndef NO_MONTGOMERY
     cx_mont_init(&ctx, fq_M);
     #endif
 

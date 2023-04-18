@@ -27,14 +27,32 @@ void validate_address(bool choice) {
     if (choice) {
         helper_send_response_bytes((uint8_t *)G_context.address, 78);
     } else {
+        reset_app();
         io_send_sw(SW_DENY);
     }
 }
 
 void validate_out(bool choice) {
     if (choice) {
+        ui_menu_main();
         helper_send_response_bytes(NULL, 0);
     } else {
+        reset_app();
         io_send_sw(SW_DENY);
     }
+}
+
+void validate_fee(bool choice) {
+    if (choice) {
+        G_context.signing_ctx.stage = SIGN; // last confirmation approved - ok to sign
+        helper_send_response_bytes(NULL, 0);
+    } else {
+        reset_app();
+        io_send_sw(SW_DENY);
+    }
+}
+
+void reset_app() {
+    G_context.signing_ctx.stage = IDLE;
+    ui_menu_main();
 }

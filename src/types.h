@@ -24,7 +24,7 @@ typedef enum {
     GET_APP_NAME = 0x04,    /// name of the application
     INITIALIZE = 0x05,
     GET_FVK = 0x06,         /// full viewing key (diversifiable viewing key)
-    GET_ADDRESS = 0x07,
+    GET_PUBKEY = 0x07,
     INIT_TX = 0x08,
     ADD_T_IN = 0x09,
     ADD_T_OUT = 0x0A,
@@ -36,8 +36,8 @@ typedef enum {
     GET_SIGHASH = 0x10,
     GET_PROOFGEN_KEY = 0x11,
     SIGN_SAPLING = 0x12,
-    GET_PUBKEY = 0x13,
     SIGN_TRANSPARENT = 0x14,
+    END_TX = 0x15,
     TEST_CMU = 0x80,
     TEST_JUBJUB_HASH = 0x81,
     TEST_PEDERSEN_HASH = 0x82,
@@ -116,10 +116,12 @@ typedef struct {
 } fvk_ctx_t;
 
 typedef enum {
+    IDLE,
     T_IN,
     T_OUT,
     S_OUT,
     S_NET,
+    SIGN,
 } signing_stage_t;
 
 typedef struct {
@@ -136,6 +138,7 @@ typedef struct {
     signing_stage_t stage;
     uint8_t sapling_sig_hash[32];
     uint64_t amount_s_out;
+    int64_t t_net;
     bool has_t_in;
     bool has_t_out;
     bool has_s_in;
@@ -155,8 +158,3 @@ typedef struct {
     tx_signing_ctx_t signing_ctx;
     request_type_e req_type;              /// user request
 } global_ctx_t;
-
-typedef struct {
-    uint8_t header[32];
-} tx_hashes_t;
-

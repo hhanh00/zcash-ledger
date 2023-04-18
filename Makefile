@@ -80,9 +80,10 @@ else
     endif
 endif
 
+# DEFINES += HAVE_PRINTF NO_MONTGOMERY PRINTF=mcu_usb_printf
 DEBUG ?= 0
 ifneq ($(DEBUG),0)
-    DEFINES += HAVE_PRINTF
+    DEFINES += HAVE_PRINTF NO_MONTGOMERY
     ifeq ($(TARGET_NAME),TARGET_NANOS)
         DEFINES += PRINTF=screen_printf
     else

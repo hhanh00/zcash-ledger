@@ -34,25 +34,15 @@
 #include "bech32.h"
 
 #include "globals.h"
+#include "../common/base58.h"
+#include "../ui/display.h"
+#include "../ui/menu.h"
 #include "../helper/send_response.h"
 
-#ifdef DEBUG
-const uint8_t TEST_TSK[] = {
-    0xa2, 0xa6, 0xce, 0xf0, 0x15, 0xbb, 0xce, 0x36, 
-    0x7e, 0x91, 0x6d, 0x83, 0x15, 0x20, 0x94, 0xd6, 
-    0x49, 0x2c, 0x42, 0x2b, 0xeb, 0x03, 0x7e, 0xdc, 
-    0xbb, 0xd5, 0x05, 0x93, 0xaa, 0x02, 0xb1, 0x83
-};
-#endif
-
 int derive_tsk(uint8_t *tsk, uint8_t account) {
-#ifdef DEBUG
-    memmove(tsk, TEST_TSK, 32);
-#else
     uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
     os_perso_derive_node_bip32(CX_CURVE_256K1, bip32_path, 5,
         tsk, NULL);
-#endif
     return 0;
 }
 
@@ -114,6 +104,7 @@ void crypto_derive_spending_key(int8_t account) {
     expanded_spending_key_t *exp_sk = &G_context.exp_sk_info;
     uint8_t spending_key[32];
 
+    ui_display_processing();
     derive_ssk(spending_key, account);
     G_context.account = account;
 
@@ -176,6 +167,7 @@ void crypto_derive_spending_key(int8_t account) {
     ext_to_bytes(pk_d_bytes, &pk_d);
 
     to_address_bech32(G_context.address, exp_sk->d, pk_d_bytes);
+    ui_menu_main();
 }
 
 void calc_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk) {
@@ -204,6 +196,26 @@ void to_address_bech32(char *address, uint8_t *d, uint8_t *pk_d) {
     convert_bits(buffer, &buffer_len, 5, data, 43, 8, 1);
     bech32_encode(address, "zs", buffer, buffer_len, BECH32_ENCODING_BECH32);
 }
+
+uint8_t address[26];
+uint8_t hash[32];
+cx_sha256_t sha_hasher;
+
+/**
+ * out_address must has length 80 bytes at least
+*/
+void to_t_address(char *out_address, uint8_t *kh) { 
+    address[0] = 0x1C;
+    address[1] = 0xB8;
+    memmove(address + 2, kh, 20);
+    cx_sha256_init_no_throw(&sha_hasher);
+    cx_hash_no_throw((cx_hash_t *)&sha_hasher, CX_LAST, address, 22, hash, 32);
+    cx_sha256_init_no_throw(&sha_hasher);
+    cx_hash_no_throw((cx_hash_t *)&sha_hasher, CX_LAST, hash, 32, hash, 32); // dsha
+    memmove(address + 22, hash, 4);
+    memset(out_address, 0, 80);
+    base58_encode(address, 26, out_address, 80);
+} 
 
 int get_proofgen_key() {
     proofgen_key_t proof_gen_key;

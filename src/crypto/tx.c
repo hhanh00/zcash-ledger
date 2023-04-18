@@ -30,7 +30,9 @@
 #include "jubjub.h"
 #include "tx.h"
 #include "../ui/display.h"
+#include "../ui/menu.h"
 #include "../helper/send_response.h"
+#include "../ui/action/validate.h"
 
 const uint8_t orchard_hash[] = {0x9F, 0xBE, 0x4E, 0xD1, 0x3B, 0x0C, 0x08, 0xE6, 0x71, 0xC1, 0x1A,
                                 0x34, 0x07, 0xD8, 0x4E, 0x11, 0x17, 0xCD, 0x45, 0x02, 0x8A, 0x2E,
@@ -88,6 +90,11 @@ int init_tx(uint8_t *header_digest) {
 }
 
 int change_stage(uint8_t new_stage) {
+    if (new_stage != G_context.signing_ctx.stage + 1) {
+        reset_app();
+        return io_send_sw(SW_BAD_STATE);
+    }
+
     switch (new_stage) {
         case T_OUT:
             cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
@@ -138,14 +145,26 @@ const uint32_t PAY2PKH_1 = 0x14A97619;  // First part of the pay2pkh bitcoin scr
 const uint16_t PAY2PKH_2 = 0xAC88;      // Second part of the pay2pkh bitcoin script (reversed)
 
 int add_t_input_amount(uint64_t amount) {
+    if (G_context.signing_ctx.stage != T_IN) {
+        reset_app();
+        return io_send_sw(SW_BAD_STATE);
+    }
+
     G_context.signing_ctx.has_t_in = true;
+    G_context.signing_ctx.t_net += (int64_t)amount;
     cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher, 0, (uint8_t *) &amount, 8, NULL, 0);
 
     return helper_send_response_bytes(NULL, 0);
 }
 
 int add_t_output(t_out_t *output, bool confirmation) {
+    if (G_context.signing_ctx.stage != T_OUT) {
+        reset_app();
+        return io_send_sw(SW_BAD_STATE);
+    }
+
     G_context.signing_ctx.has_t_out = true;
+    G_context.signing_ctx.t_net -= (int64_t)output->amount;
     if (output->address_type != 0)  // only p2pkh for now
         return SW_INVALID_PARAM;
 
@@ -155,16 +174,25 @@ int add_t_output(t_out_t *output, bool confirmation) {
     cx_hash(ph, 0, output->address_hash, 20, NULL, 0);  // pk hash
     cx_hash(ph, 0, (uint8_t *) &PAY2PKH_2, 2, NULL, 0);              // OP_EQUALVERIFY OP_CHECKSIG
 
+    if (confirmation)
+        return ui_confirm_t_out(output);
     return helper_send_response_bytes(NULL, 0);
 }
 
 int add_s_output(s_out_t *output, bool confirmation) {
+    if (G_context.signing_ctx.stage != S_OUT) {
+        reset_app();
+        return io_send_sw(SW_BAD_STATE);
+    }
+    ui_display_processing();
+
     G_context.signing_ctx.has_s_out = true;
     G_context.signing_ctx.amount_s_out += output->amount;
 
     uint8_t rseed[32];
     prf_chacha(&chacha_rseed_rng, rseed, 32);
     PRINTF("RSEED: %.*H\n", 32, rseed);
+    PRINTF("AMOUNT: %.*H\n", 8, &output->amount);
 
     uint8_t cmu[32];
     calc_cmu(cmu, output->address, rseed, &output->amount);
@@ -175,13 +203,21 @@ int add_s_output(s_out_t *output, bool confirmation) {
     cx_hash(ph, 0, output->enc, 52, NULL, 0);  // first 52 bytes of encrypted note
 
     PRINTF("CONFIRMATION %d\n", confirmation);
+    PRINTF("AMOUNT: %.*H\n", 8, &output->amount);
     if (confirmation)
         return ui_confirm_s_out(output);
+    ui_menu_main();
     return helper_send_response_bytes(NULL, 0);
 }
 
-int set_sapling_net(int64_t *balance) {
+int set_sapling_net(int64_t *balance, bool confirmation) {
+    if (G_context.signing_ctx.stage != S_NET) {
+        reset_app();
+        return io_send_sw(SW_BAD_STATE);
+    }
+
     G_context.signing_ctx.has_s_in = *balance != (int64_t)G_context.signing_ctx.amount_s_out;
+    int64_t fee = *balance + G_context.signing_ctx.t_net;
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
@@ -231,6 +267,11 @@ int set_sapling_net(int64_t *balance) {
 
     finish_sighash(G_context.signing_ctx.sapling_sig_hash, 
         G_context.signing_ctx.has_t_in ? sapling_tx_in_hash : NULL); // Compute the shielded sighash
+
+    if (confirmation)
+        return ui_confirm_fee(fee);
+    else
+        G_context.signing_ctx.stage = SIGN;
     return helper_send_response_bytes(NULL, 0);
 }
 
@@ -282,6 +323,12 @@ int get_sighash() {
 }
 
 int sign_sapling() {
+    if (G_context.signing_ctx.stage != SIGN) {
+        reset_app();
+        return io_send_sw(SW_BAD_STATE);
+    }
+    ui_display_processing();
+
     uint8_t alpha[64];
     prf_chacha(&chacha_alpha_rng, alpha, 64);
     fr_from_wide(alpha);
@@ -299,10 +346,17 @@ int sign_sapling() {
     uint8_t signature[64];
     sign(signature, &ask, msg);
 
+    ui_menu_main();
     return helper_send_response_bytes(signature, 64);
 }
 
 int sign_transparent(uint8_t *txin_sig_digest) {
+    if (G_context.signing_ctx.stage != SIGN) {
+        reset_app();
+        return io_send_sw(SW_BAD_STATE);
+    }
+    ui_display_processing();
+
     uint8_t sig_hash[32];
     finish_sighash(sig_hash, txin_sig_digest);
     PRINTF("TRANSPARENT SIG HASH: %.*H\n", 32, sig_hash);
@@ -315,6 +369,8 @@ int sign_transparent(uint8_t *txin_sig_digest) {
     cx_ecfp_init_private_key_no_throw(CX_CURVE_SECP256K1, tsk, 32, &t_prvk);
     int sig_len = cx_ecdsa_sign(&t_prvk, CX_RND_RFC6979 | CX_LAST, CX_SHA256, sig_hash,
         32, signature, sizeof(signature), &info);
+
+    ui_menu_main();
     return helper_send_response_bytes(signature, sig_len); // signature has variable length in DER
 }
 

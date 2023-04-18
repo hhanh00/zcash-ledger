@@ -23,5 +23,7 @@ void calc_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk);
 /// @param pk_d 
 void to_address_bech32(char *address, uint8_t *d, uint8_t *pk_d);
 
+void to_t_address(char *out_address, uint8_t *kh);
+
 int get_proofgen_key();
 

@@ -17,15 +17,20 @@
 
 #include <stddef.h>  // size_t
 #include <stdint.h>  // uint*_t
+#include <os.h>       // sprintf
+#include <lcx_sha256.h>
 
 #include "../globals.h"
 #include "../crypto/key.h"
 #include "../common/format.h"
+#include "../common/base58.h"
 
-void format_amount(uint8_t *amount) {
-    uint64_t value;
-    memmove(&value, amount, sizeof(uint64_t)); // need to copy because of memory alignment 
-    format_fpu64(G_context.amount, sizeof(G_context.amount), value, 8);
+void format_amount(uint64_t amount) {
+    format_fpu64(G_context.amount, sizeof(G_context.amount), amount, 8);
+}
+
+void format_t_address(uint8_t *address_hash) {
+    to_t_address(G_context.address, address_hash);
 }
 
 void format_s_address(uint8_t *address) {

@@ -28,6 +28,7 @@
 #include "../common/buffer.h"
 #include "../crypto/key.h"
 #include "../crypto/tx.h"
+#include "../ui/action/validate.h"
 #include "../handler/get_version.h"
 #include "../handler/get_app_name.h"
 #include "../handler/get_fvk.h"
@@ -77,13 +78,18 @@ int apdu_dispatcher(const command_t *cmd) {
 
             return handler_get_fvk();
         
-        case GET_ADDRESS:
-            if (cmd->p1 > 1 || cmd->p2 != 0) {
+        case GET_PUBKEY:
+            if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
+            if (cmd->lc != 0)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return handler_get_address(cmd->p1 == 1);
-        
+            uint8_t pk[33];
+            derive_pubkey(pk, cmd->p1);
+
+            return helper_send_response_bytes(pk, 33);
+
         case INIT_TX:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -145,7 +151,7 @@ int apdu_dispatcher(const command_t *cmd) {
             }
 
         case SET_S_NET:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
+            if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
             if (cmd->lc != sizeof(int64_t))
@@ -154,7 +160,7 @@ int apdu_dispatcher(const command_t *cmd) {
             p = cmd->data;
             int64_t net;
             memmove(&net, p, 8);
-            return set_sapling_net(&net);
+            return set_sapling_net(&net, cmd->p1 == 1);
 
         case SET_T_MERKLE_PROOF:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -205,18 +211,6 @@ int apdu_dispatcher(const command_t *cmd) {
 
             return get_sighash();
 
-        case GET_PUBKEY:
-            if (cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 0)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            uint8_t pk[33];
-            derive_pubkey(pk, cmd->p1);
-
-            return helper_send_response_bytes(pk, 33);
-
         case SIGN_TRANSPARENT:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -224,6 +218,15 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
             return sign_transparent(cmd->data);
+
+        case END_TX:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 0)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+            reset_app();
+            return helper_send_response_bytes(NULL, 0);
 
         case TEST_CMU: {
             uint8_t cmu[32];

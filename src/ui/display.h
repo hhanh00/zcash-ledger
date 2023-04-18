@@ -16,4 +16,7 @@ typedef void (*action_validate_cb)(bool);
  */
 int ui_display_address(void);
 
+int ui_display_processing();
+int ui_confirm_t_out(t_out_t *s_out);
 int ui_confirm_s_out(s_out_t *s_out);
+int ui_confirm_fee(int64_t fee);
