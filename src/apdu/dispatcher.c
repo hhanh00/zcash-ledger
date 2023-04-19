@@ -26,7 +26,8 @@
 #include "../sw.h"
 #include "../tx.h"
 #include "../common/buffer.h"
-#include "../crypto/key.h"
+#include "../crypto/transparent.h"
+#include "../crypto/sapling.h"
 #include "../crypto/tx.h"
 #include "../ui/action/validate.h"
 #include "../handler/get_version.h"
@@ -41,6 +42,8 @@
 #include "../crypto/prf.h"
 
 #define MOVE_FIELD(s,field) memmove(&s.field, p, sizeof(s.field)); p += sizeof(s.field);
+#define TRANSPARENT_OUT_LEN (8+1+20)
+#define SHIELDED_OUT_LEN (43+8+32+52)
 
 int apdu_dispatcher(const command_t *cmd) {
     if (cmd->cla != CLA) {
@@ -67,7 +70,7 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
 
-            crypto_derive_spending_key(cmd->p1);
+            sapling_derive_spending_key(cmd->p1);
 
             return helper_send_response_bytes(NULL, 0);
 
@@ -115,7 +118,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 8+1+20)
+            if (cmd->lc != TRANSPARENT_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             {
@@ -134,12 +137,12 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 135)
+            if (cmd->lc != SHIELDED_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             {
                 s_out_t s_out;
-                memset(&s_out, 0, 43+8+32+52);
+                memset(&s_out, 0, sizeof(s_out_t));
                 p = cmd->data;
 
                 MOVE_FIELD(s_out, address);
@@ -160,7 +163,38 @@ int apdu_dispatcher(const command_t *cmd) {
             p = cmd->data;
             int64_t net;
             memmove(&net, p, 8);
-            return set_sapling_net(&net, cmd->p1 == 1);
+            return set_s_net(&net, cmd->p1 == 1);
+
+        case ADD_O_OUT:
+            if (cmd->p1 > 1 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != SHIELDED_OUT_LEN)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            {
+                o_out_t o_out;
+                memset(&o_out, 0, sizeof(o_out_t));
+                p = cmd->data;
+
+                MOVE_FIELD(o_out, address);
+                MOVE_FIELD(o_out, amount);
+                MOVE_FIELD(o_out, epk);
+                MOVE_FIELD(o_out, enc);
+
+                return add_o_output(&o_out, cmd->p1 == 1);
+            }
+
+        case SET_O_NET:
+            if (cmd->p1 > 1 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != sizeof(int64_t))
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            p = cmd->data;
+            memmove(&net, p, 8);
+            return set_o_net(&net, cmd->p1 == 1);
 
         case SET_T_MERKLE_PROOF:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -180,6 +214,15 @@ int apdu_dispatcher(const command_t *cmd) {
 
             return set_s_merkle_proof((s_proofs_t *)cmd->data);
 
+        case SET_O_MERKLE_PROOF:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 3 * 32)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return set_o_merkle_proof((o_proofs_t *)cmd->data);
+
         case CHANGE_STAGE:
             if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -187,20 +230,18 @@ int apdu_dispatcher(const command_t *cmd) {
 
             return change_stage(cmd->p1);
 
+        case CONFIRM_FEE:
+            if (cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+
+            return confirm_fee(cmd->p1);
+
         case GET_PROOFGEN_KEY:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
             return get_proofgen_key();
-
-        case SIGN_SAPLING:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 0)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            return sign_sapling();
 
         case GET_SIGHASH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -218,6 +259,24 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
             return sign_transparent(cmd->data);
+
+        case SIGN_SAPLING:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 0)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return sign_sapling();
+
+        case SIGN_ORCHARD:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 0)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return sign_orchard();
 
         case END_TX:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

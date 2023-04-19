@@ -25,26 +25,18 @@
 #include <lcx_ripemd160.h>
 #include <lcx_hash.h>
 
-#include "key.h"
+#include "sapling.h"
 #include "prf.h"
 #include "fr.h"
 #include "ff1.h"
 #include "jubjub.h"
 #include "blake2s.h"
-#include "bech32.h"
 
 #include "globals.h"
-#include "../common/base58.h"
+#include "address.h"
 #include "../ui/display.h"
 #include "../ui/menu.h"
 #include "../helper/send_response.h"
-
-int derive_tsk(uint8_t *tsk, uint8_t account) {
-    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
-    os_perso_derive_node_bip32(CX_CURVE_256K1, bip32_path, 5,
-        tsk, NULL);
-    return 0;
-}
 
 int derive_ssk(uint8_t *ssk, uint8_t account) {
     uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
@@ -64,43 +56,10 @@ int derive_ssk(uint8_t *ssk, uint8_t account) {
     return 0;
 }
 
-int derive_pubkey(uint8_t *pk, uint8_t account) {
-    uint8_t tsk[32];
-    cx_ecfp_private_key_t t_prvk;
-    cx_ecfp_public_key_t t_pubk;
-    derive_tsk(tsk, account);
-    cx_ecfp_init_private_key_no_throw(CX_CURVE_SECP256K1, tsk, 32, &t_prvk);
-    cx_ecfp_generate_pair(CX_CURVE_SECP256K1, &t_pubk, &t_prvk, 1);
-    PRINTF("PK: %.*H\n", 65, t_pubk.W);
-
-    memmove(pk + 1, t_pubk.W + 1, 32); // X
-    pk[0] = ((t_pubk.W[64] & 1) == 0) ? 0x02 : 0x03; // parity of Y
-    PRINTF("CPK: %.*H\n", 33, pk);
-
-    return 0;
-}
-
-int derive_taddress(uint8_t *pkh, uint8_t account) {
-    uint8_t pk[33];
-    derive_pubkey(pk, account);
-    
-    cx_sha256_t sha_hasher;
-    cx_sha256_init_no_throw(&sha_hasher);
-    cx_hash_no_throw((cx_hash_t *)&sha_hasher, CX_LAST, pk, 33, pk, 32);
-    PRINTF("SHA256: %.*H\n", 32, pk);
-
-    cx_ripemd160_t ripemd_hasher;
-    cx_ripemd160_init_no_throw(&ripemd_hasher);
-    cx_hash_no_throw((cx_hash_t *)&ripemd_hasher, CX_LAST, pk, 32, pkh, 20);
-    PRINTF("PKH: %.*H\n", 20, pkh);
-
-    return 0;
-}
-
 /**
  * 
 */
-void crypto_derive_spending_key(int8_t account) {
+void sapling_derive_spending_key(int8_t account) {
     expanded_spending_key_t *exp_sk = &G_context.exp_sk_info;
     uint8_t spending_key[32];
 
@@ -157,7 +116,7 @@ void crypto_derive_spending_key(int8_t account) {
     memmove(G_context.proofk_info.nk, nk, 32);
 
     fr_t ivk;
-    calc_ivk(ivk, ak, nk);
+    sapling_ivk(ivk, ak, nk);
 
     extended_point_t pk_d;
     swap_endian(ivk, 32);
@@ -170,7 +129,7 @@ void crypto_derive_spending_key(int8_t account) {
     ui_menu_main();
 }
 
-void calc_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk) {
+void sapling_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk) {
     blake2s_state hash_ctx;
     blake2s_param hash_params;
     memset(&hash_params, 0, sizeof(hash_params));
@@ -186,36 +145,6 @@ void calc_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk) {
 
     ivk[31] &= 0x07;
 }
-
-void to_address_bech32(char *address, uint8_t *d, uint8_t *pk_d) {
-    uint8_t buffer[70];
-    uint8_t data[43];
-    memmove(data, d, 11);
-    memmove(data + 11, pk_d, 32);
-    size_t buffer_len = 0;
-    convert_bits(buffer, &buffer_len, 5, data, 43, 8, 1);
-    bech32_encode(address, "zs", buffer, buffer_len, BECH32_ENCODING_BECH32);
-}
-
-uint8_t address[26];
-uint8_t hash[32];
-cx_sha256_t sha_hasher;
-
-/**
- * out_address must has length 80 bytes at least
-*/
-void to_t_address(char *out_address, uint8_t *kh) { 
-    address[0] = 0x1C;
-    address[1] = 0xB8;
-    memmove(address + 2, kh, 20);
-    cx_sha256_init_no_throw(&sha_hasher);
-    cx_hash_no_throw((cx_hash_t *)&sha_hasher, CX_LAST, address, 22, hash, 32);
-    cx_sha256_init_no_throw(&sha_hasher);
-    cx_hash_no_throw((cx_hash_t *)&sha_hasher, CX_LAST, hash, 32, hash, 32); // dsha
-    memmove(address + 22, hash, 4);
-    memset(out_address, 0, 80);
-    base58_encode(address, 26, out_address, 80);
-} 
 
 int get_proofgen_key() {
     proofgen_key_t proof_gen_key;

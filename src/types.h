@@ -25,19 +25,24 @@ typedef enum {
     INITIALIZE = 0x05,
     GET_FVK = 0x06,         /// full viewing key (diversifiable viewing key)
     GET_PUBKEY = 0x07,
-    INIT_TX = 0x08,
-    ADD_T_IN = 0x09,
-    ADD_T_OUT = 0x0A,
-    ADD_S_OUT = 0x0B,
-    SET_S_NET = 0x0C,
-    SET_T_MERKLE_PROOF = 0x0D,
-    SET_S_MERKLE_PROOF = 0x0E,
-    CHANGE_STAGE = 0x0F,
-    GET_SIGHASH = 0x10,
-    GET_PROOFGEN_KEY = 0x11,
-    SIGN_SAPLING = 0x12,
-    SIGN_TRANSPARENT = 0x14,
-    END_TX = 0x15,
+    INIT_TX = 0x10,
+    CHANGE_STAGE = 0x11,
+    SET_T_MERKLE_PROOF = 0x12,
+    SET_S_MERKLE_PROOF = 0x13,
+    SET_O_MERKLE_PROOF = 0x14,
+    ADD_T_IN = 0x15,
+    ADD_T_OUT = 0x16,
+    ADD_S_OUT = 0x17,
+    SET_S_NET = 0x18,
+    ADD_O_OUT = 0x19,
+    SET_O_NET = 0x1A,
+    CONFIRM_FEE = 0x1B,
+    GET_SIGHASH = 0x20,
+    GET_PROOFGEN_KEY = 0x21,
+    SIGN_TRANSPARENT = 0x22,
+    SIGN_SAPLING = 0x23,
+    SIGN_ORCHARD = 0x24,
+    END_TX = 0x30,
     TEST_CMU = 0x80,
     TEST_JUBJUB_HASH = 0x81,
     TEST_PEDERSEN_HASH = 0x82,
@@ -104,6 +109,9 @@ typedef enum {
     T_OUT,
     S_OUT,
     S_NET,
+    O_OUT,
+    O_NET,
+    FEE,
     SIGN,
 } signing_stage_t;
 
@@ -112,6 +120,8 @@ typedef struct {
     int64_t fee;
     uint64_t amount_s_out;
     int64_t t_net;
+    int64_t s_net;
+    int64_t o_net;
     uint8_t tsk[32];
     uint8_t mseed[32];
     uint8_t header_hash[32];

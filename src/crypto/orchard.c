@@ -15,24 +15,16 @@
  *  limitations under the License.
  *****************************************************************************/
 
-#include <stddef.h>  // size_t
-#include <stdint.h>  // uint*_t
+#include <stdint.h>   // uint*_t
+#include <string.h>   // memset, explicit_bzero
+#include <stdbool.h>  // bool
 #include <os.h>       // sprintf
-#include <lcx_sha256.h>
+#include <ox_bn.h>
+#include <blake2s.h>
 
-#include "../globals.h"
-#include "../crypto/address.h"
-#include "../common/format.h"
-#include "../common/base58.h"
+#include "fr.h"
+#include "pallas.h"
 
-void format_amount(uint64_t amount) {
-    format_fpu64(G_context.amount, sizeof(G_context.amount), amount, 8);
-}
+#include "globals.h"
 
-void format_t_address(uint8_t *address_hash) {
-    to_t_address(G_context.address, address_hash);
-}
-
-void format_s_address(uint8_t *address) {
-    to_address_bech32(G_context.address, address, address + 11);
-}
+void orchard_derive_spending_key(int8_t account) {}
