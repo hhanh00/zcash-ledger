@@ -1,53 +1,38 @@
-# Ledger Boilerplate Application
+## Disclaimer
 
-This is a boilerplate application which can be forked to start a new project for the Ledger Nano S/X.
+This project is under development but is working AFAIK. Please
+report any issue you find.
 
-## Prerequisite
+It is supported by a grant from the Zcash community and will
+be submitted to Ledger for official inclusion in their app store.
 
-### With the docker image builder
+The submission has not been filed yet.
 
-The app-builder docker image [from this repository](https://github.com/LedgerHQ/ledger-app-builder) contains all needed tools and library to build and load an application.
-You can download it from the ghcr.io docker repository:
+> Use at your own risk
 
-```shell
-sudo docker pull ghcr.io/ledgerhq/ledger-app-builder/ledger-app-builder-full
-```
+I highly recommend using a dedicated Ledger device 
+though Ledger OS security isolates coins from each other.
 
-You can then enter this development environment by executing the following command from the directory of the application `git` repository:
+## Security
 
-```shell
-sudo docker run --rm -ti --user "$(id -u)":"$(id -g)" -v "$(realpath .):/app" ghcr.io/ledgerhq/ledger-app-builder/ledger-app-builder-full
-```
+**This application is locked to the Zcash derivation path and
+cannot access other coins**
 
-The application's code will be available from inside the docker container, you can proceed to the following compilation steps to build your app.
+## Supported Devices
 
-### Without the docker image builder
+> Only the Ledger Nano S+ is supported
 
-Be sure to have your environment correctly set up (see [Getting Started](https://developers.ledger.com/docs/nano-app/introduction/)) and [ledgerblue](https://pypi.org/project/ledgerblue/) and installed.
+- Nano S does not have enough RAM. It is no longer on sale too.
+- Nano X does not support side-loading
+- Nano Stax is not available to the public yet
 
-If you want to benefit from [vscode](https://code.visualstudio.com/) integration, it's recommended to move the toolchain in `/opt` and set `BOLOS_ENV` environment variable as follows
+## Installation
 
-```shell
-BOLOS_ENV=/opt/bolos-devenv
-```
-
-and do the same with `BOLOS_SDK` environment variable
-
-```shell
-BOLOS_SDK=/opt/nanos-secure-sdk
-```
-
-## Compilation and load
-
-```shell
-make DEBUG=1  # compile optionally with PRINTF
-make load     # load the app on the Nano using ledgerblue
-```
-
-## Run in Speculos
+- Install python
+- Install [ledgerblue](https://github.com/LedgerHQ/blue-loader-python)
+- Download and unzip the release
+- Run the install script `install.sh` or the command below
 
 ```
-docker run --rm -it -v $(pwd)/bin:/speculos/apps --publish 9999:9999 speculos --display headless --apdu-port 9999 apps/app.elf
+python3 -m ledgerblue.loadApp --curve secp256k1 --appFlags 0x000 --path "44'/133'" --tlv --targetId 0x33100004 --apiLevel 1 --delete --fileName bin/app.hex --appName "Zcash" --appVersion "1.0.1" --dataSize 0 
 ```
-
-Send APDU: `echo 'e006000000' | LEDGER_PROXY_ADDRESS=127.0.0.1 LEDGER_PROXY_PORT=9999 ledgerctl send -`
