@@ -56,23 +56,6 @@ typedef struct {
     uint8_t *data;  /// Command data
 } command_t;
 
-/**
- * Enumeration with parsing state.
- */
-typedef enum {
-    STATE_NONE,     /// No state
-    STATE_PARSED,   /// Transaction data parsed
-    STATE_APPROVED  /// Transaction data approved
-} state_e;
-
-/**
- * Enumeration with user request type.
- */
-typedef enum {
-    CONFIRM_ADDRESS,     /// confirm address derived from public key
-    CONFIRM_TRANSACTION  /// confirm transaction information
-} request_type_e;
-
 typedef uint8_t fr_t[32];
 typedef uint8_t fq_t[32];
 typedef uint8_t hash_t[32];
@@ -125,20 +108,20 @@ typedef enum {
 } signing_stage_t;
 
 typedef struct {
+    cx_blake2b_t hasher;
+    int64_t fee;
+    uint64_t amount_s_out;
+    int64_t t_net;
     uint8_t tsk[32];
     uint8_t mseed[32];
-    cx_blake2b_t hasher;
     uint8_t header_hash[32];
     uint8_t amount_hash[32];
     uint8_t t_outputs_hash[32];
     t_proofs_t t_proofs;
     s_proofs_t s_proofs;
     uint8_t s_compact_hash[32];
-    int64_t fee; // TODO
-    signing_stage_t stage;
     uint8_t sapling_sig_hash[32];
-    uint64_t amount_s_out;
-    int64_t t_net;
+    signing_stage_t stage;
     bool has_t_in;
     bool has_t_out;
     bool has_s_in;
@@ -149,12 +132,10 @@ typedef struct {
  * Structure for global context.
  */
 typedef struct {
-    state_e state;  /// state of the context
     uint8_t account;
     expanded_spending_key_t exp_sk_info;
     proofk_ctx_t proofk_info;
     char address[80];
-    char amount[40];
+    char amount[23];
     tx_signing_ctx_t signing_ctx;
-    request_type_e req_type;              /// user request
 } global_ctx_t;

@@ -104,11 +104,6 @@ UX_FLOW(ux_display_fvk_flow,
         &ux_display_reject_step);
 
 int ui_display_address() {
-    if (G_context.req_type != CONFIRM_ADDRESS || G_context.state != STATE_NONE) {
-        G_context.state = STATE_NONE;
-        return io_send_sw(SW_BAD_STATE);
-    }
-
     g_validate_callback = &ui_action_validate_address;
 
     ux_flow_init(0, ux_display_fvk_flow, NULL);
