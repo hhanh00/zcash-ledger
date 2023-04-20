@@ -75,12 +75,6 @@ typedef struct {
     cx_bn_t t2d;
 } bn_extended_niels_point_t;
 
-static void print_bn(const char *label, cx_bn_t bn) {
-    uint8_t v[32];
-    cx_bn_export(bn, v, 32);
-    PRINTF(">> %s %.*H\n", label, 32, v);
-}
-
 void bn_init_identity(bn_extended_point_t *v, cx_bn_mont_ctx_t *ctx) {
     cx_bn_alloc_init(&v->u, 32, fq_0, 32);
     cx_bn_alloc_init(&v->v, 32, fq_1, 32);

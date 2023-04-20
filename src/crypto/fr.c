@@ -50,3 +50,34 @@ void fr_from_wide(uint8_t *data_512) {
     memmove(data_512, data_512 + 32, 32);
 }
 
+void fp_from_wide(uint8_t *data_512) {
+    swap_endian(data_512, 64);
+    fp_from_wide_be(data_512);
+}
+
+void fp_from_wide_be(uint8_t *data_512) {
+    cx_math_modm_no_throw(data_512, 64, fp_m, 32);
+    memmove(data_512, data_512 + 32, 32);
+}
+
+void fv_from_wide(uint8_t *data_512) {
+    swap_endian(data_512, 64);
+    fv_from_wide_be(data_512);
+}
+
+void fv_from_wide_be(uint8_t *data_512) {
+    cx_math_modm_no_throw(data_512, 64, fv_m, 32);
+    memmove(data_512, data_512 + 32, 32);
+}
+
+bool ff_is_zero(uint8_t *v) {
+  for (int i = 0; i < 32; i++)
+    if (v[i] != 0) return false;
+  return true;
+}
+
+void print_bn(const char *label, cx_bn_t bn) {
+    uint8_t v[32];
+    cx_bn_export(bn, v, 32);
+    PRINTF(">> %s %.*H\n", label, 32, v);
+}

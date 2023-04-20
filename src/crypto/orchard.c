@@ -27,4 +27,38 @@
 
 #include "globals.h"
 
-void orchard_derive_spending_key(int8_t account) {}
+void orchard_derive_spending_key(int8_t account) {
+    /*
+    keys:
+    - derive spending key from bip32 
+    - prf expand to ask
+    - prf expand to nk
+    - prf expand to nivk
+    - ak = G * ask
+    - negate ask if ak_y is odd
+    - ak = extract(ak)
+    - ivk = hash_nivk(ak|nk)
+    - R = prf expand of ak|nk
+    - R = dk|ovk
+    
+    address:
+    - di = 0
+    - d = prp_dk(di)
+    - G_d = group_hash(d)
+    - pk_d = KA(G_d * ivk)
+    - address = (d, pk_d)
+
+    differences vs sapling
+    - prf expand = blake2b hash 64 bytes, perso Zcash_ExpandSeed
+        sk | t
+        Note: same as sapling
+    - ECC is on pallas instead of jubjub
+    - point representation does not need to encode the parity of  y
+    because we force it to be even by negating the secret key
+    - to_bytes, from_bytes: same as jubjub with different ff
+    - extract(p) = p_x
+    - group_hash = TBD
+
+    */
+
+}

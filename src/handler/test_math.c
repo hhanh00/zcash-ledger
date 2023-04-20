@@ -31,42 +31,33 @@
 #include "../ui/display.h"
 #include "../helper/send_response.h"
 #include "../crypto/fr.h"
+#include "../crypto/prf.h"
+#include "../crypto/pallas.h"
+
+uint8_t sak[32];
 
 int handler_test_math() {
     int error = 0;
     fq_t d2;
     BEGIN_TRY {
         TRY {
-            // simple_point_test();
-            
-            // cx_math version
-            // memmove(&d2, fq_D, 32);
-            // fq_square(&d2);
+            uint8_t hash[64];
+            memset(hash, 1, 32);
 
-            // bn version
-            // cx_bn_lock(32, 0);
-            // cx_bn_t d, m;
-            // cx_bn_alloc_init(&d, 32, fq_D, 32);
-            // cx_bn_alloc_init(&m, 32, fq_m, 32);
-            // for (int i = 0; i < 10000; i++) {
-            //     cx_bn_mod_mul(d, d, d, m);
-            // }
-            // cx_bn_export(d, (uint8_t *)&d2, 32);
-            // cx_bn_unlock();
+            // SpendingKey => SpendAuthorizingKey
+            prf_expand_seed(hash, 0x06); // hash to 512 bit value
+            PRINTF("PRF EXPAND 6 %.*H\n", 64, hash);
+            fv_from_wide(hash); // reduce to pallas scalar
+            PRINTF("TO SCALAR %.*H\n", 32, hash);
 
-            cx_bn_mont_ctx_t ctx;
-            cx_bn_t r, d, m;
-            cx_bn_lock(32, 0);
-            CX_THROW(cx_bn_alloc_init(&m, 32, fq_m, 32));
-            CX_THROW(cx_mont_alloc(&ctx, 32));
-            CX_THROW(cx_mont_init(&ctx, m));
-            CX_THROW(cx_bn_alloc(&r, 32));
-            CX_THROW(cx_bn_alloc_init(&d, 32, fq_D, 32));
-            CX_THROW(cx_mont_to_montgomery(d, d, &ctx));
-            CX_THROW(cx_mont_mul(r, d, d, &ctx));
-            CX_THROW(cx_mont_from_montgomery(r, r, &ctx));
-            CX_THROW(cx_bn_export(r, (uint8_t *)&d2, 32));
-            cx_bn_unlock();
+            memmove(sak, hash, 32);
+            PRINTF("SPENDING AUTHORIZATION KEY %.*H\n", 32, sak);
+
+            jac_p_t p;
+            hash_to_curve(&p, "z.cash:SinsemillaQ", 18, "z.cash:Orchard-MerkleCRH", 24);
+            PRINTF("p.x %.*H\n", 32, p.x);
+            PRINTF("p.y %.*H\n", 32, p.y);
+            PRINTF("p.z %.*H\n", 32, p.z);
         }
         CATCH_OTHER(e) {
             error = e;

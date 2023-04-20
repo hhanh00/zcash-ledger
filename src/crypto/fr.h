@@ -60,6 +60,24 @@ static const uint8_t fq_D2[32] = {
   0x02, 0x0C, 0xBF, 0xAD, 0xAC, 0x68, 0x7D, 0x62,
 };
 
+/// Modulus of Pasta base field
+/// p = 0x40000000000000000000000000000000224698fc094cf91b992d30ed00000001
+static const uint8_t fp_m[32] = {
+  0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+  0x22, 0x46, 0x98, 0xfc, 0x09, 0x4c, 0xf9, 0x1b, 
+  0x99, 0x2d, 0x30, 0xed, 0x00, 0x00, 0x00, 0x01,
+};
+
+/// Modulus of Pasta scalar field
+/// v = 0x40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001
+static const uint8_t fv_m[32] = {
+  0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+  0x22, 0x46, 0x98, 0xfc, 0x09, 0x94, 0xa8, 0xdd, 
+  0x8c, 0x46, 0xeb, 0x21, 0x00, 0x00, 0x00, 0x01,
+};
+
 /// @brief Reverse bytes of data
 /// @param data pointer to the beginning of the array
 /// @param len length of the array
@@ -156,3 +174,15 @@ static inline void fr_negate(fr_t *v) {
 static inline void fr_mult(fr_t *v, const fr_t *a, const fr_t *b) {
     cx_math_multm_no_throw((uint8_t *)v, (uint8_t *)a, (uint8_t *)b, fr_m, 32);
 }
+
+/// @brief Convert a 512 bit Little Endian number into Fv
+/// @param data_512 pointer to the beginning of the data
+void fv_from_wide(uint8_t *data_512);
+void fv_from_wide_be(uint8_t *data_512);
+
+void fp_from_wide(uint8_t *data_512);
+void fp_from_wide_be(uint8_t *data_512);
+
+void print_bn(const char *label, cx_bn_t bn);
+
+bool ff_is_zero(uint8_t *v);

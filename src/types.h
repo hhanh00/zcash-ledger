@@ -69,6 +69,9 @@ typedef uint8_t ovk_t[32];
 typedef uint8_t dk_t[32];
 typedef uint8_t div_t[11];
 
+typedef uint8_t fp_t[32];
+typedef uint8_t fv_t[32];
+
 /**
  * Diversifiable viewing key
 */ 
