@@ -63,6 +63,12 @@ const uint8_t ISOGENY_CONSTANTS[13][32] = {
     { 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x22, 0x46, 0x98, 0xfc, 0x09, 0x4c, 0xf9, 0x1b, 0x99, 0x2d, 0x30, 0xec, 0xff, 0xff, 0xfd, 0xe5 },
 };
 
+const jac_p_t SPEND_AUTH_GEN = {
+    .x = { 0x37, 0x55, 0x23, 0xB3, 0x28, 0xF1, 0xD6, 0x06, 0x3B, 0x8D, 0x18, 0x7C, 0x3E, 0x5F, 0x44, 0x5F, 0x0C, 0x7F, 0x0C, 0xE3, 0x7B, 0x70, 0xA1, 0x0C, 0x8D, 0x1A, 0x72, 0x84, 0xB8, 0x75, 0xC9, 0x63 },
+    .y = { 0x1A, 0xD0, 0x35, 0x7F, 0xDF, 0x1A, 0x66, 0xDB, 0x7B, 0x10, 0xBC, 0xFC, 0xFE, 0xD6, 0x24, 0xFB, 0xDF, 0xC9, 0x14, 0xFE, 0xC0, 0x05, 0xBD, 0xD8, 0x4C, 0xE3, 0x3E, 0x81, 0x7B, 0x0C, 0x3B, 0xC9 },
+    .z = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 },
+};
+
 uint8_t buffer[64];
 uint8_t b0[64];
 
@@ -136,25 +142,25 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     cx_bn_alloc_init(&u0, 32, (uint8_t *)u, 32);
     cx_bn_alloc(&u2, 32);
     cx_bn_mod_mul(u2, u0, u0, M);
-    print_bn("u*u", u2);
+    // print_bn("u*u", u2);
     cx_bn_alloc(&z_u2, 32);
     cx_bn_mod_mul(z_u2, z, u2, M);
-    print_bn("z_u2", z_u2);
+    // print_bn("z_u2", z_u2);
     cx_bn_alloc(&z_u22, 32);
     cx_bn_mod_mul(z_u22, z_u2, z_u2, M);
     cx_bn_alloc(&ta, 32);
     cx_bn_mod_add(ta, z_u22, z_u2, M);
-    print_bn("ta", ta);
+    // print_bn("ta", ta);
     cx_bn_t num_x1; cx_bn_alloc(&num_x1, 32);
     cx_bn_mod_add(num_x1, ta, one, M);
     cx_bn_t b; cx_bn_alloc_init(&b, 32, iso_b, 32);
     cx_bn_mod_mul(num_x1, b, num_x1, M);
-    print_bn("num_x1", num_x1);
+    // print_bn("num_x1", num_x1);
 
-    uint32_t ta_32;
-    cx_err_t err = cx_bn_get_u32(ta, &ta_32);
     cx_bn_t div; cx_bn_alloc(&div, 32);
-    if (err == CX_OK && ta_32 == 0)
+    int cmp;
+    cx_bn_cmp_u32(ta, 0, &cmp);
+    if (cmp == 0)
         cx_bn_copy(div, z);
     else {
         cx_bn_copy(div, ta);
@@ -162,17 +168,17 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     }
     cx_bn_t a; cx_bn_alloc_init(&a, 32, iso_a, 32);
     cx_bn_mod_mul(div, a, div, M);
-    print_bn("div", div);
+    // print_bn("div", div);
     cx_bn_t num2_x1; cx_bn_alloc(&num2_x1, 32);
     cx_bn_mod_mul(num2_x1, num_x1, num_x1, M);
-    print_bn("num2_x1", num2_x1);
+    // print_bn("num2_x1", num2_x1);
 
     cx_bn_t div2; cx_bn_alloc(&div2, 32);
     cx_bn_t div3; cx_bn_alloc(&div3, 32);
     cx_bn_mod_mul(div2, div, div, M);
     cx_bn_mod_mul(div3, div2, div, M);
-    print_bn("div2", div2);
-    print_bn("div3", div3);
+    // print_bn("div2", div2);
+    // print_bn("div3", div3);
 
     cx_bn_t num_gx1; cx_bn_alloc(&num_gx1, 32);
     cx_bn_t temp; cx_bn_alloc(&temp, 32);
@@ -181,17 +187,17 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     cx_bn_mod_mul(num_gx1, temp, num_x1, M);
     cx_bn_mod_mul(temp, b, div3, M);
     cx_bn_mod_add(num_gx1, num_gx1, temp, M);
-    print_bn("num_gx1", num_gx1);
+    // print_bn("num_gx1", num_gx1);
 
     cx_bn_t num_x2; cx_bn_alloc(&num_x2, 32);
     cx_bn_mod_mul(num_x2, z_u2, num_x1, M);
-    print_bn("num_x2", num_x2);
+    // print_bn("num_x2", num_x2);
 
     cx_bn_copy(temp, div3);
     cx_bn_mod_invert_nprime(temp, temp, M);
     cx_bn_mod_mul(temp, num_gx1, temp, M);
     bool gx1_square = true;
-    err = cx_bn_mod_sqrt(temp, temp, M, 0);
+    cx_err_t err = cx_bn_mod_sqrt(temp, temp, M, 0);
     if (err != CX_OK) {
         gx1_square = false;
         PRINTF("Not a square\n");
@@ -201,14 +207,14 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     }
     cx_bn_t y1; cx_bn_alloc(&y1, 32);
     cx_bn_copy(y1, temp);
-    print_bn("y1", y1);
+    // print_bn("y1", y1);
 
     cx_bn_t y2; cx_bn_alloc(&y2, 32);
     cx_bn_t theta; cx_bn_alloc_init(&theta, 32, THETA, 32);
     cx_bn_mod_mul(temp, theta, z_u2, M);
     cx_bn_mod_mul(temp, temp, u0, M);
     cx_bn_mod_mul(y2, temp, y1, M);
-    print_bn("y2", y2);
+    // print_bn("y2", y2);
 
     cx_bn_t num_x; cx_bn_alloc(&num_x, 32);
     cx_bn_t y; cx_bn_alloc(&y, 32);
@@ -220,8 +226,8 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
         cx_bn_copy(num_x, num_x2);
         cx_bn_copy(y, y2);
     }
-    print_bn("num_x", num_x);
-    print_bn("y", y);
+    // print_bn("num_x", num_x);
+    // print_bn("y", y);
 
     bool u_odd, y_odd;
     cx_bn_is_odd(u0, &u_odd);
@@ -234,85 +240,6 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     cx_bn_mod_mul(temp, y, div3, M);
     cx_bn_export(temp, (uint8_t *)&p->y, 32);
     cx_bn_export(div, (uint8_t *)&p->z, 32);
-    cx_bn_unlock();
-}
-
-void pallas_add_jac(jac_p_t *res, const jac_p_t *a, const jac_p_t *b) {
-    cx_bn_lock(32, 0);
-    cx_bn_t M; cx_bn_alloc_init(&M, 32, fp_m, 32);
-    cx_bn_t a_x, a_y, a_z;
-    cx_bn_t b_x, b_y, b_z;
-    cx_bn_alloc_init(&a_x, 32, a->x, 32); cx_bn_alloc_init(&a_y, 32, a->y, 32); cx_bn_alloc_init(&a_z, 32, a->z, 32); 
-    cx_bn_alloc_init(&b_x, 32, b->x, 32); cx_bn_alloc_init(&b_y, 32, b->y, 32); cx_bn_alloc_init(&b_z, 32, b->z, 32); 
-
-    cx_bn_t z1z1; cx_bn_alloc(&z1z1, 32);
-    cx_bn_mod_mul(z1z1, a_z, a_z, M);
-    cx_bn_t z2z2; cx_bn_alloc(&z2z2, 32);
-    cx_bn_mod_mul(z2z2, b_z, b_z, M);
-    BN_DEF(u1);
-    cx_bn_mod_mul(u1, a_x, z2z2, M);
-    BN_DEF(u2);
-    cx_bn_mod_mul(u2, b_x, z1z1, M);
-    BN_DEF(s1);
-    cx_bn_mod_mul(s1, a_y, z2z2, M);
-    cx_bn_mod_mul(s1, s1, b_z, M);
-    BN_DEF(s2);
-    cx_bn_mod_mul(s2, b_y, z1z1, M);
-    cx_bn_mod_mul(s2, s2, a_z, M);
-
-    print_bn("u1", u1);
-    print_bn("u2", u2);
-    print_bn("s1", s1);
-    print_bn("s2", s2);
-
-    BN_DEF(h);
-    cx_bn_mod_sub(h, u2, u1, M);
-    BN_DEF(i);
-    cx_bn_mod_add(i, h, h, M);
-    cx_bn_mod_mul(i, i, i, M);
-    BN_DEF(j);
-    cx_bn_mod_mul(j, h, i, M);
-    BN_DEF(r);
-    cx_bn_mod_sub(r, s2, s1, M);
-    cx_bn_mod_add(r, r, r, M);
-
-
-    BN_DEF(v);
-    cx_bn_mod_mul(v, u1, i, M);
-    print_bn("h", h);
-    print_bn("i", i);
-    print_bn("j", j);
-    print_bn("r", r);
-    print_bn("v", v);
-
-    BN_DEF(x3);
-    cx_bn_mod_mul(x3, r, r, M);
-    cx_bn_mod_sub(x3, x3, j, M);
-    cx_bn_mod_sub(x3, x3, v, M);
-    cx_bn_mod_sub(x3, x3, v, M);
-
-    cx_bn_mod_mul(s1, s1, j, M);
-    cx_bn_mod_add(s1, s1, s1, M);
-
-    BN_DEF(y3);
-    cx_bn_mod_sub(y3, v, x3, M);
-    cx_bn_mod_mul(y3, y3, r, M);
-    cx_bn_mod_sub(y3, y3, s1, M);
-
-    BN_DEF(z3);
-    cx_bn_mod_add(z3, a_z, b_z, M);
-    cx_bn_mod_mul(z3, z3, z3, M);
-    cx_bn_mod_sub(z3, z3, z1z1, M);
-    cx_bn_mod_sub(z3, z3, z2z2, M);
-    cx_bn_mod_mul(z3, z3, h, M);
-
-    print_bn("x3", x3);
-    print_bn("y3", y3);
-    print_bn("z3", z3);
-
-    cx_bn_export(x3, res->x, 32);
-    cx_bn_export(y3, res->y, 32);
-    cx_bn_export(z3, res->z, 32);
     cx_bn_unlock();
 }
 
@@ -416,7 +343,288 @@ void hash_to_curve(jac_p_t *res, uint8_t *domain, size_t domain_len, uint8_t *ms
     for (int i = 0; i < 2; i++) {
         map_to_curve_simple_swu(&p[i], &h[i]);
     }
-    pallas_add_jac(p, p, p + 1);
+
+    cx_bn_lock(32, 0);
+    cx_bn_t M; cx_bn_alloc_init(&M, 32, fp_m, 32);
+    jac_p_bn_t pp[2];
+    for (int i = 0; i < 2; i++) {
+        pallas_jac_init(pp + i, p + i);
+    }
+    pallas_add_jac(pp, pp, pp + 1, M);
+    pallas_jac_export(p, pp);
+    cx_bn_unlock();
+
     iso_map(p, p);
     memmove(res, p, sizeof(jac_p_t));
 }
+
+int pallas_from_bytes(jac_p_t *res, uint8_t *a) {
+    uint8_t tmp[32];
+    memmove(tmp, a, 32);
+    bool sign = tmp[31] >> 7;
+    tmp[31] &= 0x7F;
+
+    swap_endian(tmp, 32);
+    fp_t *x = (fp_t *)tmp;
+    if (!fp_ok(x)) return CX_INVALID_PARAMETER;
+    if (ff_is_zero(tmp) && !sign) {
+        memset(res, 0, sizeof(jac_p_t));
+        return CX_OK;
+    }
+    cx_bn_lock(32, 0);
+    BN_DEF(M); cx_bn_init(M, fp_m, 32);
+    BN_DEF(x0); cx_bn_init(x0, tmp, 32);
+    BN_DEF(x3);
+    cx_bn_mod_mul(x3, x0, x0, M);
+    cx_bn_mod_mul(x3, x3, x0, M);
+    BN_DEF(b); cx_bn_set_u32(b, 5);
+    cx_bn_mod_add(x3, x3, b, M);
+    BN_DEF(y);
+    cx_err_t err = cx_bn_mod_sqrt(y, x3, M, sign);
+    if (err < 0) return CX_INVALID_PARAMETER;
+    cx_bn_export(y, res->y, 32);
+    cx_bn_unlock();
+    memmove(res->x, x, 32);
+    memmove(res->z, fq_1, 32);
+    return 0;
+}
+
+void pallas_to_bytes(uint8_t *res, const jac_p_t *p) {
+    cx_bn_lock(32, 0);
+    cx_bn_t M; cx_bn_alloc_init(&M, 32, fp_m, 32);
+    BN_DEF(zinv); cx_bn_init(zinv, p->z, 32);
+    int cmp;
+    cx_bn_cmp_u32(zinv, 0, &cmp);
+    if (cmp == 0) memset(res, 0, 32);
+    else {
+        cx_bn_mod_invert_nprime(zinv, zinv, M);
+        BN_DEF(zinv2);
+        cx_bn_mod_mul(zinv2, zinv, zinv, M);
+        BN_DEF(zinv3);
+        cx_bn_mod_mul(zinv3, zinv2, zinv, M);
+        BN_DEF(x);
+        BN_DEF(x0); cx_bn_alloc_init(&x0, 32, p->x, 32);
+        cx_bn_mod_mul(x, x0, zinv2, M);
+        BN_DEF(y);
+        BN_DEF(y0); cx_bn_alloc_init(&y0, 32, p->y, 32);
+        cx_bn_mod_mul(y, y0, zinv3, M);
+        bool odd;
+        cx_bn_is_odd(y, &odd);
+        uint8_t sign = !!odd << 7;
+        cx_bn_export(x, res, 32);
+        swap_endian(res, 32);
+        res[31] |= sign;
+    }
+    cx_bn_unlock();
+}
+
+bool pallas_is_identity(const jac_p_bn_t *a) {
+    int cmp;
+    cx_bn_cmp_u32(a->z, 0, &cmp); 
+    return cmp == 0;
+}
+
+void pallas_copy_jac(jac_p_bn_t *res, const jac_p_bn_t *a) {
+    cx_bn_copy(res->x, a->x);
+    cx_bn_copy(res->y, a->y);
+    cx_bn_copy(res->z, a->z);
+}
+
+void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, cx_bn_t M) {
+    if (pallas_is_identity(a)) pallas_copy_jac(res, b);
+    else if (pallas_is_identity(b)) pallas_copy_jac(res, a);
+    else {
+        // print_bn("a.x", a->x);
+        // print_bn("a.y", a->y);
+        // print_bn("a.z", a->z);
+
+        // print_bn("b.x", b->x);
+        // print_bn("b.y", b->y);
+        // print_bn("b.z", b->z);
+
+        BN_DEF(z1z1);
+        cx_bn_mod_mul(z1z1, a->z, a->z, M);
+        BN_DEF(z2z2);
+        cx_bn_mod_mul(z2z2, b->z, b->z, M);
+        BN_DEF(u1);
+        cx_bn_mod_mul(u1, a->x, z2z2, M);
+        BN_DEF(u2);
+        cx_bn_mod_mul(u2, b->x, z1z1, M);
+        BN_DEF(s1);
+        cx_bn_mod_mul(s1, a->y, z2z2, M);
+        cx_bn_mod_mul(s1, s1, b->z, M);
+        BN_DEF(s2);
+        cx_bn_mod_mul(s2, b->y, z1z1, M);
+        cx_bn_mod_mul(s2, s2, a->z, M);
+
+        // print_bn("u1", u1);
+        // print_bn("u2", u2);
+        // print_bn("s1", s1);
+        // print_bn("s2", s2);
+
+        BN_DEF(h);
+        cx_bn_mod_sub(h, u2, u1, M);
+        BN_DEF(i);
+        cx_bn_mod_add(i, h, h, M);
+        cx_bn_mod_mul(i, i, i, M);
+        BN_DEF(j);
+        cx_bn_mod_mul(j, h, i, M);
+        BN_DEF(r);
+        cx_bn_mod_sub(r, s2, s1, M);
+        cx_bn_mod_add(r, r, r, M);
+
+        BN_DEF(v);
+        cx_bn_mod_mul(v, u1, i, M);
+        // print_bn("h", h);
+        // print_bn("i", i);
+        // print_bn("j", j);
+        // print_bn("r", r);
+        // print_bn("v", v);
+
+        BN_DEF(x3);
+        cx_bn_mod_mul(x3, r, r, M);
+        cx_bn_mod_sub(x3, x3, j, M);
+        cx_bn_mod_sub(x3, x3, v, M);
+        cx_bn_mod_sub(x3, x3, v, M);
+
+        cx_bn_mod_mul(s1, s1, j, M);
+        cx_bn_mod_add(s1, s1, s1, M);
+
+        BN_DEF(y3);
+        cx_bn_mod_sub(y3, v, x3, M);
+        cx_bn_mod_mul(y3, y3, r, M);
+        cx_bn_mod_sub(y3, y3, s1, M);
+
+        BN_DEF(z3);
+        cx_bn_mod_add(z3, a->z, b->z, M);
+        cx_bn_mod_mul(z3, z3, z3, M);
+        cx_bn_mod_sub(z3, z3, z1z1, M);
+        cx_bn_mod_sub(z3, z3, z2z2, M);
+        cx_bn_mod_mul(z3, z3, h, M);
+
+        // print_bn("x3", x3);
+        // print_bn("y3", y3);
+        // print_bn("z3", z3);
+
+        cx_bn_copy(res->x, x3);
+        cx_bn_copy(res->y, y3);
+        cx_bn_copy(res->z, z3);
+
+        cx_bn_destroy(&z1z1);
+        cx_bn_destroy(&z2z2);
+        cx_bn_destroy(&u1);
+        cx_bn_destroy(&u2);
+        cx_bn_destroy(&s1);
+        cx_bn_destroy(&s2);
+
+        cx_bn_destroy(&h);
+        cx_bn_destroy(&i);
+        cx_bn_destroy(&j);
+        cx_bn_destroy(&r);
+        cx_bn_destroy(&v);
+
+        cx_bn_destroy(&x3);
+        cx_bn_destroy(&y3);
+        cx_bn_destroy(&z3);
+    }
+    // print_bn("res.x", res->x);
+    // print_bn("res.y", res->y);
+    // print_bn("res.z", res->z);
+}
+
+void pallas_double_jac(jac_p_bn_t *v, cx_bn_t M) {
+    // TODO: Montgommery 
+    BN_DEF(a);
+    cx_bn_mod_mul(a, v->x, v->x, M);
+    BN_DEF(b);
+    cx_bn_mod_mul(b, v->y, v->y, M);
+    BN_DEF(c);
+    cx_bn_mod_mul(c, b, b, M);
+    BN_DEF(d);
+    cx_bn_mod_add(d, v->x, b, M);
+    cx_bn_mod_mul(d, d, d, M);
+    cx_bn_mod_sub(d, d, a, M);
+    cx_bn_mod_sub(d, d, c, M);
+    cx_bn_mod_add(d, d, d, M);
+    BN_DEF(e);
+    cx_bn_mod_add(e, a, a, M);
+    cx_bn_mod_add(e, e, a, M);
+    BN_DEF(f);
+    cx_bn_mod_mul(f, e, e, M);
+    BN_DEF(z3);
+
+    cx_bn_mod_mul(z3, v->z, v->y, M);
+    cx_bn_mod_add(z3, z3, z3, M);
+    BN_DEF(x3);
+    cx_bn_mod_sub(x3, f, d, M);
+    cx_bn_mod_sub(x3, x3, d, M);
+    cx_bn_mod_add(c, c, c, M);
+    cx_bn_mod_add(c, c, c, M);
+    cx_bn_mod_add(c, c, c, M);
+    BN_DEF(y3);
+    cx_bn_mod_sub(y3, d, x3, M);
+    cx_bn_mod_mul(y3, e, y3, M);
+    cx_bn_mod_sub(y3, y3, c, M);
+
+    cx_bn_copy(v->x, x3);
+    cx_bn_copy(v->y, y3);
+    cx_bn_copy(v->z, z3);
+
+    cx_bn_destroy(&a);
+    cx_bn_destroy(&b);
+    cx_bn_destroy(&c);
+    cx_bn_destroy(&d);
+    cx_bn_destroy(&e);
+    cx_bn_destroy(&f);
+    cx_bn_destroy(&x3);
+    cx_bn_destroy(&y3);
+    cx_bn_destroy(&z3);
+}
+
+void pallas_base_mult(jac_p_t *res, const jac_p_t *base, fv_t *x) {
+    cx_bn_lock(32, 0);
+    cx_bn_t M; cx_bn_alloc_init(&M, 32, fp_m, 32);
+
+    jac_p_bn_t acc;
+    cx_bn_alloc_init(&acc.x, 32, fq_0, 32);
+    cx_bn_alloc_init(&acc.y, 32, fq_0, 32);
+    cx_bn_alloc_init(&acc.z, 32, fq_0, 32);
+
+    jac_p_bn_t b;
+    pallas_jac_init(&b, base);
+
+    int j0 = 1; // skip highest bit
+    for (int i = 0; i < 32; i++) {
+        uint8_t c = (*x)[i];
+        for (int j = j0; j < 8; j++) {
+            // print_bn("acc x", acc.x);
+            pallas_double_jac(&acc, M);
+            if (((c >> (7-j)) & 1) != 0) {
+                pallas_add_jac(&acc, &acc, &b, M);
+                // print_bn("acc x", acc.x);
+                // print_bn("acc y", acc.y);
+                // print_bn("acc z", acc.z);
+            }
+        }
+        j0 = 0;
+    }
+    pallas_jac_export(res, &acc);
+
+    cx_bn_unlock();
+}
+
+void pallas_jac_init(jac_p_bn_t *dest, const jac_p_t *src) {
+    cx_bn_alloc_init(&dest->x, 32, src->x, 32);
+    cx_bn_alloc_init(&dest->y, 32, src->y, 32);
+    cx_bn_alloc_init(&dest->z, 32, src->z, 32);
+}
+
+void pallas_jac_export(jac_p_t *dest, jac_p_bn_t *src) {
+    cx_bn_export(src->x, dest->x, 32);
+    cx_bn_export(src->y, dest->y, 32);
+    cx_bn_export(src->z, dest->z, 32);
+    cx_bn_destroy(&src->x);
+    cx_bn_destroy(&src->y);
+    cx_bn_destroy(&src->z);
+}
+

@@ -183,6 +183,12 @@ void fv_from_wide_be(uint8_t *data_512);
 void fp_from_wide(uint8_t *data_512);
 void fp_from_wide_be(uint8_t *data_512);
 
+static inline bool fp_ok(fq_t *v) {
+    int diff;
+    cx_math_cmp_no_throw((uint8_t *)v, fp_m, 32, &diff);
+    return diff < 0;
+}
+
 void print_bn(const char *label, cx_bn_t bn);
 
 bool ff_is_zero(uint8_t *v);
