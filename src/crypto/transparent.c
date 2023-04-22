@@ -48,6 +48,8 @@ int derive_pubkey(uint8_t *pk, uint8_t account) {
     pk[0] = ((t_pubk.W[64] & 1) == 0) ? 0x02 : 0x03; // parity of Y
     PRINTF("CPK: %.*H\n", 33, pk);
 
+    memmove(G_context.transparent_key_info.pub_key, pk, 33);
+
     return 0;
 }
 
@@ -68,3 +70,7 @@ int derive_taddress(uint8_t *pkh, uint8_t account) {
     return 0;
 }
 
+int transparent_derive_pubkey(uint8_t account) {
+    derive_pubkey(G_context.transparent_key_info.pub_key, account);
+    derive_taddress(G_context.transparent_key_info.pkh, account);
+}

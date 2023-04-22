@@ -24,41 +24,132 @@
 
 #include "fr.h"
 #include "pallas.h"
+#include "sinsemilla.h"
+#include "prf.h"
+#include "ff1.h"
 
 #include "globals.h"
 
+static uint8_t spending_key[32];
 void orchard_derive_spending_key(int8_t account) {
-    /*
-    keys:
-    - derive spending key from bip32 
-    - prf expand to ask
-    - prf expand to nk
-    - prf expand to nivk
-    - ak = G * ask
-    - negate ask if ak_y is odd
-    - ak = extract(ak)
-    - ivk = hash_nivk(ak|nk)
-    - R = prf expand of ak|nk
-    - R = dk|ovk
-    
-    address:
-    - di = 0
-    - d = prp_dk(di)
-    - G_d = group_hash(d)
-    - pk_d = KA(G_d * ivk)
-    - address = (d, pk_d)
+    uint8_t hash[64];
+    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
+    os_perso_derive_node_bip32(CX_CURVE_256K1,
+                                bip32_path,
+                                5,
+                                spending_key,
+                                NULL);
 
-    differences vs sapling
-    - prf expand = blake2b hash 64 bytes, perso Zcash_ExpandSeed
-        sk | t
-        Note: same as sapling
-    - ECC is on pallas instead of jubjub
-    - point representation does not need to encode the parity of  y
-    because we force it to be even by negating the secret key
-    - to_bytes, from_bytes: same as jubjub with different ff
-    - extract(p) = p_x
-    - group_hash = TBD
+    PRINTF("SPENDING KEY %.*H\n", 32, spending_key);
+    memmove(hash, spending_key, 32);
 
-    */
+    // SpendingKey => SpendAuthorizingKey
+    prf_expand_seed(hash, 0x06); // hash to 512 bit value
+    PRINTF("PRF EXPAND 6 %.*H\n", 64, hash);
+    fv_from_wide(hash); // reduce to pallas scalar
+    PRINTF("TO SCALAR %.*H\n", 32, hash);
+    memmove(G_context.orchard_key_info.ask, hash, 32);
+    PRINTF("SPENDING AUTHORIZATION KEY %.*H\n", 32, G_context.orchard_key_info.ask);
 
+    jac_p_t p;
+    pallas_base_mult(&p, &SPEND_AUTH_GEN, &G_context.orchard_key_info.ask);
+    pallas_to_bytes(G_context.orchard_key_info.ak, &p);
+    if ((G_context.orchard_key_info.ak[31] & 0x7F) != 0) {
+        fv_negate(&G_context.orchard_key_info.ask);
+        pallas_base_mult(&p, &SPEND_AUTH_GEN, &G_context.orchard_key_info.ask);
+        pallas_to_bytes(G_context.orchard_key_info.ak, &p);
+    }
+
+    memmove(hash, spending_key, 32);
+    prf_expand_seed(hash, 0x07); // hash to 512 bit value
+    PRINTF("PRF EXPAND 7 %.*H\n", 64, hash);
+    fp_from_wide(hash); // reduce to pallas base
+    PRINTF("TO BASE %.*H\n", 32, hash);
+    memmove(G_context.orchard_key_info.nk, hash, 32);
+    PRINTF("NULLIFIER DERIVATION KEY %.*H\n", 32, G_context.orchard_key_info.nk);
+
+    memmove(hash, spending_key, 32);
+    prf_expand_seed(hash, 0x08); // hash to 512 bit value
+    PRINTF("PRF EXPAND 8 %.*H\n", 64, hash);
+    fv_from_wide(hash); // reduce to pallas scalar
+    PRINTF("TO SCALAR %.*H\n", 32, hash);
+    memmove(G_context.orchard_key_info.rivk, hash, 32);
+    PRINTF("RIVK %.*H\n", 32, G_context.orchard_key_info.rivk);
+
+    memmove(hash, G_context.orchard_key_info.rivk, 32); 
+    swap_endian(hash, 32); // to_repr
+    uint8_t dst = 0x82;
+    cx_blake2b_t hash_ctx;
+    cx_blake2b_init2_no_throw(&hash_ctx, 512, NULL, 0, (uint8_t *)"Zcash_ExpandSeed", 16);
+    PRINTF("rivk %.*H\n", 32, hash);
+    cx_hash((cx_hash_t *)&hash_ctx, 0, hash, 32, NULL, 0);
+    PRINTF("dst %.*H\n", 1, &dst);
+    cx_hash((cx_hash_t *)&hash_ctx, 0, &dst, 1, NULL, 0);
+    PRINTF("ak %.*H\n", 32, G_context.orchard_key_info.ak);
+    cx_hash((cx_hash_t *)&hash_ctx, 0, G_context.orchard_key_info.ak, 32, NULL, 0);
+    memmove(hash, G_context.orchard_key_info.nk, 32); 
+    swap_endian(hash, 32); // to_repr
+    PRINTF("nk %.*H\n", 32, hash);
+    cx_hash((cx_hash_t *)&hash_ctx, 0, hash, 32, NULL, 0);
+    cx_hash((cx_hash_t *)&hash_ctx, CX_LAST, NULL, 0, hash, 64);
+    PRINTF("dk %.*H\n", 32, hash);
+    PRINTF("ovk %.*H\n", 32, hash + 32);
+
+    memmove(G_context.orchard_key_info.dk, hash, 32);
+
+    jac_p_t Q;
+    hash_to_curve(&Q, 
+        (uint8_t *)"z.cash:SinsemillaQ", 18,
+        (uint8_t *)"z.cash:Orchard-CommitIvk-M", 26);
+    PRINTF("Q.x %.*H\n", 32, Q.x);
+    PRINTF("Q.y %.*H\n", 32, Q.y);
+    PRINTF("Q.z %.*H\n", 32, Q.z);
+
+    memmove(hash, G_context.orchard_key_info.nk, 32); 
+    swap_endian(hash, 32); // to_repr
+    sinsemilla_state_t sinsemilla;
+    init_sinsemilla(&sinsemilla, &Q);
+    hash_sinsemilla(&sinsemilla, G_context.orchard_key_info.ak, 255);
+    hash_sinsemilla(&sinsemilla, hash, 255);
+    finalize_sinsemilla(&sinsemilla, NULL);
+
+    jac_p_t R;
+    hash_to_curve(&R, 
+        (uint8_t *)"z.cash:Orchard-CommitIvk-r", 26,
+        NULL, 0);
+    PRINTF("R.x %.*H\n", 32, R.x);
+    PRINTF("R.y %.*H\n", 32, R.y);
+    PRINTF("R.z %.*H\n", 32, R.z);
+
+    jac_p_t r;
+    pallas_base_mult(&r, &R, &G_context.orchard_key_info.rivk);
+
+    pallas_add_assign(&r, &sinsemilla.p);
+    pallas_to_bytes(hash, &r);
+    swap_endian(hash, 32);
+    hash[0] &= 0x7F;
+    PRINTF("commit %.*H\n", 32, hash);
+    memmove(G_context.orchard_key_info.ivk, hash, 32);
+
+    // ivk is fp_t but can be safely cast to fv_t
+    // because the modulus of vesta is smaller than pasta
+
+    uint8_t d[11];
+    memset(d, 0, 11);
+    ff1(d, G_context.orchard_key_info.dk, d);
+    PRINTF("d %.*H\n", 11, d);
+    memcpy(G_context.orchard_key_info.div, d, 11);
+
+    jac_p_t G_d;
+    hash_to_curve(&G_d, (uint8_t *)"z.cash:Orchard-gd", 17,
+        d, 11);
+
+    pallas_base_mult(&G_d, &G_d, (fv_t *)&G_context.orchard_key_info.ivk);
+    pallas_to_bytes(hash, &G_d);
+    PRINTF("pk_d %.*H\n", 32, hash);
+    memmove(G_context.orchard_key_info.pk_d, hash, 32);
+
+    memmove(G_context.orchard_key_info.address, G_context.orchard_key_info.div, 11);
+    memmove(G_context.orchard_key_info.address + 11, G_context.orchard_key_info.pk_d, 32);
+    PRINTF("address %.*H\n", 43, G_context.orchard_key_info.address);
 }

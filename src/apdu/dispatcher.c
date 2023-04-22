@@ -28,6 +28,7 @@
 #include "../common/buffer.h"
 #include "../crypto/transparent.h"
 #include "../crypto/sapling.h"
+#include "../crypto/orchard.h"
 #include "../crypto/tx.h"
 #include "../ui/action/validate.h"
 #include "../handler/get_version.h"
@@ -70,7 +71,9 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
 
+            transparent_derive_pubkey(cmd->p1);
             sapling_derive_spending_key(cmd->p1);
+            orchard_derive_spending_key(cmd->p1);
 
             return helper_send_response_bytes(NULL, 0);
 
@@ -92,6 +95,16 @@ int apdu_dispatcher(const command_t *cmd) {
             derive_pubkey(pk, cmd->p1);
 
             return helper_send_response_bytes(pk, 33);
+
+        case GET_OFVK: {
+            uint8_t fvk[96];
+            memmove(fvk, G_context.orchard_key_info.ak, 32);
+            memmove(fvk + 32, G_context.orchard_key_info.nk, 32);
+            swap_endian(fvk + 32, 32);
+            memmove(fvk + 64, G_context.orchard_key_info.rivk, 32);
+            swap_endian(fvk + 64, 32);
+            return helper_send_response_bytes(fvk, 96);
+        }
 
         case INIT_TX:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

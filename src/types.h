@@ -25,6 +25,7 @@ typedef enum {
     INITIALIZE = 0x05,
     GET_FVK = 0x06,         /// full viewing key (diversifiable viewing key)
     GET_PUBKEY = 0x07,
+    GET_OFVK = 0x08,        /// orchard fvk
     INIT_TX = 0x10,
     CHANGE_STAGE = 0x11,
     SET_T_MERKLE_PROOF = 0x12,
@@ -81,6 +82,7 @@ typedef struct {
     ovk_t ovk;
     dk_t dk;
     div_t d;
+    uint8_t pk_d[32];
 } expanded_spending_key_t;
 
 /**
@@ -119,6 +121,23 @@ typedef enum {
 } signing_stage_t;
 
 typedef struct {
+    uint8_t pub_key[33];
+    uint8_t pkh[20];
+} transparent_key_t;
+
+typedef struct {
+    fv_t ask; // authorization key
+    fp_t nk; // nullifier key
+    fv_t rivk; // randomized ivk
+    uint8_t ak[32]; // authorization public key
+    uint8_t dk[32]; // diversifier key
+    uint8_t ivk[32]; // incoming viewing key
+    uint8_t div[11]; // default diversifier
+    uint8_t pk_d[32]; // pk_d
+    uint8_t address[43];
+} orchard_key_t;
+
+typedef struct {
     cx_blake2b_t hasher;
     int64_t fee;
     uint64_t amount_s_out;
@@ -146,9 +165,11 @@ typedef struct {
  */
 typedef struct {
     uint8_t account;
+    transparent_key_t transparent_key_info;
     expanded_spending_key_t exp_sk_info;
+    orchard_key_t orchard_key_info;
     proofk_ctx_t proofk_info;
-    char address[80];
+    char address[250];
     char amount[23];
     tx_signing_ctx_t signing_ctx;
 } global_ctx_t;

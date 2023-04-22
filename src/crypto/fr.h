@@ -189,6 +189,12 @@ static inline bool fp_ok(fq_t *v) {
     return diff < 0;
 }
 
+static inline void fv_negate(fv_t *v) {
+    fv_t zero;
+    memset(&zero, 0, 32);
+    cx_math_subm_no_throw((uint8_t *)v, (uint8_t *)zero, (uint8_t *)v, fv_m, 32);
+}
+
 void print_bn(const char *label, cx_bn_t bn);
 
 bool ff_is_zero(uint8_t *v);

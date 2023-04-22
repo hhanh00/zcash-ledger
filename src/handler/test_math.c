@@ -33,68 +33,31 @@
 #include "../crypto/fr.h"
 #include "../crypto/prf.h"
 #include "../crypto/pallas.h"
-
-fv_t ask; // authorization key
-fp_t nk; // nullifier key
-fv_t rivk; // randomized ivk
-uint8_t ak[32]; // authorization public key
-uint8_t dk[32]; // diversifier key
+#include "../crypto/sinsemilla.h"
+#include "../crypto/ff1.h"
+#include "../crypto/f4jumble.h"
+#include "../crypto/ua.h"
 
 int handler_test_math() {
     int error = 0;
     fq_t d2;
     BEGIN_TRY {
         TRY {
-            uint8_t hash[64];
-            memset(hash, 1, 32);
+            return encode_ua();
 
-            // SpendingKey => SpendAuthorizingKey
-            prf_expand_seed(hash, 0x06); // hash to 512 bit value
-            PRINTF("PRF EXPAND 6 %.*H\n", 64, hash);
-            fv_from_wide(hash); // reduce to pallas scalar
-            PRINTF("TO SCALAR %.*H\n", 32, hash);
-            memmove(ask, hash, 32);
-            PRINTF("SPENDING AUTHORIZATION KEY %.*H\n", 32, ask);
+            // uint8_t a[128];
+            // memset(a, 1, 128);
+            // f4jumble(a, 128);
+            // PRINTF("a %.*H\n", 128, a);
 
-            jac_p_t p;
-            pallas_base_mult(&p, &SPEND_AUTH_GEN, &ask);
-            pallas_to_bytes(ak, &p);
-
-            memset(hash, 1, 32);
-            prf_expand_seed(hash, 0x07); // hash to 512 bit value
-            PRINTF("PRF EXPAND 7 %.*H\n", 64, hash);
-            fp_from_wide(hash); // reduce to pallas base
-            PRINTF("TO BASE %.*H\n", 32, hash);
-            memmove(nk, hash, 32);
-            PRINTF("NULLIFIER DERIVATION KEY %.*H\n", 32, nk);
-
-            memset(hash, 1, 32);
-            prf_expand_seed(hash, 0x08); // hash to 512 bit value
-            PRINTF("PRF EXPAND 8 %.*H\n", 64, hash);
-            fv_from_wide(hash); // reduce to pallas scalar
-            PRINTF("TO SCALAR %.*H\n", 32, hash);
-            memmove(rivk, hash, 32);
-            PRINTF("RIVK %.*H\n", 32, rivk);
-
-            memmove(hash, rivk, 32); 
-            swap_endian(hash, 32); // to_repr
-            uint8_t dst = 0x82;
-            cx_blake2b_t hash_ctx;
-            cx_blake2b_init2_no_throw(&hash_ctx, 512, NULL, 0, (uint8_t *)"Zcash_ExpandSeed", 16);
-            PRINTF("rivk %.*H\n", 32, hash);
-            cx_hash((cx_hash_t *)&hash_ctx, 0, hash, 32, NULL, 0);
-            PRINTF("dst %.*H\n", 1, &dst);
-            cx_hash((cx_hash_t *)&hash_ctx, 0, &dst, 1, NULL, 0);
-            PRINTF("ak %.*H\n", 32, ak);
-            cx_hash((cx_hash_t *)&hash_ctx, 0, ak, 32, NULL, 0);
-            memmove(hash, nk, 32); 
-            swap_endian(hash, 32); // to_repr
-            PRINTF("nk %.*H\n", 32, hash);
-            cx_hash((cx_hash_t *)&hash_ctx, 0, hash, 32, NULL, 0);
-            cx_hash((cx_hash_t *)&hash_ctx, CX_LAST, NULL, 0, hash, 64);
-            PRINTF("ivk %.*H\n", 64, hash);
-
-            memmove(dk, hash, 32);
+            // return helper_send_response_bytes(NULL, 0);            
+            // jac_p_t S;
+            // sinsemilla_S(&S, 1);
+            // PRINTF("S.x %.*H\n", 32, S.x);
+            // PRINTF("S.y %.*H\n", 32, S.y);
+            // PRINTF("S.z %.*H\n", 32, S.z);
+            // pallas_to_bytes(hash, &S);
+            // PRINTF("S.u %.*H\n", 32, hash);
 
             // PRINTF("p.x %.*H\n", 32, &p.x);
             // PRINTF("p.y %.*H\n", 32, &p.y);

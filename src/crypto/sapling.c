@@ -122,10 +122,9 @@ void sapling_derive_spending_key(int8_t account) {
     swap_endian(ivk, 32);
     ext_base_mult(&pk_d, &g_d, &ivk);
 
-    uint8_t pk_d_bytes[32];
-    ext_to_bytes(pk_d_bytes, &pk_d);
+    ext_to_bytes(exp_sk->pk_d, &pk_d);
 
-    to_address_bech32(G_context.address, exp_sk->d, pk_d_bytes);
+    to_address_bech32(G_context.address, exp_sk->d, exp_sk->pk_d);
     ui_menu_main();
 }
 

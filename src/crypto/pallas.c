@@ -73,7 +73,7 @@ uint8_t buffer[64];
 uint8_t b0[64];
 
 void hash_to_field(fp_t *h0, fp_t *h1, uint8_t *dst, size_t dst_len, uint8_t *msg, size_t len) {
-    PRINTF("msg %.*H\n", len, msg);
+    // PRINTF("msg %.*H\n", len, msg);
     cx_blake2b_t hash_ctx;
     cx_hash_t *ph = (cx_hash_t *)&hash_ctx;
     uint8_t a, x;
@@ -90,7 +90,7 @@ void hash_to_field(fp_t *h0, fp_t *h1, uint8_t *dst, size_t dst_len, uint8_t *ms
     cx_hash(ph, 0, (uint8_t *)"-pallas_XMD:BLAKE2b_SSWU_RO_", 28, NULL, 0);
     cx_hash(ph, 0, &a, 1, NULL, 0);
     cx_hash(ph, CX_LAST, NULL, 0, buffer, 64);
-    PRINTF("b_0 %.*H\n", 64, buffer);
+    // PRINTF("b_0 %.*H\n", 64, buffer);
     memmove(b0, buffer, 64);
 
     cx_blake2b_init_no_throw(&hash_ctx, 512);
@@ -101,7 +101,7 @@ void hash_to_field(fp_t *h0, fp_t *h1, uint8_t *dst, size_t dst_len, uint8_t *ms
     cx_hash(ph, 0, (uint8_t *)"-pallas_XMD:BLAKE2b_SSWU_RO_", 28, NULL, 0);
     cx_hash(ph, 0, &a, 1, NULL, 0);
     cx_hash(ph, CX_LAST, NULL, 0, buffer, 64);
-    PRINTF("b_1 %.*H\n", 64, buffer);
+    // PRINTF("b_1 %.*H\n", 64, buffer);
 
     for (int i = 0; i < 64; i++) 
         b0[i] ^= buffer[i];
@@ -115,16 +115,13 @@ void hash_to_field(fp_t *h0, fp_t *h1, uint8_t *dst, size_t dst_len, uint8_t *ms
     cx_hash(ph, 0, (uint8_t *)"-pallas_XMD:BLAKE2b_SSWU_RO_", 28, NULL, 0);
     cx_hash(ph, 0, &a, 1, NULL, 0);
     cx_hash(ph, CX_LAST, NULL, 0, buffer, 64);
-    PRINTF("b_2 %.*H\n", 64, buffer); // buffer = b2
+    // PRINTF("b_2 %.*H\n", 64, buffer); // buffer = b2
 
     fp_from_wide_be(b0);
     fp_from_wide_be(buffer);
 
     memmove(h0, b0, 32);
     memmove(h1, buffer, 32);
-
-    PRINTF("b_1 %.*H\n", 32, b0);
-    PRINTF("b_2 %.*H\n", 32, buffer);
 }
 
 #define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
@@ -200,7 +197,6 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     cx_err_t err = cx_bn_mod_sqrt(temp, temp, M, 0);
     if (err != CX_OK) {
         gx1_square = false;
-        PRINTF("Not a square\n");
         cx_bn_t root; cx_bn_alloc_init(&root, 32, ROOT_OF_UNITY, 32);
         cx_bn_mod_mul(temp, root, temp, M);
         cx_bn_mod_sqrt(temp, temp, M, 1);
@@ -274,7 +270,7 @@ void iso_map(jac_p_t *res, const jac_p_t *p) {
     cx_bn_init(iso, ISOGENY_CONSTANTS[3], 32);
     cx_bn_mod_mul(temp, iso, z6, M);
     cx_bn_mod_add(num_x, temp, num_x, M);
-    print_bn("num_x", num_x);
+    // print_bn("num_x", num_x);
 
     BN_DEF(div_x);
     cx_bn_mod_mul(temp, z2, x, M);
@@ -285,7 +281,7 @@ void iso_map(jac_p_t *res, const jac_p_t *p) {
     cx_bn_init(iso, ISOGENY_CONSTANTS[5], 32);
     cx_bn_mod_mul(temp, iso, z6, M);
     cx_bn_mod_add(div_x, temp, div_x, M);
-    print_bn("div_x", div_x);
+    // print_bn("div_x", div_x);
 
     BN_DEF(num_y);
     cx_bn_init(iso, ISOGENY_CONSTANTS[6], 32);
@@ -302,7 +298,7 @@ void iso_map(jac_p_t *res, const jac_p_t *p) {
     cx_bn_mod_mul(temp, iso, z6, M);
     cx_bn_mod_add(num_y, temp, num_y, M);
     cx_bn_mod_mul(num_y, num_y, y, M);
-    print_bn("num_y", num_y);
+    // print_bn("num_y", num_y);
 
     BN_DEF(div_y);
     cx_bn_init(iso, ISOGENY_CONSTANTS[10], 32);
@@ -317,7 +313,7 @@ void iso_map(jac_p_t *res, const jac_p_t *p) {
     cx_bn_mod_mul(temp, iso, z6, M);
     cx_bn_mod_add(div_y, div_y, temp, M);
     cx_bn_mod_mul(div_y, div_y, z3, M);
-    print_bn("div_y", div_y);
+    // print_bn("div_y", div_y);
 
     BN_DEF(zo);
     cx_bn_mod_mul(zo, div_x, div_y, M);
@@ -355,6 +351,7 @@ void hash_to_curve(jac_p_t *res, uint8_t *domain, size_t domain_len, uint8_t *ms
     cx_bn_unlock();
 
     iso_map(p, p);
+
     memmove(res, p, sizeof(jac_p_t));
 }
 
@@ -424,15 +421,21 @@ bool pallas_is_identity(const jac_p_bn_t *a) {
     return cmp == 0;
 }
 
-void pallas_copy_jac(jac_p_bn_t *res, const jac_p_bn_t *a) {
+void pallas_copy_jac_bn(jac_p_bn_t *res, const jac_p_bn_t *a) {
     cx_bn_copy(res->x, a->x);
     cx_bn_copy(res->y, a->y);
     cx_bn_copy(res->z, a->z);
 }
 
+void pallas_copy_jac(jac_p_t *res, const jac_p_t *a) {
+    memmove(res->x, a->x, 32);
+    memmove(res->y, a->y, 32);
+    memmove(res->z, a->z, 32);
+}
+
 void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, cx_bn_t M) {
-    if (pallas_is_identity(a)) pallas_copy_jac(res, b);
-    else if (pallas_is_identity(b)) pallas_copy_jac(res, a);
+    if (pallas_is_identity(a)) pallas_copy_jac_bn(res, b);
+    else if (pallas_is_identity(b)) pallas_copy_jac_bn(res, a);
     else {
         // print_bn("a.x", a->x);
         // print_bn("a.y", a->y);
@@ -613,6 +616,12 @@ void pallas_base_mult(jac_p_t *res, const jac_p_t *base, fv_t *x) {
     cx_bn_unlock();
 }
 
+void pallas_jac_alloc(jac_p_bn_t *dest) {
+    cx_bn_alloc(&dest->x, 32);
+    cx_bn_alloc(&dest->y, 32);
+    cx_bn_alloc(&dest->z, 32);
+}
+
 void pallas_jac_init(jac_p_bn_t *dest, const jac_p_t *src) {
     cx_bn_alloc_init(&dest->x, 32, src->x, 32);
     cx_bn_alloc_init(&dest->y, 32, src->y, 32);
@@ -628,3 +637,13 @@ void pallas_jac_export(jac_p_t *dest, jac_p_bn_t *src) {
     cx_bn_destroy(&src->z);
 }
 
+void pallas_add_assign(jac_p_t *v, const jac_p_t *a) {
+    cx_bn_lock(32, 0);
+    BN_DEF(M); cx_bn_init(M, fp_m, 32);
+    jac_p_bn_t v0, a0;
+    pallas_jac_init(&v0, v);
+    pallas_jac_init(&a0, a);
+    pallas_add_jac(&v0, &v0, &a0, M);
+    pallas_jac_export(v, &v0);
+    cx_bn_unlock();
+}
