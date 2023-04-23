@@ -17,6 +17,7 @@
 
 #include <stdint.h>   // uint*_t
 #include <string.h>   // memset, explicit_bzero
+#include <os.h>       // sprintf
 #include <ox.h>
 #include <cx.h>
 #include <lcx_hash.h>
@@ -45,7 +46,7 @@ void H(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t len) {
     PRINTF("H: %.*H\n", 64, hash);
 }
 
-static int xor(uint8_t *dst, uint8_t *src, size_t len) {
+static void xor(uint8_t *dst, uint8_t *src, size_t len) {
     for (size_t i = 0; i < len; i++) {
         dst[i] ^= src[i];
     }

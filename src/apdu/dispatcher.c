@@ -176,9 +176,9 @@ int apdu_dispatcher(const command_t *cmd) {
             p = cmd->data;
             int64_t net;
             memmove(&net, p, 8);
-            return set_s_net(&net, cmd->p1 == 1);
+            return set_s_net(net, cmd->p1 == 1);
 
-        case ADD_O_OUT:
+        case ADD_O_ACTION:
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
@@ -186,16 +186,12 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             {
-                o_out_t o_out;
-                memset(&o_out, 0, sizeof(o_out_t));
+                o_action_t o_action;
+                memset(&o_action, 0, sizeof(o_action_t));
                 p = cmd->data;
 
-                MOVE_FIELD(o_out, address);
-                MOVE_FIELD(o_out, amount);
-                MOVE_FIELD(o_out, epk);
-                MOVE_FIELD(o_out, enc);
-
-                return add_o_output(&o_out, cmd->p1 == 1);
+                // TODO: Parse
+                return add_o_action(&o_action, cmd->p1 == 1);
             }
 
         case SET_O_NET:
@@ -207,7 +203,7 @@ int apdu_dispatcher(const command_t *cmd) {
 
             p = cmd->data;
             memmove(&net, p, 8);
-            return set_o_net(&net, cmd->p1 == 1);
+            return set_o_net(net, cmd->p1 == 1);
 
         case SET_T_MERKLE_PROOF:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

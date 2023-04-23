@@ -20,7 +20,7 @@ typedef struct {
     uint8_t epk[32];
     uint8_t address[43]; // 11 (d) + 32 (pk_d)
     uint8_t enc[52];
-} o_out_t;
+} o_action_t;
 
 typedef struct {
     uint8_t prevouts_sig_digest[32];

@@ -29,7 +29,7 @@
 
 static uint8_t receivers[UA_LEN];
 static uint8_t bech32_buffer[250];
-static uint8_t ua[250];
+static char ua[250];
 
 int encode_ua() {
     memset(receivers, 0, UA_LEN);
@@ -53,7 +53,7 @@ int encode_ua() {
     size_t buffer_len = 0;
     PRINTF("receivers %.*H\n", receivers_len, receivers);
     convert_bits(bech32_buffer, &buffer_len, 5, receivers, receivers_len, 8, 1);
-    bech32_encode((char *)ua, "u", bech32_buffer, buffer_len, BECH32_ENCODING_BECH32M);
+    bech32_encode(ua, "u", bech32_buffer, buffer_len, BECH32_ENCODING_BECH32M);
     size_t ua_len = strlen(ua);
     PRINTF("ua %d %s\n", ua_len, ua);
     memmove(G_context.address, ua, ua_len + 1);

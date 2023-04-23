@@ -35,7 +35,7 @@ typedef enum {
     ADD_T_OUT = 0x16,
     ADD_S_OUT = 0x17,
     SET_S_NET = 0x18,
-    ADD_O_OUT = 0x19,
+    ADD_O_ACTION = 0x19,
     SET_O_NET = 0x1A,
     CONFIRM_FEE = 0x1B,
     GET_SIGHASH = 0x20,
@@ -113,9 +113,7 @@ typedef enum {
     T_IN,
     T_OUT,
     S_OUT,
-    S_NET,
-    O_OUT,
-    O_NET,
+    O_ACTION,
     FEE,
     SIGN,
 } signing_stage_t;
@@ -152,12 +150,15 @@ typedef struct {
     t_proofs_t t_proofs;
     s_proofs_t s_proofs;
     uint8_t s_compact_hash[32];
+    uint8_t sapling_bundle_hash[32];
+    uint8_t orchard_bundle_hash[32];
     uint8_t sapling_sig_hash[32];
     signing_stage_t stage;
     bool has_t_in;
     bool has_t_out;
     bool has_s_in;
     bool has_s_out;
+    bool has_o_action;
 } tx_signing_ctx_t;
 
 /**

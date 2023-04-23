@@ -73,4 +73,6 @@ int derive_taddress(uint8_t *pkh, uint8_t account) {
 int transparent_derive_pubkey(uint8_t account) {
     derive_pubkey(G_context.transparent_key_info.pub_key, account);
     derive_taddress(G_context.transparent_key_info.pkh, account);
+
+    return 0;
 }
