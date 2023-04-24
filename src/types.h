@@ -137,6 +137,7 @@ typedef struct {
 
 typedef struct {
     cx_blake2b_t hasher;
+    cx_blake2b_t transparent_hasher;
     int64_t fee;
     uint64_t amount_s_out;
     uint64_t amount_o_out;

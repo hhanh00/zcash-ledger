@@ -36,10 +36,6 @@
 #include "../helper/send_response.h"
 #include "../ui/action/validate.h"
 
-const uint8_t orchard_hash[] = {0x9F, 0xBE, 0x4E, 0xD1, 0x3B, 0x0C, 0x08, 0xE6, 0x71, 0xC1, 0x1A,
-                                0x34, 0x07, 0xD8, 0x4E, 0x11, 0x17, 0xCD, 0x45, 0x02, 0x8A, 0x2E,
-                                0xEE, 0x1B, 0x9F, 0xEA, 0xE7, 0x8B, 0x48, 0xA6, 0xE2, 0xC1};
-
 // Zcash___TxInHash when there is no t-inputs
 const uint8_t sapling_tx_in_hash[] = {
     0x3e, 0xac, 0xa6, 0xf7, 0x04, 0x79, 0xf3, 0xed, 
@@ -312,6 +308,12 @@ int confirm_fee(bool confirmation) {
     sapling_bundle_hash();
     orchard_bundle_hash();    
     
+    // Compute the shielded sighash
+    // when there is no t_in, do not include the tx_in_hash at all
+    // This is going to be used by every shielded signature, therefore we cache the result
+    finish_sighash(G_context.signing_ctx.sapling_sig_hash, 
+        G_context.signing_ctx.has_t_in ? sapling_tx_in_hash : NULL);
+
     if (confirmation)
         return ui_confirm_fee(fee);
     else 
@@ -333,8 +335,8 @@ int transparent_bundle_hash() {
         Notice every shielded signature is computed on the same sig_hash
     */
 
-    cx_hash_t *ph = (cx_hash_t *)&G_context.signing_ctx.hasher;
-    cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
+    cx_hash_t *ph = (cx_hash_t *)&G_context.signing_ctx.transparent_hasher;
+    cx_blake2b_init2_no_throw(&G_context.signing_ctx.transparent_hasher, 256,
                             NULL, 0,
                             (uint8_t *) "ZTxIdTranspaHash", 16);
     if (G_context.signing_ctx.has_t_in || G_context.signing_ctx.has_t_out) {
@@ -349,14 +351,11 @@ int transparent_bundle_hash() {
         }
         cx_hash(ph, 0, G_context.signing_ctx.t_proofs.sequence_sig_digest, 32, NULL, 0);
         cx_hash(ph, 0, G_context.signing_ctx.t_outputs_hash, 32, NULL, 0);
-        // hasher has transparent mid state
+        // transparent_hasher has transparent mid state
     }
-
-    // Compute the shielded sighash
-    // when there is no t_in, do not include the tx_in_hash at all
-    // This is going to be used by every shielded signature, therefore we cache the result
-    finish_sighash(G_context.signing_ctx.sapling_sig_hash, 
-        G_context.signing_ctx.has_t_in ? sapling_tx_in_hash : NULL);
+    else {
+        PRINTF(">> EMPTY TRANSPARENT BUNDLE\n");
+    }
 
     return 0;
 }
@@ -378,12 +377,15 @@ int sapling_bundle_hash() {
                               NULL, 0,
                               (uint8_t *) "ZTxIdSaplingHash", 16);
     if (G_context.signing_ctx.has_s_in || G_context.signing_ctx.has_s_out) {                              
-        // PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_proofs.sapling_spends_digest);
-        // PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
-        // PRINTF(">> SAPLING BUNDLE: %.*H\n", 8, (uint8_t *)&G_context.signing_ctx.s_net);
+        PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_proofs.sapling_spends_digest);
+        PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
+        PRINTF(">> SAPLING BUNDLE: %.*H\n", 8, (uint8_t *)&G_context.signing_ctx.s_net);
         cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_spends_digest, 32, NULL, 0);
         cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
         cx_hash(ph, 0, (uint8_t *)&G_context.signing_ctx.s_net, 8, NULL, 0);
+    }
+    else {
+        PRINTF(">> EMPTY SAPLING BUNDLE\n");
     }
     cx_hash(ph, CX_LAST, NULL, 0, G_context.signing_ctx.sapling_bundle_hash, 32);
     PRINTF("SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
@@ -410,8 +412,8 @@ int orchard_bundle_hash() {
         cx_hash(ph, 0, G_context.signing_ctx.o_proofs.orchard_memos_digest, 32, NULL, 0);
         cx_hash(ph, 0, G_context.signing_ctx.o_proofs.orchard_noncompact_digest, 32, NULL, 0);
         cx_hash(ph, 0, &flags, 1, NULL, 0);
-        cx_hash(ph, 0, &G_context.signing_ctx.o_net, 8, NULL, 0);
-        cx_hash(ph, 0, &G_context.signing_ctx.o_proofs.orchard_anchor, 32, NULL, 0);
+        cx_hash(ph, 0, (uint8_t *)&G_context.signing_ctx.o_net, 8, NULL, 0);
+        cx_hash(ph, 0, G_context.signing_ctx.o_proofs.orchard_anchor, 32, NULL, 0);
     }
     cx_hash(ph, CX_LAST, NULL, 0, G_context.signing_ctx.orchard_bundle_hash, 32);
     PRINTF("ORCHARD BUNDLE: %.*H\n", 32, G_context.signing_ctx.orchard_bundle_hash);
@@ -425,7 +427,7 @@ int orchard_bundle_hash() {
 */
 static int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
     cx_blake2b_t tx_t_hasher;
-    memmove(&tx_t_hasher, &G_context.signing_ctx.hasher, sizeof(cx_blake2b_t));
+    memmove(&tx_t_hasher, &G_context.signing_ctx.transparent_hasher, sizeof(cx_blake2b_t));
     cx_hash_t *ph = (cx_hash_t *) &tx_t_hasher;
     uint8_t transparent_hash[32];
     if (txin_sig_digest)
@@ -440,11 +442,11 @@ static int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
                               (uint8_t *) "ZcashTxHash_\xB4\xD0\xD6\xC2", 16);
     cx_hash(ph, 0, G_context.signing_ctx.header_hash, 32, NULL, 0);
     cx_hash(ph, 0, transparent_hash, 32, NULL, 0);
-    cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
-    cx_hash(ph, CX_LAST, orchard_hash, 32, sighash, 32);
+    cx_hash(ph, 0, G_context.signing_ctx.sapling_bundle_hash, 32, NULL, 0);
+    cx_hash(ph, CX_LAST, G_context.signing_ctx.orchard_bundle_hash, 32, sighash, 32);
 
-    PRINTF("SAPLING SIG BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_compact_hash);
-    PRINTF("ORCHARD SIG BUNDLE: %.*H\n", 32, orchard_hash);
+    PRINTF("SAPLING SIG BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
+    PRINTF("ORCHARD SIG BUNDLE: %.*H\n", 32, G_context.signing_ctx.orchard_bundle_hash);
     PRINTF("TXID: %.*H\n", 32, sighash);
 
     return 0;
