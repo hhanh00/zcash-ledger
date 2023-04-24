@@ -7,4 +7,4 @@
 #include "../types.h"
 #include "../common/buffer.h"
 
-int handler_test_math();
+int handler_test_math(o_action_t *action);

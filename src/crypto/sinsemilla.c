@@ -85,6 +85,29 @@ void finalize_sinsemilla(sinsemilla_state_t *state, uint8_t *hash) {
     }
 }
 
+void init_commit(sinsemilla_state_t *state, uint8_t *perso_M, size_t perso_len) {
+    jac_p_t Q;
+    hash_to_curve(&Q, 
+        (uint8_t *)"z.cash:SinsemillaQ", 18,
+        perso_M, perso_len);
+
+    init_sinsemilla(state, &Q);
+}
+
+void finalize_commit(sinsemilla_state_t *state, uint8_t *perso_r, size_t perso_len, fv_t *v, uint8_t *hash) {
+    finalize_sinsemilla(state, NULL);
+    jac_p_t R;
+    hash_to_curve(&R, 
+        perso_r, perso_len,
+        NULL, 0);
+    jac_p_t r;
+    pallas_base_mult(&r, &R, v);
+    pallas_add_assign(&r, &state->p);
+    pallas_to_bytes(hash, &r);
+    swap_endian(hash, 32);
+    hash[0] &= 0x7F;
+}
+
 void sinsemilla_S(jac_p_t *S, uint32_t i) {
     hash_to_curve(S, 
         (uint8_t *)"z.cash:SinsemillaS", 18,

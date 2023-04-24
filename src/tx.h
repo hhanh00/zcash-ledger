@@ -17,6 +17,7 @@ typedef struct {
 
 typedef struct {
     uint64_t amount;
+    uint8_t nf[32]; // rho
     uint8_t epk[32];
     uint8_t address[43]; // 11 (d) + 32 (pk_d)
     uint8_t enc[52];

@@ -37,13 +37,31 @@
 #include "../crypto/ff1.h"
 #include "../crypto/f4jumble.h"
 #include "../crypto/ua.h"
+#include "../crypto/tx.h"
+#include "../crypto/orchard.h"
 
-int handler_test_math() {
+int handler_test_math(o_action_t *action) {
     int error = 0;
     fq_t d2;
     BEGIN_TRY {
         TRY {
-            return encode_ua();
+            orchard_derive_spending_key(0);
+
+            PRINTF("d %.*H\n", 11, action->address);
+            PRINTF("pk_d %.*H\n", 32, action->address + 11);
+            PRINTF("rho %.*H\n", 32, action->nf);
+            PRINTF("amount %.*H\n", 8, &action->amount);
+
+            uint8_t rseed[32];
+            memset(rseed, 4, 32);
+            cx_chacha_init(&chacha_rseed_rng, 20);
+            cx_chacha_set_key(&chacha_rseed_rng, rseed, 32);
+            prf_chacha(&chacha_rseed_rng, rseed, 32);
+            PRINTF("rseed %.*H\n", 32, rseed);
+
+            cmx(action->address, action->amount, rseed, action->nf);
+            
+            // return encode_ua();
 
             // uint8_t a[128];
             // memset(a, 1, 128);

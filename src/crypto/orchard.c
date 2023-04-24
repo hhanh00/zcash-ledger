@@ -97,37 +97,15 @@ void orchard_derive_spending_key(int8_t account) {
 
     memmove(G_context.orchard_key_info.dk, hash, 32);
 
-    jac_p_t Q;
-    hash_to_curve(&Q, 
-        (uint8_t *)"z.cash:SinsemillaQ", 18,
-        (uint8_t *)"z.cash:Orchard-CommitIvk-M", 26);
-    PRINTF("Q.x %.*H\n", 32, Q.x);
-    PRINTF("Q.y %.*H\n", 32, Q.y);
-    PRINTF("Q.z %.*H\n", 32, Q.z);
-
+    sinsemilla_state_t sinsemilla;
+    init_commit(&sinsemilla, (uint8_t *)"z.cash:Orchard-CommitIvk-M", 26);
     memmove(hash, G_context.orchard_key_info.nk, 32); 
     swap_endian(hash, 32); // to_repr
-    sinsemilla_state_t sinsemilla;
-    init_sinsemilla(&sinsemilla, &Q);
     hash_sinsemilla(&sinsemilla, G_context.orchard_key_info.ak, 255);
     hash_sinsemilla(&sinsemilla, hash, 255);
-    finalize_sinsemilla(&sinsemilla, NULL);
+    finalize_commit(&sinsemilla, (uint8_t *)"z.cash:Orchard-CommitIvk-r", 26, 
+        &G_context.orchard_key_info.rivk, hash);
 
-    jac_p_t R;
-    hash_to_curve(&R, 
-        (uint8_t *)"z.cash:Orchard-CommitIvk-r", 26,
-        NULL, 0);
-    PRINTF("R.x %.*H\n", 32, R.x);
-    PRINTF("R.y %.*H\n", 32, R.y);
-    PRINTF("R.z %.*H\n", 32, R.z);
-
-    jac_p_t r;
-    pallas_base_mult(&r, &R, &G_context.orchard_key_info.rivk);
-
-    pallas_add_assign(&r, &sinsemilla.p);
-    pallas_to_bytes(hash, &r);
-    swap_endian(hash, 32);
-    hash[0] &= 0x7F;
     PRINTF("commit %.*H\n", 32, hash);
     memmove(G_context.orchard_key_info.ivk, hash, 32);
 
@@ -152,4 +130,55 @@ void orchard_derive_spending_key(int8_t account) {
     memmove(G_context.orchard_key_info.address, G_context.orchard_key_info.div, 11);
     memmove(G_context.orchard_key_info.address + 11, G_context.orchard_key_info.pk_d, 32);
     PRINTF("address %.*H\n", 43, G_context.orchard_key_info.address);
+}
+
+int cmx(uint8_t *address, uint64_t value, uint8_t *rseed, uint8_t *rho) {
+    uint8_t hash[64];
+    uint8_t g_d[32];
+    uint8_t esk[32];
+    uint8_t psi[32];
+    fv_t rcm;
+
+    memmove(hash, rseed, 32);
+    prf_expand_seed_with_ad(hash, 4, rho, 32);
+    PRINTF("PRF ESK %.*H\n", 64, hash);
+    fv_from_wide(hash);
+    memmove(esk, hash, 32);
+    PRINTF("SCALAR ESK %.*H\n", 32, esk);
+
+    memmove(hash, rseed, 32);
+    prf_expand_seed_with_ad(hash, 9, rho, 32);
+    PRINTF("PRF PSI %.*H\n", 64, hash);
+    fp_from_wide(hash);
+    memmove(psi, hash, 32);
+    PRINTF("BASE PSI %.*H\n", 32, psi);
+
+    memmove(hash, rseed, 32);
+    prf_expand_seed_with_ad(hash, 5, rho, 32);
+    PRINTF("PRF RCM %.*H\n", 64, hash);
+    fv_from_wide(hash);
+    memmove(rcm, hash, 32);
+    PRINTF("SCALAR RCM %.*H\n", 32, rcm);
+
+    jac_p_t G_d;
+    hash_to_curve(&G_d, (uint8_t *)"z.cash:Orchard-gd", 17,
+        address, 11);
+    pallas_to_bytes(g_d, &G_d);
+    PRINTF("G_d %.*H\n", 32, g_d);
+
+    sinsemilla_state_t sinsemilla;
+
+    init_commit(&sinsemilla, (uint8_t *)"z.cash:Orchard-NoteCommit-M", 27);
+    hash_sinsemilla(&sinsemilla, g_d, 256);
+    hash_sinsemilla(&sinsemilla, address + 11, 256);
+    hash_sinsemilla(&sinsemilla, (uint8_t *)&value, 64);
+    hash_sinsemilla(&sinsemilla, rho, 255);
+    memmove(hash, psi, 32); // psi.to_repr
+    swap_endian(hash, 32);
+    hash_sinsemilla(&sinsemilla, hash, 255);
+    finalize_commit(&sinsemilla, (uint8_t *)"z.cash:Orchard-NoteCommit-r", 27, &rcm, hash);
+
+    PRINTF("CMX %.*H\n", 32, hash);
+
+    return 0;
 }

@@ -15,3 +15,6 @@ void hash_sinsemilla(sinsemilla_state_t *state, uint8_t *data, size_t data_bit_l
 void finalize_sinsemilla(sinsemilla_state_t *state, uint8_t *hash);
 
 void sinsemilla_S(jac_p_t *S, uint32_t i);
+
+void init_commit(sinsemilla_state_t *state, uint8_t *perso_M, size_t perso_len);
+void finalize_commit(sinsemilla_state_t *state, uint8_t *perso_r, size_t perso_len, fv_t *v, uint8_t *hash);

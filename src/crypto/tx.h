@@ -7,6 +7,10 @@
 
 #include "../types.h"
 
+extern cx_chacha_context_t chacha_rseed_rng;
+extern cx_chacha_context_t chacha_alpha_rng;
+int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len);
+
 int change_stage(uint8_t new_stage);
 
 /* These function MUST be called and in this order */

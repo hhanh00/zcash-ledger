@@ -190,7 +190,12 @@ int apdu_dispatcher(const command_t *cmd) {
                 memset(&o_action, 0, sizeof(o_action_t));
                 p = cmd->data;
 
-                // TODO: Parse
+                MOVE_FIELD(o_action, nf);
+                MOVE_FIELD(o_action, address);
+                MOVE_FIELD(o_action, amount);
+                MOVE_FIELD(o_action, epk);
+                MOVE_FIELD(o_action, enc);
+
                 return add_o_action(&o_action, cmd->p1 == 1);
             }
 
@@ -332,8 +337,15 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
+            o_action_t o_action;
+            memset(&o_action, 0, sizeof(o_action_t));
+            p = cmd->data;
 
-            return handler_test_math();
+            MOVE_FIELD(o_action, nf);
+            MOVE_FIELD(o_action, address);
+            MOVE_FIELD(o_action, amount);
+
+            return handler_test_math(&o_action);
         default:
             return io_send_sw(SW_INS_NOT_SUPPORTED);
     }
