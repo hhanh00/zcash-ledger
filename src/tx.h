@@ -36,4 +36,7 @@ typedef struct {
 } s_proofs_t;
 
 typedef struct {
+    uint8_t orchard_anchor[32];
+    uint8_t orchard_memos_digest[32];
+    uint8_t orchard_noncompact_digest[32];
 } o_proofs_t;

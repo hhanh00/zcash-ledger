@@ -34,8 +34,8 @@ typedef enum {
     ADD_T_IN = 0x15,
     ADD_T_OUT = 0x16,
     ADD_S_OUT = 0x17,
-    SET_S_NET = 0x18,
-    ADD_O_ACTION = 0x19,
+    ADD_O_ACTION = 0x18,
+    SET_S_NET = 0x19,
     SET_O_NET = 0x1A,
     CONFIRM_FEE = 0x1B,
     GET_SIGHASH = 0x20,
@@ -139,6 +139,7 @@ typedef struct {
     cx_blake2b_t hasher;
     int64_t fee;
     uint64_t amount_s_out;
+    uint64_t amount_o_out;
     int64_t t_net;
     int64_t s_net;
     int64_t o_net;
@@ -149,8 +150,10 @@ typedef struct {
     uint8_t t_outputs_hash[32];
     t_proofs_t t_proofs;
     s_proofs_t s_proofs;
+    o_proofs_t o_proofs;
     uint8_t s_compact_hash[32];
     uint8_t sapling_bundle_hash[32];
+    uint8_t o_compact_hash[32];
     uint8_t orchard_bundle_hash[32];
     uint8_t sapling_sig_hash[32];
     signing_stage_t stage;

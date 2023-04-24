@@ -59,7 +59,8 @@ int handler_test_math(o_action_t *action) {
             prf_chacha(&chacha_rseed_rng, rseed, 32);
             PRINTF("rseed %.*H\n", 32, rseed);
 
-            cmx(action->address, action->amount, rseed, action->nf);
+            uint8_t hash[32];
+            cmx(hash, action->address, action->amount, rseed, action->nf);
             
             // return encode_ua();
 

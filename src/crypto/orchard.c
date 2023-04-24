@@ -27,6 +27,7 @@
 #include "sinsemilla.h"
 #include "prf.h"
 #include "ff1.h"
+#include "orchard.h"
 
 #include "globals.h"
 
@@ -132,12 +133,18 @@ void orchard_derive_spending_key(int8_t account) {
     PRINTF("address %.*H\n", 43, G_context.orchard_key_info.address);
 }
 
-int cmx(uint8_t *address, uint64_t value, uint8_t *rseed, uint8_t *rho) {
-    uint8_t hash[64];
-    uint8_t g_d[32];
-    uint8_t esk[32];
-    uint8_t psi[32];
+static uint8_t hash[64];
+static uint8_t g_d[32];
+static uint8_t esk[32];
+static uint8_t psi[32];
+
+int cmx(uint8_t *cmx, uint8_t *address, uint64_t value, uint8_t *rseed, uint8_t *rho) {
     fv_t rcm;
+
+    PRINTF("CMX d %.*H\n", 11, address);
+    PRINTF("pk_d %.*H\n", 32, address + 11);
+    PRINTF("rho %.*H\n", 32, rho);
+    PRINTF("amount %.*H\n", 8, &value);
 
     memmove(hash, rseed, 32);
     prf_expand_seed_with_ad(hash, 4, rho, 32);
@@ -161,8 +168,10 @@ int cmx(uint8_t *address, uint64_t value, uint8_t *rseed, uint8_t *rho) {
     PRINTF("SCALAR RCM %.*H\n", 32, rcm);
 
     jac_p_t G_d;
+    PRINTF("hash_to_curve\n");
     hash_to_curve(&G_d, (uint8_t *)"z.cash:Orchard-gd", 17,
         address, 11);
+    
     pallas_to_bytes(g_d, &G_d);
     PRINTF("G_d %.*H\n", 32, g_d);
 
@@ -178,7 +187,8 @@ int cmx(uint8_t *address, uint64_t value, uint8_t *rseed, uint8_t *rho) {
     hash_sinsemilla(&sinsemilla, hash, 255);
     finalize_commit(&sinsemilla, (uint8_t *)"z.cash:Orchard-NoteCommit-r", 27, &rcm, hash);
 
-    PRINTF("CMX %.*H\n", 32, hash);
+    memmove(cmx, hash, 32);
+    PRINTF("CMX %.*H\n", 32, cmx);
 
     return 0;
 }

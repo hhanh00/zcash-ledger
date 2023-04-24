@@ -44,7 +44,8 @@
 
 #define MOVE_FIELD(s,field) memmove(&s.field, p, sizeof(s.field)); p += sizeof(s.field);
 #define TRANSPARENT_OUT_LEN (8+1+20)
-#define SHIELDED_OUT_LEN (43+8+32+52)
+#define SAPLING_OUT_LEN (43+8+32+52)
+#define ORCHARD_OUT_LEN (32+43+8+32+52)
 
 int apdu_dispatcher(const command_t *cmd) {
     if (cmd->cla != CLA) {
@@ -150,7 +151,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != SHIELDED_OUT_LEN)
+            if (cmd->lc != SAPLING_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             {
@@ -166,23 +167,11 @@ int apdu_dispatcher(const command_t *cmd) {
                 return add_s_output(&s_out, cmd->p1 == 1);
             }
 
-        case SET_S_NET:
-            if (cmd->p1 > 1 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != sizeof(int64_t))
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            p = cmd->data;
-            int64_t net;
-            memmove(&net, p, 8);
-            return set_s_net(net, cmd->p1 == 1);
-
         case ADD_O_ACTION:
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != SHIELDED_OUT_LEN)
+            if (cmd->lc != ORCHARD_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             {
@@ -198,6 +187,18 @@ int apdu_dispatcher(const command_t *cmd) {
 
                 return add_o_action(&o_action, cmd->p1 == 1);
             }
+
+        case SET_S_NET:
+            if (cmd->p1 > 1 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != sizeof(int64_t))
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            p = cmd->data;
+            int64_t net;
+            memmove(&net, p, 8);
+            return set_s_net(net, cmd->p1 == 1);
 
         case SET_O_NET:
             if (cmd->p1 > 1 || cmd->p2 != 0) {
