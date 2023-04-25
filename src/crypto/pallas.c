@@ -25,6 +25,7 @@
 #include "../types.h"
 #include "fr.h"
 #include "pallas.h"
+#include "tx.h"
 
 #include "globals.h"
 
@@ -647,3 +648,49 @@ void pallas_add_assign(jac_p_t *v, const jac_p_t *a) {
     pallas_jac_export(v, &v0);
     cx_bn_unlock();
 }
+
+static int h_star(uint8_t *hash, uint8_t *data, size_t len) {
+    cx_blake2b_t hasher;
+    cx_blake2b_init2_no_throw(&hasher, 512,
+                              NULL, 0, (uint8_t *) "Zcash_RedPallasH", 16);
+    cx_hash((cx_hash_t *)&hasher, CX_LAST, data, len, hash, 64);
+    fv_from_wide(hash);
+
+    return 0;
+}
+
+int pallas_sign(uint8_t *signature, fv_t *sk, uint8_t *message) {
+    uint8_t buffer[144];
+    memset(buffer, 0, sizeof(buffer));
+
+    cx_get_random_bytes(buffer, 80);
+    prf_chacha(&chacha_sig_rng, buffer, 80);
+    memmove(buffer + 80, message, 64);
+    PRINTF("random %.*H\n", 80, buffer);
+
+    uint8_t r_buffer[64]; // we need 64 bytes but only the first 32 will be used as a return value
+    h_star(r_buffer, buffer, 144);
+    PRINTF("nonce %.*H\n", 32, r_buffer);
+
+    fv_t r;
+    memmove(&r, r_buffer, 32);
+    jac_p_t p;
+    pallas_base_mult(&p, &SPEND_AUTH_GEN, &r);
+    pallas_to_bytes(buffer, &p); // R = r.G
+    PRINTF("R %.*H\n", 32, buffer);
+
+    memmove(signature, buffer, 32); // R
+    memmove(buffer + 32, message, 64);
+    h_star(r_buffer, buffer, 96);
+    fv_t *S = (fv_t *)(signature + 32);
+    memmove(S, r_buffer, 32);
+
+    fv_mult(S, S, sk);
+    fv_add(S, S, &r); // S = r + H*(Rbar || M) . sk
+    swap_endian(signature + 32, 32);
+
+    PRINTF("signature %.*H\n", 64, signature);
+
+    return 0;
+}
+

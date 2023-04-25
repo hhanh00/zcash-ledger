@@ -79,8 +79,6 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_
     buffer[72] = carry;
     buffer[0] |= 0x3F;
 
-    PRINTF("PH BUFFER: %.*H\n", 73, buffer);
-
     extended_point_t pedersen_hash;
     extended_point_t tmp_p;
     extended_niels_point_t tmp_pn;
@@ -110,7 +108,6 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_
             fr_negate(&tmp);
         }
 
-        PRINTF("PH TMP: %.*H\n", 32, tmp);
         fr_add(&acc, &acc, &tmp);
         fr_double(&cur);
         fr_double(&cur);
@@ -123,8 +120,6 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_
         }
 
         if (chunk % 63 == 62) {
-            PRINTF("PH ACC: %.*H\n", 32, acc);
-
             ext_base_mult(&tmp_p, &PEDERSEN_HASH_GENS[chunk / 63], &acc);
             ext_to_niels(&tmp_pn, &tmp_p);
             ext_add(&pedersen_hash, &tmp_pn);

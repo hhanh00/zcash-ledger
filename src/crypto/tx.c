@@ -46,6 +46,7 @@ const uint8_t sapling_tx_in_hash[] = {
 
 cx_chacha_context_t chacha_rseed_rng;
 cx_chacha_context_t chacha_alpha_rng;
+cx_chacha_context_t chacha_sig_rng;
 
 static int transparent_bundle_hash();
 static int sapling_bundle_hash();
@@ -67,9 +68,6 @@ int init_tx(uint8_t *header_digest) {
             G_context.signing_ctx.mseed, 32,
             seed_rng, 32);
 
-    // TODO: Remove next line
-    memset(seed_rng, 2, 32);
-
     cx_chacha_init(&chacha_rseed_rng, 20);
     cx_chacha_set_key(&chacha_rseed_rng, seed_rng, 32);
 
@@ -83,11 +81,12 @@ int init_tx(uint8_t *header_digest) {
 
     PRINTF("ALPHA SEED: %.*H\n", 32, seed_rng);
 
-    // TODO: Remove next line
-    memset(seed_rng, 1, 32);
-
     cx_chacha_init(&chacha_alpha_rng, 20);
     cx_chacha_set_key(&chacha_alpha_rng, seed_rng, 32);
+
+    memset(seed_rng, 3, 32);
+    cx_chacha_init(&chacha_sig_rng, 20);
+    cx_chacha_set_key(&chacha_sig_rng, seed_rng, 32);
 
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher,
                               256,
@@ -381,7 +380,7 @@ int sapling_bundle_hash() {
         PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
         PRINTF(">> SAPLING BUNDLE: %.*H\n", 8, (uint8_t *)&G_context.signing_ctx.s_net);
         cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_spends_digest, 32, NULL, 0);
-        cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
+        cx_hash(ph, 0, G_context.signing_ctx.sapling_bundle_hash, 32, NULL, 0);
         cx_hash(ph, 0, (uint8_t *)&G_context.signing_ctx.s_net, 8, NULL, 0);
     }
     else {
@@ -398,7 +397,6 @@ int orchard_bundle_hash() {
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
                               NULL, 0,
                               (uint8_t *) "ZTxIdOrchardHash", 16);
-    // TODO: Orchard components
     if (G_context.signing_ctx.has_o_action) {
         uint8_t flags = 3;
         PRINTF("%.*H\n", 32, G_context.signing_ctx.o_compact_hash);
@@ -508,7 +506,18 @@ int sign_sapling() {
     return helper_send_response_bytes(signature, 64);
 }
 
-int sign_orchard() { return 0; }
+int sign_orchard() { 
+    if (G_context.signing_ctx.stage != SIGN) {
+        reset_app();
+        return io_send_sw(SW_BAD_STATE);
+    }
+    ui_display_processing();
+
+    uint8_t signature[64];
+    do_sign_orchard(signature);
+    ui_menu_main();
+    return helper_send_response_bytes(signature, 64);
+}
 
 int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len) {
     memset(v, 0, len);

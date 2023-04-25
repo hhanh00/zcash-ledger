@@ -28,6 +28,7 @@
 #include "prf.h"
 #include "ff1.h"
 #include "orchard.h"
+#include "tx.h"
 
 #include "globals.h"
 
@@ -55,10 +56,11 @@ void orchard_derive_spending_key(int8_t account) {
     jac_p_t p;
     pallas_base_mult(&p, &SPEND_AUTH_GEN, &G_context.orchard_key_info.ask);
     pallas_to_bytes(G_context.orchard_key_info.ak, &p);
-    if ((G_context.orchard_key_info.ak[31] & 0x7F) != 0) {
+    if ((G_context.orchard_key_info.ak[31] & 0x80) != 0) {
         fv_negate(&G_context.orchard_key_info.ask);
         pallas_base_mult(&p, &SPEND_AUTH_GEN, &G_context.orchard_key_info.ask);
         pallas_to_bytes(G_context.orchard_key_info.ak, &p);
+        PRINTF("NEW SPENDING AUTHORIZATION KEY %.*H\n", 32, G_context.orchard_key_info.ask);
     }
 
     memmove(hash, spending_key, 32);
@@ -192,3 +194,25 @@ int cmx(uint8_t *cmx, uint8_t *address, uint64_t value, uint8_t *rseed, uint8_t 
 
     return 0;
 }
+
+void do_sign_orchard(uint8_t *signature) {
+    uint8_t alpha[64];
+    prf_chacha(&chacha_alpha_rng, alpha, 64);
+    fv_from_wide(alpha);
+    PRINTF("ALPHA: %.*H\n", 32, alpha);
+
+    PRINTF("ASK: %.*H\n", 32, &G_context.orchard_key_info.ask);
+    fv_t ask; // rerandomized ask
+    fv_add(&ask, &G_context.orchard_key_info.ask, (fv_t *)alpha);
+    PRINTF("R ASK: %.*H\n", 32, ask);
+
+    uint8_t msg[64];
+    jac_p_t p;
+    pallas_base_mult(&p, &SPEND_AUTH_GEN, &ask);
+    pallas_to_bytes(msg, &p);
+    memmove(msg + 32, G_context.signing_ctx.sapling_sig_hash, 32); // sign the same sig hash as sapling
+    PRINTF("MSG: %.*H\n", 64, msg);
+
+    pallas_sign(signature, &ask, msg);
+}
+

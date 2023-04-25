@@ -195,6 +195,14 @@ static inline void fv_negate(fv_t *v) {
     cx_math_subm_no_throw((uint8_t *)v, (uint8_t *)zero, (uint8_t *)v, fv_m, 32);
 }
 
+static inline void fv_add(fv_t *v, const fv_t *a, const fv_t *b) {
+    cx_math_addm_no_throw((uint8_t *)v, (uint8_t *)a, (uint8_t *)b, fv_m, 32);
+}
+
+static inline void fv_mult(fv_t *v, const fv_t *a, const fv_t *b) {
+    cx_math_multm_no_throw((uint8_t *)v, (uint8_t *)a, (uint8_t *)b, fv_m, 32);
+}
+
 void print_bn(const char *label, cx_bn_t bn);
 
 bool ff_is_zero(uint8_t *v);

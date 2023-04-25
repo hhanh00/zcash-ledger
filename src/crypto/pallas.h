@@ -32,3 +32,5 @@ void pallas_base_mult(jac_p_t *res, const jac_p_t *base, fv_t *x);
 
 void pallas_copy_jac(jac_p_t *res, const jac_p_t *a);
 void pallas_add_assign(jac_p_t *v, const jac_p_t *a);
+
+int pallas_sign(uint8_t *signature, fv_t *sk, uint8_t *message);
