@@ -238,6 +238,11 @@ int add_s_output(s_out_t *output, bool confirmation) {
 }
 
 int add_o_action(o_action_t *action, bool confirmation) { 
+    if (G_context.signing_ctx.stage != O_ACTION) {
+        reset_app();
+        return io_send_sw(SW_BAD_STATE);
+    }
+    ui_display_processing();
     G_context.signing_ctx.has_o_action = true;
     G_context.signing_ctx.amount_o_out += action->amount;
 
@@ -262,6 +267,9 @@ int add_o_action(o_action_t *action, bool confirmation) {
     cx_hash(ph, 0, action->epk, 32, NULL, 0);  // ephemeral key
     cx_hash(ph, 0, action->enc, 52, NULL, 0);  // first 52 bytes of encrypted note
 
+    if (confirmation)
+        return ui_confirm_o_out(action);
+    ui_menu_main();
     return helper_send_response_bytes(NULL, 0);
 }
 

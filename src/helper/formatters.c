@@ -36,3 +36,7 @@ void format_t_address(uint8_t *address_hash) {
 void format_s_address(uint8_t *address) {
     to_address_bech32(G_context.address, address, address + 11);
 }
+
+void format_u_address(uint8_t *address) {
+    encode_ua(address);
+}

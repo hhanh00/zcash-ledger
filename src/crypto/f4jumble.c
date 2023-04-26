@@ -26,24 +26,24 @@
 
 static uint8_t hash[64];
 
-void G(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t len) {
+void G(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t left_len, size_t right_len) {
     uint8_t perso[16];
     memmove(perso, "UA_F4Jumble_G", 13);
     perso[13] = round;
     memset(perso + 14, 0, 2);
     cx_blake2b_init2_no_throw(hash_ctx, 512, NULL, 0, perso, 16);
-    cx_hash((cx_hash_t *)hash_ctx, CX_LAST, m, len, hash, 64);
+    cx_hash((cx_hash_t *)hash_ctx, CX_LAST, m, left_len, hash, 64);
     PRINTF("G: %.*H\n", 64, hash);
 }
 
-void H(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t len) {
+void H(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t left_len, size_t right_len) {
     uint8_t perso[16];
     memmove(perso, "UA_F4Jumble_H", 13);
     perso[13] = round;
     memset(perso + 14, 0, 2);
-    cx_blake2b_init2_no_throw(hash_ctx, 512, NULL, 0, perso, 16);
-    cx_hash((cx_hash_t *)hash_ctx, CX_LAST, m, len, hash, 64);
-    PRINTF("H: %.*H\n", 64, hash);
+    cx_blake2b_init2_no_throw(hash_ctx, left_len * 8, NULL, 0, perso, 16);
+    cx_hash((cx_hash_t *)hash_ctx, CX_LAST, m, right_len, hash, 64);
+    PRINTF("H: %.*H\n", left_len, hash);
 }
 
 static void xor(uint8_t *dst, uint8_t *src, size_t len) {
@@ -54,23 +54,23 @@ static void xor(uint8_t *dst, uint8_t *src, size_t len) {
 
 int f4jumble(uint8_t *message, size_t len) {
     // This implementation only supports length 128
-    if (len != 128) return CX_INVALID_PARAMETER;
+    if (len > 128) return CX_INVALID_PARAMETER;
 
     cx_blake2b_t hash_ctx;
 
-    size_t half_len = 64;
+    size_t left_len = len / 2;
+    size_t right_len = len - left_len;
     uint8_t *left = message;
-    uint8_t *right = message + half_len;
+    uint8_t *right = message + left_len;
 
-    G(&hash_ctx, 0, left, half_len);
-    xor(right, hash, half_len);
-    PRINTF("R: %.*H\n", half_len, right);
-    H(&hash_ctx, 0, right, half_len);
-    xor(left, hash, half_len);
-    G(&hash_ctx, 1, left, half_len);
-    xor(right, hash, half_len);
-    H(&hash_ctx, 1, right, half_len);
-    xor(left, hash, half_len);
+    G(&hash_ctx, 0, left, left_len, right_len);
+    xor(right, hash, right_len);
+    H(&hash_ctx, 0, right, left_len, right_len);
+    xor(left, hash, left_len);
+    G(&hash_ctx, 1, left, left_len, right_len);
+    xor(right, hash, right_len);
+    H(&hash_ctx, 1, right, left_len, right_len);
+    xor(left, hash, left_len);
 
     return 0;
 }

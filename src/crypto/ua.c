@@ -31,7 +31,9 @@ static uint8_t receivers[UA_LEN];
 static uint8_t bech32_buffer[250];
 static char ua[250];
 
-int encode_ua() {
+void encode_ua_inner(uint8_t *p);
+
+int encode_my_ua() {
     memset(receivers, 0, UA_LEN);
     uint8_t *p = receivers;
     *p++ = 0;
@@ -44,6 +46,23 @@ int encode_ua() {
     *p++ = 3;
     *p++ = 43;
     memmove(p, G_context.orchard_key_info.address, 43); p += 43;
+
+    encode_ua_inner(p);
+
+    return ui_display_address();
+}
+
+int encode_ua(uint8_t *orchard_address) {
+    memset(receivers, 0, UA_LEN);
+    uint8_t *p = receivers;
+    *p++ = 3;
+    *p++ = 43;
+    memmove(p, orchard_address, 43); p += 43;
+
+    encode_ua_inner(p);
+}
+
+void encode_ua_inner(uint8_t *p) {
     *p++ = 'u';
     p += 15;
     size_t receivers_len = p - receivers;
@@ -55,9 +74,6 @@ int encode_ua() {
     convert_bits(bech32_buffer, &buffer_len, 5, receivers, receivers_len, 8, 1);
     bech32_encode(ua, "u", bech32_buffer, buffer_len, BECH32_ENCODING_BECH32M);
     size_t ua_len = strlen(ua);
-    PRINTF("ua %d %s\n", ua_len, ua);
+    PRINTF("ua %s\n", ua);
     memmove(G_context.address, ua, ua_len + 1);
-
-    // return helper_send_response_bytes(G_context.address, ua_len);
-    return ui_display_address();
 }
