@@ -73,6 +73,10 @@ const jac_p_t SPEND_AUTH_GEN = {
 uint8_t buffer[64];
 uint8_t b0[64];
 
+static void save_probe(cx_bn_t x, uint8_t i) {
+    cx_bn_export(x, memprobe + i*32, 32);
+}
+
 void hash_to_field(fp_t *h0, fp_t *h1, uint8_t *dst, size_t dst_len, uint8_t *msg, size_t len) {
     // PRINTF("msg %.*H\n", len, msg);
     cx_blake2b_t hash_ctx;
@@ -147,10 +151,10 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     cx_bn_alloc(&z_u22, 32);
     cx_bn_mod_mul(z_u22, z_u2, z_u2, M);
     cx_bn_alloc(&ta, 32);
-    cx_bn_mod_add(ta, z_u22, z_u2, M);
+    cx_bn_mod_add_fixed(ta, z_u22, z_u2, M);
     // print_bn("ta", ta);
     cx_bn_t num_x1; cx_bn_alloc(&num_x1, 32);
-    cx_bn_mod_add(num_x1, ta, one, M);
+    cx_bn_mod_add_fixed(num_x1, ta, one, M);
     cx_bn_t b; cx_bn_alloc_init(&b, 32, iso_b, 32);
     cx_bn_mod_mul(num_x1, b, num_x1, M);
     // print_bn("num_x1", num_x1);
@@ -181,10 +185,10 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     cx_bn_t num_gx1; cx_bn_alloc(&num_gx1, 32);
     cx_bn_t temp; cx_bn_alloc(&temp, 32);
     cx_bn_mod_mul(temp, a, div2, M);
-    cx_bn_mod_add(temp, num2_x1, temp, M);
+    cx_bn_mod_add_fixed(temp, num2_x1, temp, M);
     cx_bn_mod_mul(num_gx1, temp, num_x1, M);
     cx_bn_mod_mul(temp, b, div3, M);
-    cx_bn_mod_add(num_gx1, num_gx1, temp, M);
+    cx_bn_mod_add_fixed(num_gx1, num_gx1, temp, M);
     // print_bn("num_gx1", num_gx1);
 
     cx_bn_t num_x2; cx_bn_alloc(&num_x2, 32);
@@ -240,8 +244,12 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     cx_bn_unlock();
 }
 
+#define BN_DEF_ZERO BN_DEF(zero); cx_bn_set_u32(zero, 0);
+
+
 void iso_map(jac_p_t *res, const jac_p_t *p) {
     cx_bn_lock(32, 0);
+    BN_DEF_ZERO;
     cx_bn_t M; cx_bn_alloc_init(&M, 32, fp_m, 32);
     cx_bn_t x, y, z;
     cx_bn_alloc_init(&x, 32, p->x, 32); cx_bn_alloc_init(&y, 32, p->y, 32); cx_bn_alloc_init(&z, 32, p->z, 32); 
@@ -262,26 +270,26 @@ void iso_map(jac_p_t *res, const jac_p_t *p) {
     cx_bn_mod_mul(temp, iso, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[1], 32);
     cx_bn_mod_mul(num_x, iso, z2, M);
-    cx_bn_mod_add(num_x, temp, num_x, M);
+    cx_bn_mod_add_fixed(num_x, temp, num_x, M);
     cx_bn_mod_mul(num_x, num_x, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[2], 32);
     cx_bn_mod_mul(temp, iso, z4, M);
-    cx_bn_mod_add(num_x, temp, num_x, M);
+    cx_bn_mod_add_fixed(num_x, temp, num_x, M);
     cx_bn_mod_mul(num_x, num_x, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[3], 32);
     cx_bn_mod_mul(temp, iso, z6, M);
-    cx_bn_mod_add(num_x, temp, num_x, M);
+    cx_bn_mod_add_fixed(num_x, temp, num_x, M);
     // print_bn("num_x", num_x);
 
     BN_DEF(div_x);
     cx_bn_mod_mul(temp, z2, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[4], 32);
     cx_bn_mod_mul(div_x, iso, z4, M);
-    cx_bn_mod_add(div_x, temp, div_x, M);
+    cx_bn_mod_add_fixed(div_x, temp, div_x, M);
     cx_bn_mod_mul(div_x, div_x, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[5], 32);
     cx_bn_mod_mul(temp, iso, z6, M);
-    cx_bn_mod_add(div_x, temp, div_x, M);
+    cx_bn_mod_add_fixed(div_x, temp, div_x, M);
     // print_bn("div_x", div_x);
 
     BN_DEF(num_y);
@@ -289,30 +297,30 @@ void iso_map(jac_p_t *res, const jac_p_t *p) {
     cx_bn_mod_mul(temp, iso, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[7], 32);
     cx_bn_mod_mul(num_y, iso, z2, M);
-    cx_bn_mod_add(num_y, temp, num_y, M);
+    cx_bn_mod_add_fixed(num_y, temp, num_y, M);
     cx_bn_mod_mul(num_y, num_y, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[8], 32);
     cx_bn_mod_mul(temp, iso, z4, M);
-    cx_bn_mod_add(num_y, temp, num_y, M);
+    cx_bn_mod_add_fixed(num_y, temp, num_y, M);
     cx_bn_mod_mul(num_y, num_y, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[9], 32);
     cx_bn_mod_mul(temp, iso, z6, M);
-    cx_bn_mod_add(num_y, temp, num_y, M);
+    cx_bn_mod_add_fixed(num_y, temp, num_y, M);
     cx_bn_mod_mul(num_y, num_y, y, M);
     // print_bn("num_y", num_y);
 
     BN_DEF(div_y);
     cx_bn_init(iso, ISOGENY_CONSTANTS[10], 32);
     cx_bn_mod_mul(div_y, iso, z2, M);
-    cx_bn_mod_add(div_y, div_y, x, M);
+    cx_bn_mod_add_fixed(div_y, div_y, x, M);
     cx_bn_mod_mul(div_y, div_y, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[11], 32);
     cx_bn_mod_mul(temp, iso, z4, M);
-    cx_bn_mod_add(div_y, div_y, temp, M);
+    cx_bn_mod_add_fixed(div_y, div_y, temp, M);
     cx_bn_mod_mul(div_y, div_y, x, M);
     cx_bn_init(iso, ISOGENY_CONSTANTS[12], 32);
     cx_bn_mod_mul(temp, iso, z6, M);
-    cx_bn_mod_add(div_y, div_y, temp, M);
+    cx_bn_mod_add_fixed(div_y, div_y, temp, M);
     cx_bn_mod_mul(div_y, div_y, z3, M);
     // print_bn("div_y", div_y);
 
@@ -342,6 +350,7 @@ void hash_to_curve(jac_p_t *res, uint8_t *domain, size_t domain_len, uint8_t *ms
     }
 
     cx_bn_lock(32, 0);
+    BN_DEF_ZERO;
     cx_bn_t M; cx_bn_alloc_init(&M, 32, fp_m, 32);
     jac_p_bn_t pp[2];
     for (int i = 0; i < 2; i++) {
@@ -370,13 +379,14 @@ int pallas_from_bytes(jac_p_t *res, uint8_t *a) {
         return CX_OK;
     }
     cx_bn_lock(32, 0);
+    BN_DEF_ZERO;
     BN_DEF(M); cx_bn_init(M, fp_m, 32);
     BN_DEF(x0); cx_bn_init(x0, tmp, 32);
     BN_DEF(x3);
     cx_bn_mod_mul(x3, x0, x0, M);
     cx_bn_mod_mul(x3, x3, x0, M);
     BN_DEF(b); cx_bn_set_u32(b, 5);
-    cx_bn_mod_add(x3, x3, b, M);
+    cx_bn_mod_add_fixed(x3, x3, b, M);
     BN_DEF(y);
     cx_err_t err = cx_bn_mod_sqrt(y, x3, M, sign);
     if (err < 0) return CX_INVALID_PARAMETER;
@@ -438,6 +448,7 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
     if (pallas_is_identity(a)) pallas_copy_jac_bn(res, b);
     else if (pallas_is_identity(b)) pallas_copy_jac_bn(res, a);
     else {
+        BN_DEF_ZERO;
         // print_bn("a.x", a->x);
         // print_bn("a.y", a->y);
         // print_bn("a.z", a->z);
@@ -446,6 +457,7 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
         // print_bn("b.y", b->y);
         // print_bn("b.z", b->z);
 
+        BN_DEF(temp);
         BN_DEF(z1z1);
         cx_bn_mod_mul(z1z1, a->z, a->z, M);
         BN_DEF(z2z2);
@@ -456,10 +468,12 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
         cx_bn_mod_mul(u2, b->x, z1z1, M);
         BN_DEF(s1);
         cx_bn_mod_mul(s1, a->y, z2z2, M);
-        cx_bn_mod_mul(s1, s1, b->z, M);
+        cx_bn_mod_mul(temp, s1, b->z, M);
+        cx_bn_copy(s1, temp);
         BN_DEF(s2);
         cx_bn_mod_mul(s2, b->y, z1z1, M);
-        cx_bn_mod_mul(s2, s2, a->z, M);
+        cx_bn_mod_mul(temp, s2, a->z, M);
+        cx_bn_copy(s2, temp);
 
         // print_bn("u1", u1);
         // print_bn("u2", u2);
@@ -469,13 +483,14 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
         BN_DEF(h);
         cx_bn_mod_sub(h, u2, u1, M);
         BN_DEF(i);
-        cx_bn_mod_add(i, h, h, M);
-        cx_bn_mod_mul(i, i, i, M);
+        cx_bn_mod_add_fixed(i, h, h, M);
+        cx_bn_mod_mul(temp, i, i, M);
+        cx_bn_copy(i, temp);
         BN_DEF(j);
         cx_bn_mod_mul(j, h, i, M);
         BN_DEF(r);
         cx_bn_mod_sub(r, s2, s1, M);
-        cx_bn_mod_add(r, r, r, M);
+        cx_bn_mod_add_fixed(r, r, r, M);
 
         BN_DEF(v);
         cx_bn_mod_mul(v, u1, i, M);
@@ -491,20 +506,24 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
         cx_bn_mod_sub(x3, x3, v, M);
         cx_bn_mod_sub(x3, x3, v, M);
 
-        cx_bn_mod_mul(s1, s1, j, M);
-        cx_bn_mod_add(s1, s1, s1, M);
+        cx_bn_mod_mul(temp, s1, j, M);
+        cx_bn_copy(s1, temp);
+        cx_bn_mod_add_fixed(s1, s1, s1, M);
 
         BN_DEF(y3);
         cx_bn_mod_sub(y3, v, x3, M);
-        cx_bn_mod_mul(y3, y3, r, M);
+        cx_bn_mod_mul(temp, y3, r, M);
+        cx_bn_copy(y3, temp);
         cx_bn_mod_sub(y3, y3, s1, M);
 
         BN_DEF(z3);
-        cx_bn_mod_add(z3, a->z, b->z, M);
-        cx_bn_mod_mul(z3, z3, z3, M);
+        cx_bn_mod_add_fixed(z3, a->z, b->z, M);
+        cx_bn_mod_mul(temp, z3, z3, M);
+        cx_bn_copy(z3, temp);
         cx_bn_mod_sub(z3, z3, z1z1, M);
         cx_bn_mod_sub(z3, z3, z2z2, M);
-        cx_bn_mod_mul(z3, z3, h, M);
+        cx_bn_mod_mul(temp, z3, h, M);
+        cx_bn_copy(z3, temp);
 
         // print_bn("x3", x3);
         // print_bn("y3", y3);
@@ -514,6 +533,8 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
         cx_bn_copy(res->y, y3);
         cx_bn_copy(res->z, z3);
 
+        cx_bn_destroy(&zero);
+        cx_bn_destroy(&temp);
         cx_bn_destroy(&z1z1);
         cx_bn_destroy(&z2z2);
         cx_bn_destroy(&u1);
@@ -538,6 +559,8 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
 
 void pallas_double_jac(jac_p_bn_t *v, cx_bn_t M) {
     // TODO: Montgommery 
+    BN_DEF_ZERO;
+    BN_DEF(temp);
     BN_DEF(a);
     cx_bn_mod_mul(a, v->x, v->x, M);
     BN_DEF(b);
@@ -545,35 +568,46 @@ void pallas_double_jac(jac_p_bn_t *v, cx_bn_t M) {
     BN_DEF(c);
     cx_bn_mod_mul(c, b, b, M);
     BN_DEF(d);
-    cx_bn_mod_add(d, v->x, b, M);
-    cx_bn_mod_mul(d, d, d, M);
+    cx_bn_mod_add_fixed(d, v->x, b, M);
+    cx_bn_mod_mul(temp, d, d, M);
+    cx_bn_copy(d, temp);
     cx_bn_mod_sub(d, d, a, M);
     cx_bn_mod_sub(d, d, c, M);
-    cx_bn_mod_add(d, d, d, M);
+    cx_bn_mod_add_fixed(d, d, d, M);
     BN_DEF(e);
-    cx_bn_mod_add(e, a, a, M);
-    cx_bn_mod_add(e, e, a, M);
+    cx_bn_mod_add_fixed(e, a, a, M);
+    cx_bn_mod_add_fixed(e, e, a, M);
     BN_DEF(f);
     cx_bn_mod_mul(f, e, e, M);
-    BN_DEF(z3);
 
+    // save_probe(a, 0);
+    // save_probe(b, 1);
+    // save_probe(c, 2);
+    // save_probe(d, 3);
+    // save_probe(e, 4);
+    // save_probe(f, 5);
+
+    BN_DEF(z3);
     cx_bn_mod_mul(z3, v->z, v->y, M);
-    cx_bn_mod_add(z3, z3, z3, M);
+    cx_bn_mod_add_fixed(z3, z3, z3, M);
     BN_DEF(x3);
     cx_bn_mod_sub(x3, f, d, M);
     cx_bn_mod_sub(x3, x3, d, M);
-    cx_bn_mod_add(c, c, c, M);
-    cx_bn_mod_add(c, c, c, M);
-    cx_bn_mod_add(c, c, c, M);
+    cx_bn_mod_add_fixed(c, c, c, M);
+    cx_bn_mod_add_fixed(c, c, c, M);
+    cx_bn_mod_add_fixed(c, c, c, M);
     BN_DEF(y3);
     cx_bn_mod_sub(y3, d, x3, M);
-    cx_bn_mod_mul(y3, e, y3, M);
+    cx_bn_mod_mul(temp, e, y3, M);
+    cx_bn_copy(y3, temp);
     cx_bn_mod_sub(y3, y3, c, M);
 
     cx_bn_copy(v->x, x3);
     cx_bn_copy(v->y, y3);
     cx_bn_copy(v->z, z3);
 
+    cx_bn_destroy(&zero);
+    cx_bn_destroy(&temp);
     cx_bn_destroy(&a);
     cx_bn_destroy(&b);
     cx_bn_destroy(&c);
@@ -694,3 +728,4 @@ int pallas_sign(uint8_t *signature, fv_t *sk, uint8_t *message) {
     return 0;
 }
 
+u_int8_t memprobe[7*32];

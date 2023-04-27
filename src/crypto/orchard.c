@@ -29,6 +29,8 @@
 #include "ff1.h"
 #include "orchard.h"
 #include "tx.h"
+#include "../ui/display.h"
+#include "../ui/menu.h"
 
 #include "globals.h"
 
@@ -36,6 +38,7 @@ static uint8_t spending_key[32];
 void orchard_derive_spending_key(int8_t account) {
     uint8_t hash[64];
     uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
+    ui_display_processing();
     os_perso_derive_node_bip32(CX_CURVE_256K1,
                                 bip32_path,
                                 5,
@@ -133,6 +136,7 @@ void orchard_derive_spending_key(int8_t account) {
     memmove(G_context.orchard_key_info.address, G_context.orchard_key_info.div, 11);
     memmove(G_context.orchard_key_info.address + 11, G_context.orchard_key_info.pk_d, 32);
     PRINTF("address %.*H\n", 43, G_context.orchard_key_info.address);
+    ui_menu_main();
 }
 
 static uint8_t hash[64];

@@ -123,6 +123,7 @@ void bn_store_extended(extended_point_t *v, const bn_extended_point_t *a, cx_bn_
 #endif
 
 static void bn_ext_double(bn_extended_point_t *v, cx_bn_t q_m, cx_bn_mont_ctx_t *ctx) {
+    cx_bn_t zero; cx_bn_alloc_init(&zero, 32, fq_0, 32);    
     cx_bn_t temp;
     cx_bn_alloc(&temp, 32);
     cx_bn_t uu;
@@ -142,18 +143,18 @@ static void bn_ext_double(bn_extended_point_t *v, cx_bn_t q_m, cx_bn_mont_ctx_t 
     cx_bn_copy(zz2, v->z);
     CX_MUL(temp, zz2, zz2);
     cx_bn_copy(zz2, temp);
-    cx_bn_mod_add(zz2, zz2, zz2, q_m);
+    cx_bn_mod_add_fixed(zz2, zz2, zz2, q_m);
 
     cx_bn_t uv2;
     cx_bn_alloc(&uv2, 32);
     
-    cx_bn_mod_add(uv2, v->u, v->v, q_m);
+    cx_bn_mod_add_fixed(uv2, v->u, v->v, q_m);
     CX_MUL(temp, uv2, uv2);
     cx_bn_copy(uv2, temp);
 
     cx_bn_t vpu;
     cx_bn_alloc(&vpu, 32);
-    cx_bn_mod_add(vpu, vv, uu, q_m); // vpu = v*v + u*u
+    cx_bn_mod_add_fixed(vpu, vv, uu, q_m); // vpu = v*v + u*u
 
     cx_bn_t vmu;
     cx_bn_alloc(&vmu, 32);
@@ -169,6 +170,7 @@ static void bn_ext_double(bn_extended_point_t *v, cx_bn_t q_m, cx_bn_mont_ctx_t 
     CX_MUL(v->v, v->t2, vmu);
     CX_MUL(v->z, vmu, t);
 
+    cx_bn_destroy(&zero);
     cx_bn_destroy(&temp);
     cx_bn_destroy(&t);
     cx_bn_destroy(&vmu);
@@ -181,13 +183,14 @@ static void bn_ext_double(bn_extended_point_t *v, cx_bn_t q_m, cx_bn_mont_ctx_t 
 
 static void bn_ext_add(bn_extended_point_t *x, const bn_extended_niels_point_t *y, cx_bn_t q_m,
         cx_bn_mont_ctx_t *ctx) {
+    cx_bn_t zero; cx_bn_alloc_init(&zero, 32, fq_0, 32);    
     cx_bn_t temp; cx_bn_alloc(&temp, 32);
     cx_bn_t a; cx_bn_alloc(&a, 32);
     cx_bn_t b; cx_bn_alloc(&b, 32);
     cx_bn_mod_sub(a, x->v, x->u, q_m); // a = (v - u) * vmu
     CX_MUL(temp, a, y->vmu);
     cx_bn_copy(a, temp);
-    cx_bn_mod_add(b, x->v, x->u, q_m); // b = (v + u) * vpu
+    cx_bn_mod_add_fixed(b, x->v, x->u, q_m); // b = (v + u) * vpu
     CX_MUL(temp, b, y->vpu);
     cx_bn_copy(b, temp);
 
@@ -196,16 +199,16 @@ static void bn_ext_add(bn_extended_point_t *x, const bn_extended_niels_point_t *
     CX_MUL(temp, x->t1, x->t2); 
     CX_MUL(c, temp, y->t2d); // c = t1 * t2 * t2d
     CX_MUL(d, x->z, y->z);
-    cx_bn_mod_add(d, d, d, q_m); // d = 2zz
+    cx_bn_mod_add_fixed(d, d, d, q_m); // d = 2zz
 
     cx_bn_t u; cx_bn_alloc(&u, 32);
     cx_bn_t v; cx_bn_alloc(&v, 32);
     cx_bn_mod_sub(u, b, a, q_m); // u = b - a
-    cx_bn_mod_add(v, b, a, q_m); // v = b + a
+    cx_bn_mod_add_fixed(v, b, a, q_m); // v = b + a
 
     cx_bn_t z; cx_bn_alloc(&z, 32);
     cx_bn_t t; cx_bn_alloc(&t, 32);
-    cx_bn_mod_add(z, d, c, q_m); // z = d + c
+    cx_bn_mod_add_fixed(z, d, c, q_m); // z = d + c
     cx_bn_mod_sub(t, d, c, q_m); // t = d - c
 
     // print_bn("A", a);
@@ -217,6 +220,7 @@ static void bn_ext_add(bn_extended_point_t *x, const bn_extended_niels_point_t *
     // print_bn("Z", z);
     // print_bn("T", t);
 
+    cx_bn_destroy(&zero);
     cx_bn_destroy(&a);
     cx_bn_destroy(&b);
     cx_bn_destroy(&c);

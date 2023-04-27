@@ -40,65 +40,60 @@
 #include "../crypto/tx.h"
 #include "../crypto/orchard.h"
 
-int handler_test_math(o_action_t *action) {
+#define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
+
+const uint8_t ask[] = { 
+    0x1A, 0x83, 0x3D, 0x7C, 0x27, 0x9D, 0xCD, 0xF5, 0x86, 0xC0, 0xFB, 0xAA, 0xCE, 0xB5, 0x36, 0x11, 0x9A, 0x12, 0x19, 0xA7, 0x3C, 0xEC, 0xD2, 0x14, 0x32, 0xA5, 0xD6, 0x25, 0x40, 0xE8, 0x7E, 0x7C
+};
+
+int handler_test_math(uint8_t i) {
     int error = 0;
-    fq_t d2;
+    uint8_t res[96];
+    jac_p_t r;
     BEGIN_TRY {
         TRY {
-            orchard_derive_spending_key(0);
+            // orchard_derive_spending_key(0);
 
-            PRINTF("d %.*H\n", 11, action->address);
-            PRINTF("pk_d %.*H\n", 32, action->address + 11);
-            PRINTF("rho %.*H\n", 32, action->nf);
-            PRINTF("amount %.*H\n", 8, &action->amount);
+            // CX_THROW(cx_bn_lock(32, 0)); 
+            // BN_DEF(zero); cx_bn_set_u32(zero, 0);
+            // BN_DEF(M); cx_bn_init(M, fp_m, 32);
+            // BN_DEF(b); cx_bn_init(b, TEST_B, 32);
+            // BN_DEF(c); cx_bn_init(c, TEST_B, 32);
+            // BN_DEF(a);
+            // CX_THROW(cx_bn_mod_add(a, b, c, M));
+            // CX_THROW(cx_bn_mod_sub(a, a, zero, M));
+            // CX_THROW(cx_bn_export(a, res, 32));
 
-            uint8_t rseed[32];
-            memset(rseed, 4, 32);
-            cx_chacha_init(&chacha_rseed_rng, 20);
-            cx_chacha_set_key(&chacha_rseed_rng, rseed, 32);
-            prf_chacha(&chacha_rseed_rng, rseed, 32);
-            PRINTF("rseed %.*H\n", 32, rseed);
+            // CX_THROW(cx_bn_unlock());            
 
-            uint8_t hash[32];
-            cmx(hash, action->address, action->amount, rseed, action->nf);
-            
-            // return encode_ua();
+            // jac_p_bn_t acc;
+            // pallas_jac_alloc(&acc);
 
-            // uint8_t a[128];
-            // memset(a, 1, 128);
-            // f4jumble(a, 128);
-            // PRINTF("a %.*H\n", 128, a);
+            // // jac_p_bn_t b;
+            // // pallas_jac_init(&b, &SPEND_AUTH_GEN);
 
-            // return helper_send_response_bytes(NULL, 0);            
-            // jac_p_t S;
-            // sinsemilla_S(&S, 1);
-            // PRINTF("S.x %.*H\n", 32, S.x);
-            // PRINTF("S.y %.*H\n", 32, S.y);
-            // PRINTF("S.z %.*H\n", 32, S.z);
-            // pallas_to_bytes(hash, &S);
-            // PRINTF("S.u %.*H\n", 32, hash);
+            // // // for (uint16_t i = 0; i < 255; i++) {
+            // // //     pallas_double_jac(&acc, M);
+            // // //     if (i == 253)
+            // // //         pallas_add_jac(&acc, &acc, &b, M);
+            // // // }
 
-            // PRINTF("p.x %.*H\n", 32, &p.x);
-            // PRINTF("p.y %.*H\n", 32, &p.y);
-            // PRINTF("p.z %.*H\n", 32, &p.z);
+            // pallas_jac_init(&acc, &SPEND_AUTH_GEN);
+            // // pallas_add_jac(&acc, &acc, &b, M);
+            // pallas_double_jac(&acc, M);
 
-            // PRINTF("p %.*H\n", 32, hash);
+            // pallas_jac_export(&r, &acc);
+            // CX_THROW(cx_bn_unlock());
 
+            // pallas_to_bytes(res, &r);
 
+            fv_t x;
+            memset(&x, 0, 32);
+            x[31] = i;
 
-            // cx_bn_lock(32, 0);
-            // cx_bn_t M; cx_bn_alloc_init(&M, 32, fp_m, 32);
-            // jac_p_bn_t gen;
-            // pallas_jac_init(&gen, &SPEND_AUTH_GEN);
-            // pallas_double_jac(&gen, M);
-            // pallas_jac_export(&p, &gen);
-            // cx_bn_unlock();
-
-            // jac_p_t p;
-            // hash_to_curve(&p, "z.cash:SinsemillaQ", 18, "z.cash:Orchard-MerkleCRH", 24);
-            // PRINTF("p.x %.*H\n", 32, p.x);
-            // PRINTF("p.y %.*H\n", 32, p.y);
-            // PRINTF("p.z %.*H\n", 32, p.z);
+            pallas_base_mult(&r, &SPEND_AUTH_GEN, (fv_t *)&ask);
+            memmove(res, &r, 96);
+            // pallas_to_bytes(res, &r);
         }
         CATCH_OTHER(e) {
             error = e;
@@ -108,7 +103,8 @@ int handler_test_math(o_action_t *action) {
     }
     END_TRY;
     if (error != 0) return io_send_sw(error);
-    return helper_send_response_bytes(d2, 32);
+    return helper_send_response_bytes(res, 96);
+    // return helper_send_response_bytes((uint8_t *)&memprobe, sizeof(memprobe));
 }
 
 // 628CF615D21CF30D41826ED13D4D4A1D3C9B8640E76AE52103E94683DDB8FB24

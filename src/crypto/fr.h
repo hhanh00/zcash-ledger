@@ -5,6 +5,19 @@
 #include "../types.h"
 
 /**
+ * Work around an issue on the ST33K1M5 chip
+ * Adding two numbers can result in a number greater than the modulus
+ * We reduce it by subtracting 0
+*/
+// #ifndef ST33K1M5
+// #define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m)
+// #else
+// #define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m); cx_bn_mod_sub(a, a, zero, m)
+// #endif
+
+#define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m); cx_bn_mod_sub(a, a, zero, m)
+
+/**
  * Fr is the finite field (FF) for the Jubjub (JJ) point multiplicative group
  * Fq is the FF for the coordinates of points on JJ
 */

@@ -335,18 +335,10 @@ int apdu_dispatcher(const command_t *cmd) {
         }
 
         case TEST_MATH:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
+            if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            o_action_t o_action;
-            memset(&o_action, 0, sizeof(o_action_t));
-            p = cmd->data;
-
-            MOVE_FIELD(o_action, nf);
-            MOVE_FIELD(o_action, address);
-            MOVE_FIELD(o_action, amount);
-
-            return handler_test_math(&o_action);
+            return handler_test_math(cmd->p1);
         default:
             return io_send_sw(SW_INS_NOT_SUPPORTED);
     }
