@@ -130,36 +130,43 @@ void hash_to_field(fp_t *h0, fp_t *h1, uint8_t *dst, size_t dst_len, uint8_t *ms
 }
 
 #define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
+#define BN_DEF_ZERO BN_DEF(zero); cx_bn_set_u32(zero, 0);
+
+#ifdef NO_MONTGOMERY
+#define CX_BN_MUL(r, a, b) cx_bn_mod_mul(r, a, b, M)
+#else
+#define CX_BN_MUL(r, a, b) cx_mont_mul(r, a, b, ctx)
+#endif
 
 void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     cx_bn_lock(32, 0);
-    cx_bn_t M, zero, one, u0;
-    cx_bn_t z, u2, z_u2, z_u22, ta;
+    BN_DEF(temp);
+    BN_DEF(temp2);
+    BN_DEF_ZERO;
+    BN_DEF(one); cx_bn_set_u32(one, 1);
+    BN_DEF(M); cx_bn_init(M, fp_m, 32);
+    BN_DEF(u0); cx_bn_init(u0, (uint8_t *)u, 32);
+    BN_DEF(z); cx_bn_init(z, Z, 32);
 
-    cx_bn_alloc_init(&M, 32, fp_m, 32);
-    cx_bn_alloc_init(&zero, 32, fq_0, 32);
-    cx_bn_alloc_init(&one, 32, fq_1, 32);
-    cx_bn_alloc_init(&z, 32, Z, 32);
-
-    cx_bn_alloc_init(&u0, 32, (uint8_t *)u, 32);
-    cx_bn_alloc(&u2, 32);
-    cx_bn_mod_mul(u2, u0, u0, M);
+    BN_DEF(u2);
+    CX_BN_MUL(u2, u0, u0);
     // print_bn("u*u", u2);
-    cx_bn_alloc(&z_u2, 32);
-    cx_bn_mod_mul(z_u2, z, u2, M);
+    BN_DEF(z_u2);
+    CX_BN_MUL(z_u2, z, u2);
     // print_bn("z_u2", z_u2);
-    cx_bn_alloc(&z_u22, 32);
-    cx_bn_mod_mul(z_u22, z_u2, z_u2, M);
-    cx_bn_alloc(&ta, 32);
+    BN_DEF(z_u22);
+    CX_BN_MUL(z_u22, z_u2, z_u2);
+    BN_DEF(ta);
     cx_bn_mod_add_fixed(ta, z_u22, z_u2, M);
     // print_bn("ta", ta);
-    cx_bn_t num_x1; cx_bn_alloc(&num_x1, 32);
+    BN_DEF(num_x1);
     cx_bn_mod_add_fixed(num_x1, ta, one, M);
-    cx_bn_t b; cx_bn_alloc_init(&b, 32, iso_b, 32);
-    cx_bn_mod_mul(num_x1, b, num_x1, M);
+    BN_DEF(b); cx_bn_init(b, iso_b, 32);
+    CX_BN_MUL(temp, b, num_x1);
+    cx_bn_copy(num_x1, temp);
     // print_bn("num_x1", num_x1);
 
-    cx_bn_t div; cx_bn_alloc(&div, 32);
+    BN_DEF(div);
     int cmp;
     cx_bn_cmp_u32(ta, 0, &cmp);
     if (cmp == 0)
@@ -168,57 +175,57 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
         cx_bn_copy(div, ta);
         cx_bn_mod_sub(div, zero, div, M);
     }
-    cx_bn_t a; cx_bn_alloc_init(&a, 32, iso_a, 32);
-    cx_bn_mod_mul(div, a, div, M);
+    BN_DEF(a); cx_bn_init(a, iso_a, 32);
+    CX_BN_MUL(temp, a, div);
+    cx_bn_copy(div, temp);
     // print_bn("div", div);
-    cx_bn_t num2_x1; cx_bn_alloc(&num2_x1, 32);
-    cx_bn_mod_mul(num2_x1, num_x1, num_x1, M);
+    BN_DEF(num2_x1);
+    CX_BN_MUL(num2_x1, num_x1, num_x1);
     // print_bn("num2_x1", num2_x1);
 
-    cx_bn_t div2; cx_bn_alloc(&div2, 32);
-    cx_bn_t div3; cx_bn_alloc(&div3, 32);
-    cx_bn_mod_mul(div2, div, div, M);
-    cx_bn_mod_mul(div3, div2, div, M);
+    BN_DEF(div2);
+    BN_DEF(div3);
+    CX_BN_MUL(div2, div, div);
+    CX_BN_MUL(div3, div2, div);
     // print_bn("div2", div2);
     // print_bn("div3", div3);
 
-    cx_bn_t num_gx1; cx_bn_alloc(&num_gx1, 32);
-    cx_bn_t temp; cx_bn_alloc(&temp, 32);
-    cx_bn_mod_mul(temp, a, div2, M);
+    BN_DEF(num_gx1);
+    CX_BN_MUL(temp, a, div2);
     cx_bn_mod_add_fixed(temp, num2_x1, temp, M);
-    cx_bn_mod_mul(num_gx1, temp, num_x1, M);
-    cx_bn_mod_mul(temp, b, div3, M);
+    CX_BN_MUL(num_gx1, temp, num_x1);
+    CX_BN_MUL(temp, b, div3);
     cx_bn_mod_add_fixed(num_gx1, num_gx1, temp, M);
     // print_bn("num_gx1", num_gx1);
 
-    cx_bn_t num_x2; cx_bn_alloc(&num_x2, 32);
-    cx_bn_mod_mul(num_x2, z_u2, num_x1, M);
+    BN_DEF(num_x2);
+    CX_BN_MUL(num_x2, z_u2, num_x1);
     // print_bn("num_x2", num_x2);
 
     cx_bn_copy(temp, div3);
-    cx_bn_mod_invert_nprime(temp, temp, M);
-    cx_bn_mod_mul(temp, num_gx1, temp, M);
+    cx_bn_mod_invert_nprime(temp2, temp, M);
+    CX_BN_MUL(temp, num_gx1, temp2);
     bool gx1_square = true;
     cx_err_t err = cx_bn_mod_sqrt(temp, temp, M, 0);
     if (err != CX_OK) {
         gx1_square = false;
-        cx_bn_t root; cx_bn_alloc_init(&root, 32, ROOT_OF_UNITY, 32);
-        cx_bn_mod_mul(temp, root, temp, M);
-        cx_bn_mod_sqrt(temp, temp, M, 1);
+        BN_DEF(root); cx_bn_init(root, ROOT_OF_UNITY, 32);
+        CX_BN_MUL(temp2, root, temp);
+        cx_bn_mod_sqrt(temp, temp2, M, 1);
     }
-    cx_bn_t y1; cx_bn_alloc(&y1, 32);
+    BN_DEF(y1);
     cx_bn_copy(y1, temp);
     // print_bn("y1", y1);
 
-    cx_bn_t y2; cx_bn_alloc(&y2, 32);
-    cx_bn_t theta; cx_bn_alloc_init(&theta, 32, THETA, 32);
-    cx_bn_mod_mul(temp, theta, z_u2, M);
-    cx_bn_mod_mul(temp, temp, u0, M);
-    cx_bn_mod_mul(y2, temp, y1, M);
+    BN_DEF(y2);
+    BN_DEF(theta); cx_bn_init(theta, THETA, 32);
+    CX_BN_MUL(temp, theta, z_u2);
+    CX_BN_MUL(temp2, temp, u0);
+    CX_BN_MUL(y2, temp2, y1);
     // print_bn("y2", y2);
 
-    cx_bn_t num_x; cx_bn_alloc(&num_x, 32);
-    cx_bn_t y; cx_bn_alloc(&y, 32);
+    BN_DEF(num_x);
+    BN_DEF(y);
     if (gx1_square) {
         cx_bn_copy(num_x, num_x1);
         cx_bn_copy(y, y1);
@@ -236,103 +243,111 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     if (u_odd != y_odd)
         cx_bn_mod_sub(y, zero, y, M);
 
-    cx_bn_mod_mul(temp, num_x, div, M);
+    CX_BN_MUL(temp, num_x, div);
     cx_bn_export(temp, (uint8_t *)&p->x, 32);
-    cx_bn_mod_mul(temp, y, div3, M);
+    CX_BN_MUL(temp, y, div3);
     cx_bn_export(temp, (uint8_t *)&p->y, 32);
     cx_bn_export(div, (uint8_t *)&p->z, 32);
     cx_bn_unlock();
 }
 
-#define BN_DEF_ZERO BN_DEF(zero); cx_bn_set_u32(zero, 0);
-
-
 void iso_map(jac_p_t *res, const jac_p_t *p) {
     cx_bn_lock(32, 0);
     BN_DEF_ZERO;
-    cx_bn_t M; cx_bn_alloc_init(&M, 32, fp_m, 32);
-    cx_bn_t x, y, z;
-    cx_bn_alloc_init(&x, 32, p->x, 32); cx_bn_alloc_init(&y, 32, p->y, 32); cx_bn_alloc_init(&z, 32, p->z, 32); 
+    BN_DEF(temp);
+    BN_DEF(temp2);
+    BN_DEF(M); cx_bn_init(M, fp_m, 32);
+    jac_p_bn_t pp;
+    pallas_jac_init(&pp, p);
 
     BN_DEF(z2);
-    cx_bn_mod_mul(z2, z, z, M);
+    CX_BN_MUL(z2, pp.z, pp.z);
     BN_DEF(z3);
-    cx_bn_mod_mul(z3, z2, z, M);
+    CX_BN_MUL(z3, z2, pp.z);
     BN_DEF(z4);
-    cx_bn_mod_mul(z4, z2, z2, M);
+    CX_BN_MUL(z4, z2, z2);
     BN_DEF(z6);
-    cx_bn_mod_mul(z6, z3, z3, M);
+    CX_BN_MUL(z6, z3, z3);
 
-    BN_DEF(temp);
     BN_DEF(iso);
     BN_DEF(num_x);
     cx_bn_init(iso, ISOGENY_CONSTANTS[0], 32);
-    cx_bn_mod_mul(temp, iso, x, M);
+    CX_BN_MUL(temp, iso, pp.x);
     cx_bn_init(iso, ISOGENY_CONSTANTS[1], 32);
-    cx_bn_mod_mul(num_x, iso, z2, M);
+    CX_BN_MUL(num_x, iso, z2);
     cx_bn_mod_add_fixed(num_x, temp, num_x, M);
-    cx_bn_mod_mul(num_x, num_x, x, M);
+    CX_BN_MUL(temp, num_x, pp.x);
+    cx_bn_copy(num_x, temp);
     cx_bn_init(iso, ISOGENY_CONSTANTS[2], 32);
-    cx_bn_mod_mul(temp, iso, z4, M);
+    CX_BN_MUL(temp, iso, z4);
     cx_bn_mod_add_fixed(num_x, temp, num_x, M);
-    cx_bn_mod_mul(num_x, num_x, x, M);
+    CX_BN_MUL(temp, num_x, pp.x);
+    cx_bn_copy(num_x, temp);
     cx_bn_init(iso, ISOGENY_CONSTANTS[3], 32);
-    cx_bn_mod_mul(temp, iso, z6, M);
+    CX_BN_MUL(temp, iso, z6);
     cx_bn_mod_add_fixed(num_x, temp, num_x, M);
     // print_bn("num_x", num_x);
 
     BN_DEF(div_x);
-    cx_bn_mod_mul(temp, z2, x, M);
+    CX_BN_MUL(temp, z2, pp.x);
     cx_bn_init(iso, ISOGENY_CONSTANTS[4], 32);
-    cx_bn_mod_mul(div_x, iso, z4, M);
+    CX_BN_MUL(div_x, iso, z4);
     cx_bn_mod_add_fixed(div_x, temp, div_x, M);
-    cx_bn_mod_mul(div_x, div_x, x, M);
+    CX_BN_MUL(temp, div_x, pp.x);
+    cx_bn_copy(div_x, temp);
     cx_bn_init(iso, ISOGENY_CONSTANTS[5], 32);
-    cx_bn_mod_mul(temp, iso, z6, M);
+    CX_BN_MUL(temp, iso, z6);
     cx_bn_mod_add_fixed(div_x, temp, div_x, M);
     // print_bn("div_x", div_x);
 
     BN_DEF(num_y);
     cx_bn_init(iso, ISOGENY_CONSTANTS[6], 32);
-    cx_bn_mod_mul(temp, iso, x, M);
+    CX_BN_MUL(temp, iso, pp.x);
     cx_bn_init(iso, ISOGENY_CONSTANTS[7], 32);
-    cx_bn_mod_mul(num_y, iso, z2, M);
+    CX_BN_MUL(num_y, iso, z2);
     cx_bn_mod_add_fixed(num_y, temp, num_y, M);
-    cx_bn_mod_mul(num_y, num_y, x, M);
+    CX_BN_MUL(temp, num_y, pp.x);
+    cx_bn_copy(num_y, temp);
     cx_bn_init(iso, ISOGENY_CONSTANTS[8], 32);
-    cx_bn_mod_mul(temp, iso, z4, M);
+    CX_BN_MUL(temp, iso, z4);
     cx_bn_mod_add_fixed(num_y, temp, num_y, M);
-    cx_bn_mod_mul(num_y, num_y, x, M);
+    CX_BN_MUL(temp, num_y, pp.x);
+    cx_bn_copy(num_y, temp);
     cx_bn_init(iso, ISOGENY_CONSTANTS[9], 32);
-    cx_bn_mod_mul(temp, iso, z6, M);
+    CX_BN_MUL(temp, iso, z6);
     cx_bn_mod_add_fixed(num_y, temp, num_y, M);
-    cx_bn_mod_mul(num_y, num_y, y, M);
+    CX_BN_MUL(temp, num_y, pp.y);
+    cx_bn_copy(num_y, temp);
     // print_bn("num_y", num_y);
 
     BN_DEF(div_y);
     cx_bn_init(iso, ISOGENY_CONSTANTS[10], 32);
-    cx_bn_mod_mul(div_y, iso, z2, M);
-    cx_bn_mod_add_fixed(div_y, div_y, x, M);
-    cx_bn_mod_mul(div_y, div_y, x, M);
+    CX_BN_MUL(div_y, iso, z2);
+    cx_bn_mod_add_fixed(div_y, div_y, pp.x, M);
+    CX_BN_MUL(temp, div_y, pp.x);
+    cx_bn_copy(div_y, temp);
     cx_bn_init(iso, ISOGENY_CONSTANTS[11], 32);
-    cx_bn_mod_mul(temp, iso, z4, M);
+    CX_BN_MUL(temp, iso, z4);
     cx_bn_mod_add_fixed(div_y, div_y, temp, M);
-    cx_bn_mod_mul(div_y, div_y, x, M);
+    CX_BN_MUL(temp, div_y, pp.x);
+    cx_bn_copy(div_y, temp);
     cx_bn_init(iso, ISOGENY_CONSTANTS[12], 32);
-    cx_bn_mod_mul(temp, iso, z6, M);
+    CX_BN_MUL(temp, iso, z6);
     cx_bn_mod_add_fixed(div_y, div_y, temp, M);
-    cx_bn_mod_mul(div_y, div_y, z3, M);
+    CX_BN_MUL(temp, div_y, z3);
+    cx_bn_copy(div_y, temp);
     // print_bn("div_y", div_y);
 
     BN_DEF(zo);
-    cx_bn_mod_mul(zo, div_x, div_y, M);
+    CX_BN_MUL(zo, div_x, div_y);
     BN_DEF(xo);
-    cx_bn_mod_mul(xo, num_x, div_y, M);
-    cx_bn_mod_mul(xo, xo, zo, M);
+    CX_BN_MUL(xo, num_x, div_y);
+    CX_BN_MUL(temp, xo, zo);
+    cx_bn_copy(xo, temp);
     BN_DEF(yo);
-    cx_bn_mod_mul(yo, num_y, div_x, M);
-    cx_bn_mod_mul(yo, yo, zo, M);
-    cx_bn_mod_mul(yo, yo, zo, M);
+    CX_BN_MUL(temp, num_y, div_x);
+    CX_BN_MUL(temp2, temp, zo);
+    CX_BN_MUL(yo, temp2, zo);
 
     cx_bn_export(xo, res->x, 32);
     cx_bn_export(yo, res->y, 32);
@@ -383,8 +398,8 @@ int pallas_from_bytes(jac_p_t *res, uint8_t *a) {
     BN_DEF(M); cx_bn_init(M, fp_m, 32);
     BN_DEF(x0); cx_bn_init(x0, tmp, 32);
     BN_DEF(x3);
-    cx_bn_mod_mul(x3, x0, x0, M);
-    cx_bn_mod_mul(x3, x3, x0, M);
+    CX_BN_MUL(x3, x0, x0);
+    CX_BN_MUL(x3, x3, x0);
     BN_DEF(b); cx_bn_set_u32(b, 5);
     cx_bn_mod_add_fixed(x3, x3, b, M);
     BN_DEF(y);
@@ -399,7 +414,7 @@ int pallas_from_bytes(jac_p_t *res, uint8_t *a) {
 
 void pallas_to_bytes(uint8_t *res, const jac_p_t *p) {
     cx_bn_lock(32, 0);
-    cx_bn_t M; cx_bn_alloc_init(&M, 32, fp_m, 32);
+    BN_DEF(M); cx_bn_init(M, fp_m, 32);
     BN_DEF(zinv); cx_bn_init(zinv, p->z, 32);
     int cmp;
     cx_bn_cmp_u32(zinv, 0, &cmp);
@@ -407,15 +422,15 @@ void pallas_to_bytes(uint8_t *res, const jac_p_t *p) {
     else {
         cx_bn_mod_invert_nprime(zinv, zinv, M);
         BN_DEF(zinv2);
-        cx_bn_mod_mul(zinv2, zinv, zinv, M);
+        CX_BN_MUL(zinv2, zinv, zinv);
         BN_DEF(zinv3);
-        cx_bn_mod_mul(zinv3, zinv2, zinv, M);
+        CX_BN_MUL(zinv3, zinv2, zinv);
         BN_DEF(x);
-        BN_DEF(x0); cx_bn_alloc_init(&x0, 32, p->x, 32);
-        cx_bn_mod_mul(x, x0, zinv2, M);
+        BN_DEF(x0); cx_bn_init(x0, p->x, 32);
+        CX_BN_MUL(x, x0, zinv2);
         BN_DEF(y);
-        BN_DEF(y0); cx_bn_alloc_init(&y0, 32, p->y, 32);
-        cx_bn_mod_mul(y, y0, zinv3, M);
+        BN_DEF(y0); cx_bn_init(y0, p->y, 32);
+        CX_BN_MUL(y, y0, zinv3);
         bool odd;
         cx_bn_is_odd(y, &odd);
         uint8_t sign = !!odd << 7;
@@ -459,20 +474,20 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
 
         BN_DEF(temp);
         BN_DEF(z1z1);
-        cx_bn_mod_mul(z1z1, a->z, a->z, M);
+        CX_BN_MUL(z1z1, a->z, a->z);
         BN_DEF(z2z2);
-        cx_bn_mod_mul(z2z2, b->z, b->z, M);
+        CX_BN_MUL(z2z2, b->z, b->z);
         BN_DEF(u1);
-        cx_bn_mod_mul(u1, a->x, z2z2, M);
+        CX_BN_MUL(u1, a->x, z2z2);
         BN_DEF(u2);
-        cx_bn_mod_mul(u2, b->x, z1z1, M);
+        CX_BN_MUL(u2, b->x, z1z1);
         BN_DEF(s1);
-        cx_bn_mod_mul(s1, a->y, z2z2, M);
-        cx_bn_mod_mul(temp, s1, b->z, M);
+        CX_BN_MUL(s1, a->y, z2z2);
+        CX_BN_MUL(temp, s1, b->z);
         cx_bn_copy(s1, temp);
         BN_DEF(s2);
-        cx_bn_mod_mul(s2, b->y, z1z1, M);
-        cx_bn_mod_mul(temp, s2, a->z, M);
+        CX_BN_MUL(s2, b->y, z1z1);
+        CX_BN_MUL(temp, s2, a->z);
         cx_bn_copy(s2, temp);
 
         // print_bn("u1", u1);
@@ -484,16 +499,16 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
         cx_bn_mod_sub(h, u2, u1, M);
         BN_DEF(i);
         cx_bn_mod_add_fixed(i, h, h, M);
-        cx_bn_mod_mul(temp, i, i, M);
+        CX_BN_MUL(temp, i, i);
         cx_bn_copy(i, temp);
         BN_DEF(j);
-        cx_bn_mod_mul(j, h, i, M);
+        CX_BN_MUL(j, h, i);
         BN_DEF(r);
         cx_bn_mod_sub(r, s2, s1, M);
         cx_bn_mod_add_fixed(r, r, r, M);
 
         BN_DEF(v);
-        cx_bn_mod_mul(v, u1, i, M);
+        CX_BN_MUL(v, u1, i);
         // print_bn("h", h);
         // print_bn("i", i);
         // print_bn("j", j);
@@ -501,28 +516,28 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b, c
         // print_bn("v", v);
 
         BN_DEF(x3);
-        cx_bn_mod_mul(x3, r, r, M);
+        CX_BN_MUL(x3, r, r);
         cx_bn_mod_sub(x3, x3, j, M);
         cx_bn_mod_sub(x3, x3, v, M);
         cx_bn_mod_sub(x3, x3, v, M);
 
-        cx_bn_mod_mul(temp, s1, j, M);
+        CX_BN_MUL(temp, s1, j);
         cx_bn_copy(s1, temp);
         cx_bn_mod_add_fixed(s1, s1, s1, M);
 
         BN_DEF(y3);
         cx_bn_mod_sub(y3, v, x3, M);
-        cx_bn_mod_mul(temp, y3, r, M);
+        CX_BN_MUL(temp, y3, r);
         cx_bn_copy(y3, temp);
         cx_bn_mod_sub(y3, y3, s1, M);
 
         BN_DEF(z3);
         cx_bn_mod_add_fixed(z3, a->z, b->z, M);
-        cx_bn_mod_mul(temp, z3, z3, M);
+        CX_BN_MUL(temp, z3, z3);
         cx_bn_copy(z3, temp);
         cx_bn_mod_sub(z3, z3, z1z1, M);
         cx_bn_mod_sub(z3, z3, z2z2, M);
-        cx_bn_mod_mul(temp, z3, h, M);
+        CX_BN_MUL(temp, z3, h);
         cx_bn_copy(z3, temp);
 
         // print_bn("x3", x3);
@@ -562,14 +577,14 @@ void pallas_double_jac(jac_p_bn_t *v, cx_bn_t M) {
     BN_DEF_ZERO;
     BN_DEF(temp);
     BN_DEF(a);
-    cx_bn_mod_mul(a, v->x, v->x, M);
+    CX_BN_MUL(a, v->x, v->x);
     BN_DEF(b);
-    cx_bn_mod_mul(b, v->y, v->y, M);
+    CX_BN_MUL(b, v->y, v->y);
     BN_DEF(c);
-    cx_bn_mod_mul(c, b, b, M);
+    CX_BN_MUL(c, b, b);
     BN_DEF(d);
     cx_bn_mod_add_fixed(d, v->x, b, M);
-    cx_bn_mod_mul(temp, d, d, M);
+    CX_BN_MUL(temp, d, d);
     cx_bn_copy(d, temp);
     cx_bn_mod_sub(d, d, a, M);
     cx_bn_mod_sub(d, d, c, M);
@@ -578,7 +593,7 @@ void pallas_double_jac(jac_p_bn_t *v, cx_bn_t M) {
     cx_bn_mod_add_fixed(e, a, a, M);
     cx_bn_mod_add_fixed(e, e, a, M);
     BN_DEF(f);
-    cx_bn_mod_mul(f, e, e, M);
+    CX_BN_MUL(f, e, e);
 
     // save_probe(a, 0);
     // save_probe(b, 1);
@@ -588,7 +603,7 @@ void pallas_double_jac(jac_p_bn_t *v, cx_bn_t M) {
     // save_probe(f, 5);
 
     BN_DEF(z3);
-    cx_bn_mod_mul(z3, v->z, v->y, M);
+    CX_BN_MUL(z3, v->z, v->y);
     cx_bn_mod_add_fixed(z3, z3, z3, M);
     BN_DEF(x3);
     cx_bn_mod_sub(x3, f, d, M);
@@ -598,7 +613,7 @@ void pallas_double_jac(jac_p_bn_t *v, cx_bn_t M) {
     cx_bn_mod_add_fixed(c, c, c, M);
     BN_DEF(y3);
     cx_bn_mod_sub(y3, d, x3, M);
-    cx_bn_mod_mul(temp, e, y3, M);
+    CX_BN_MUL(temp, e, y3);
     cx_bn_copy(y3, temp);
     cx_bn_mod_sub(y3, y3, c, M);
 
