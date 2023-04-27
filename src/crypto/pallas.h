@@ -26,7 +26,7 @@ void pallas_jac_alloc(jac_p_bn_t *dest);
 void pallas_jac_init(jac_p_bn_t *dest, const jac_p_t *src);
 void pallas_jac_export(jac_p_t *dest, jac_p_bn_t *src);
 
-void pallas_add_jac(jac_p_bn_t *v, const jac_p_bn_t *a, const jac_p_bn_t *b, cx_bn_t M);
+void pallas_add_jac(jac_p_bn_t *v, const jac_p_bn_t *a, const jac_p_bn_t *b, cx_bn_t M, bool montgomery);
 void pallas_double_jac(jac_p_bn_t *v, cx_bn_t M);
 void pallas_base_mult(jac_p_t *res, const jac_p_t *base, fv_t *x);
 
@@ -34,5 +34,3 @@ void pallas_copy_jac(jac_p_t *res, const jac_p_t *a);
 void pallas_add_assign(jac_p_t *v, const jac_p_t *a);
 
 int pallas_sign(uint8_t *signature, fv_t *sk, uint8_t *message);
-
-extern u_int8_t memprobe[7*32];

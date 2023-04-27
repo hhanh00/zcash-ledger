@@ -60,6 +60,7 @@ int encode_ua(uint8_t *orchard_address) {
     memmove(p, orchard_address, 43); p += 43;
 
     encode_ua_inner(p);
+    return 0;
 }
 
 void encode_ua_inner(uint8_t *p) {

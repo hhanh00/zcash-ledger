@@ -41,6 +41,7 @@
 #include "../crypto/jubjub.h"
 #include "../crypto/phash.h"
 #include "../crypto/prf.h"
+#include "../crypto/debug.h"
 
 #define MOVE_FIELD(s,field) memmove(&s.field, p, sizeof(s.field)); p += sizeof(s.field);
 #define TRANSPARENT_OUT_LEN (8+1+20)
@@ -333,6 +334,12 @@ int apdu_dispatcher(const command_t *cmd) {
             pedersen_hash_cmu(cmu, (uint64_t *)cmd->data, cmd->data + 8, cmd->data + 40, (fr_t *)(cmd->data + 72));
             return helper_send_response_bytes(cmu, 32);
         }
+
+        case GET_DEBUG_BUFFER:
+            if (cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            return get_debug_buffer(cmd->p1);
 
         case TEST_MATH:
             if (cmd->p2 != 0) {

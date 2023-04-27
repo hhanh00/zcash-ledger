@@ -47,6 +47,7 @@ typedef enum {
     TEST_CMU = 0x80,
     TEST_JUBJUB_HASH = 0x81,
     TEST_PEDERSEN_HASH = 0x82,
+    GET_DEBUG_BUFFER = 0xFE,
     TEST_MATH = 0xFF,
 } command_e;
 

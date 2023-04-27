@@ -39,6 +39,7 @@
 #include "../crypto/ua.h"
 #include "../crypto/tx.h"
 #include "../crypto/orchard.h"
+#include "../crypto/debug.h"
 
 #define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
 
@@ -48,10 +49,12 @@ const uint8_t ask[] = {
 
 int handler_test_math(uint8_t i) {
     int error = 0;
-    uint8_t res[96];
     jac_p_t r;
+    init_debug();
     BEGIN_TRY {
         TRY {
+            hash_to_curve(&r, (uint8_t *)"HELLO", 5, "Sent from YWallet", 17);
+
             // orchard_derive_spending_key(0);
 
             // CX_THROW(cx_bn_lock(32, 0)); 
@@ -87,12 +90,12 @@ int handler_test_math(uint8_t i) {
 
             // pallas_to_bytes(res, &r);
 
-            fv_t x;
-            memset(&x, 0, 32);
-            x[31] = i;
+            // fv_t x;
+            // memset(&x, 0, 32);
+            // x[31] = i;
 
-            pallas_base_mult(&r, &SPEND_AUTH_GEN, (fv_t *)&ask);
-            memmove(res, &r, 96);
+            // pallas_base_mult(&r, &SPEND_AUTH_GEN, (fv_t *)&ask);
+            // memmove(res, &r, 96);
             // pallas_to_bytes(res, &r);
         }
         CATCH_OTHER(e) {
@@ -103,8 +106,7 @@ int handler_test_math(uint8_t i) {
     }
     END_TRY;
     if (error != 0) return io_send_sw(error);
-    return helper_send_response_bytes(res, 96);
-    // return helper_send_response_bytes((uint8_t *)&memprobe, sizeof(memprobe));
+    return helper_send_response_bytes((uint8_t *)&r, 96);
 }
 
 // 628CF615D21CF30D41826ED13D4D4A1D3C9B8640E76AE52103E94683DDB8FB24
