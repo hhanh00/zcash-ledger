@@ -303,11 +303,22 @@ int apdu_dispatcher(const command_t *cmd) {
             reset_app();
             return helper_send_response_bytes(NULL, 0);
 
+#ifndef DEBUG
         case TEST_CMU: {
-            uint8_t cmu[32];
-            calc_cmu(cmu, cmd->data + 40, cmd->data + 8, (uint64_t *)cmd->data);
-            return helper_send_response_bytes(cmu, 32);
+            note_t note;
+            memset(&note, 0, sizeof(note_t));
+            p = cmd->data;
+
+            MOVE_FIELD(note, address);
+            MOVE_FIELD(note, value);
+            MOVE_FIELD(note, rseed);
+            MOVE_FIELD(note, rho);
+
+            uint8_t note_cmx[32];
+            cmx(note_cmx, note.address, note.value, note.rseed, note.rho);
+            return helper_send_response_bytes(note_cmx, 32);
         }
+#endif
 
         case TEST_JUBJUB_HASH: {
             uint8_t gd_hash[32];

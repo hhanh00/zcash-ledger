@@ -149,6 +149,7 @@ int cmx(uint8_t *cmx, uint8_t *address, uint64_t value, uint8_t *rseed, uint8_t 
 
     PRINTF("CMX d %.*H\n", 11, address);
     PRINTF("pk_d %.*H\n", 32, address + 11);
+    PRINTF("rseed %.*H\n", 32, rseed);
     PRINTF("rho %.*H\n", 32, rho);
     PRINTF("amount %.*H\n", 8, &value);
 
@@ -174,7 +175,7 @@ int cmx(uint8_t *cmx, uint8_t *address, uint64_t value, uint8_t *rseed, uint8_t 
     PRINTF("SCALAR RCM %.*H\n", 32, rcm);
 
     jac_p_t G_d;
-    PRINTF("hash_to_curve\n");
+    PRINTF("hash_to_curve gd %.*H\n", 11, address);
     hash_to_curve(&G_d, (uint8_t *)"z.cash:Orchard-gd", 17,
         address, 11);
     

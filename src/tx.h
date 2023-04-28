@@ -40,3 +40,10 @@ typedef struct {
     uint8_t orchard_memos_digest[32];
     uint8_t orchard_noncompact_digest[32];
 } o_proofs_t;
+
+typedef struct {
+    uint64_t value;
+    uint8_t rseed[32];
+    uint8_t rho[32];
+    uint8_t address[43];
+} note_t; // for testing

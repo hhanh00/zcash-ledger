@@ -232,12 +232,15 @@ void map_to_curve_simple_swu(jac_p_t *p, fp_t *u) {
     CX_BN_MOD_MUL(temp, num_gx1, temp2);
     bool gx1_square = true;
 
+    // print_bn("num_gx1/div3", temp);
     cx_err_t err = cx_bn_mod_sqrt(temp2, temp, M, 0);
     BN_DEF(root); cx_bn_init(root, ROOT_OF_UNITY, 32);
     if (err != CX_OK) {
+        // PRINTF("Not a square\n");
         gx1_square = false;
-        CX_BN_MOD_MUL(temp, root, temp2);
-        cx_bn_mod_sqrt(temp2, temp, M, 0);
+        CX_BN_MOD_MUL(temp2, root, temp);
+        cx_bn_mod_sqrt(temp, temp2, M, 1);
+        cx_bn_copy(temp2, temp);
     }
     BN_DEF(y1);
     cx_bn_copy(y1, temp2);
@@ -387,6 +390,8 @@ void iso_map(jac_p_t *res, const jac_p_t *p) {
 void hash_to_curve(jac_p_t *res, uint8_t *domain, size_t domain_len, uint8_t *msg, size_t msg_len) {
     fp_t h[2];
     hash_to_field(&h[0], &h[1], domain, domain_len, msg, msg_len);
+    // PRINTF("h0 %.*H\n", 32, &h[0]);
+    // PRINTF("h1 %.*H\n", 32, &h[1]);
 
     jac_p_t p[2];
     for (int i = 0; i < 2; i++) {

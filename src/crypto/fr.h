@@ -9,13 +9,11 @@
  * Adding two numbers can result in a number greater than the modulus
  * We reduce it by subtracting 0
 */
-// #ifndef ST33K1M5
-// #define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m)
-// #else
-// #define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m); cx_bn_mod_sub(a, a, zero, m)
-// #endif
-
+#ifndef MOD_ADD_FIX
 #define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m); cx_bn_mod_sub(a, a, zero, m)
+#else
+#define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m)
+#endif
 
 /**
  * Fr is the finite field (FF) for the Jubjub (JJ) point multiplicative group
