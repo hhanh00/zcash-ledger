@@ -77,8 +77,13 @@ bool ff_is_zero(uint8_t *v) {
   return true;
 }
 
-void print_bn(const char *label, cx_bn_t bn) {
+#ifdef DEBUG
+void print_bn_internal(const char *label, cx_bn_t bn) {
     uint8_t v[32];
     cx_bn_export(bn, v, 32);
     PRINTF(">> %s %.*H\n", label, 32, v);
 }
+#define print_bn(label, bn) print_bn_internal(label, bn)
+#else
+#define print_bn(label, bn)
+#endif

@@ -26,7 +26,7 @@
 
 static uint8_t hash[64];
 
-void G(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t left_len, size_t right_len) {
+void G(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t left_len) {
     uint8_t perso[16];
     memmove(perso, "UA_F4Jumble_G", 13);
     perso[13] = round;
@@ -63,11 +63,11 @@ int f4jumble(uint8_t *message, size_t len) {
     uint8_t *left = message;
     uint8_t *right = message + left_len;
 
-    G(&hash_ctx, 0, left, left_len, right_len);
+    G(&hash_ctx, 0, left, left_len);
     xor(right, hash, right_len);
     H(&hash_ctx, 0, right, left_len, right_len);
     xor(left, hash, left_len);
-    G(&hash_ctx, 1, left, left_len, right_len);
+    G(&hash_ctx, 1, left, left_len);
     xor(right, hash, right_len);
     H(&hash_ctx, 1, right, left_len, right_len);
     xor(left, hash, left_len);

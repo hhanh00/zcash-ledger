@@ -216,6 +216,15 @@ int add_s_output(s_out_t *output, bool confirmation) {
     G_context.signing_ctx.has_s_out = true;
     G_context.signing_ctx.amount_s_out += output->amount;
 
+#ifndef DEBUG
+    // In production, wallet clients cannot by pass user confirmation
+    confirmation = true;
+#endif
+
+    if (memcmp(output->address, G_context.exp_sk_info.d, 11) == 0 &&
+        memcmp(output->address + 11, G_context.exp_sk_info.pk_d, 32) == 0)
+        confirmation = false;
+
     uint8_t rseed[32];
     prf_chacha(&chacha_rseed_rng, rseed, 32);
     PRINTF("RSEED: %.*H\n", 32, rseed);
@@ -246,6 +255,14 @@ int add_o_action(o_action_t *action, bool confirmation) {
     G_context.signing_ctx.has_o_action = true;
     G_context.signing_ctx.amount_o_out += action->amount;
 
+#ifndef DEBUG
+    // In production, wallet clients cannot by pass user confirmation
+    confirmation = true;
+#endif
+
+    if (memcmp(action->address, G_context.orchard_key_info.address, 43) == 0)
+        confirmation = false;
+
     PRINTF("d %.*H\n", 11, action->address);
     PRINTF("pk_d %.*H\n", 32, action->address + 11);
     PRINTF("rho %.*H\n", 32, action->nf);
@@ -273,14 +290,14 @@ int add_o_action(o_action_t *action, bool confirmation) {
     return helper_send_response_bytes(NULL, 0);
 }
 
-int set_s_net(int64_t balance, bool confirmation) {
+int set_s_net(int64_t balance) {
     G_context.signing_ctx.has_s_in = balance != (int64_t)G_context.signing_ctx.amount_s_out;
     G_context.signing_ctx.s_net = balance;
 
     return helper_send_response_bytes(NULL, 0);
 }
 
-int set_o_net(int64_t balance, bool confirmation) { 
+int set_o_net(int64_t balance) { 
     G_context.signing_ctx.o_net = balance;
 
     return helper_send_response_bytes(NULL, 0);

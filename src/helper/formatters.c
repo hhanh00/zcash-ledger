@@ -22,6 +22,7 @@
 
 #include "../globals.h"
 #include "../crypto/address.h"
+#include "../crypto/ua.h"
 #include "../common/format.h"
 #include "../common/base58.h"
 

@@ -24,8 +24,8 @@ int add_o_action(o_action_t *action, bool confirmation); // ZTxIdOrcActCHash
 int confirm_fee(bool confirmation); // Sapling and Orchard Bundle Hash
 
 // These functions are optional but must be called before confirm_fee
-int set_s_net(int64_t balance, bool confirmation);
-int set_o_net(int64_t balance, bool confirmation);
+int set_s_net(int64_t balance);
+int set_o_net(int64_t balance);
 
 // These functions must be called before confirm_fee
 int set_t_merkle_proof(t_proofs_t *t_proofs);

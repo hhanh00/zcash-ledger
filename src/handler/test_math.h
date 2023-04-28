@@ -7,4 +7,4 @@
 #include "../types.h"
 #include "../common/buffer.h"
 
-int handler_test_math(uint8_t i);
+int handler_test_math();

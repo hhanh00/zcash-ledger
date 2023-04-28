@@ -199,7 +199,7 @@ int apdu_dispatcher(const command_t *cmd) {
             p = cmd->data;
             int64_t net;
             memmove(&net, p, 8);
-            return set_s_net(net, cmd->p1 == 1);
+            return set_s_net(net);
 
         case SET_O_NET:
             if (cmd->p1 > 1 || cmd->p2 != 0) {
@@ -210,7 +210,7 @@ int apdu_dispatcher(const command_t *cmd) {
 
             p = cmd->data;
             memmove(&net, p, 8);
-            return set_o_net(net, cmd->p1 == 1);
+            return set_o_net(net);
 
         case SET_T_MERKLE_PROOF:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -356,7 +356,8 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            return handler_test_math(cmd->p1);
+            return handler_test_math();
+            
         default:
             return io_send_sw(SW_INS_NOT_SUPPORTED);
     }
