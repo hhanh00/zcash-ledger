@@ -63,7 +63,7 @@ void sapling_derive_spending_key(int8_t account) {
     expanded_spending_key_t *exp_sk = &G_context.exp_sk_info;
     uint8_t spending_key[32];
 
-    ui_display_processing();
+    ui_display_processing("z-key");
     derive_ssk(spending_key, account);
     G_context.account = account;
 

@@ -102,12 +102,12 @@ typedef struct {
     fr_t nsk; // nullifier key
 } proofgen_key_t;
 
-typedef struct {
-    jubjub_point_t ak; // authorizing key
-    jubjub_point_t nk; // nullifier key
-    ovk_t ovk;
-    dk_t dk;
-} fvk_ctx_t;
+// typedef struct {
+//     jubjub_point_t ak; // authorizing key
+//     jubjub_point_t nk; // nullifier key
+//     ovk_t ovk;
+//     dk_t dk;
+// } fvk_ctx_t;
 
 typedef enum {
     IDLE,
@@ -171,6 +171,7 @@ typedef struct {
  */
 typedef struct {
     uint8_t account;
+    bool keys_derived;
     transparent_key_t transparent_key_info;
     expanded_spending_key_t exp_sk_info;
     orchard_key_t orchard_key_info;

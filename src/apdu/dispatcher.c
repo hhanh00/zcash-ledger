@@ -33,7 +33,6 @@
 #include "../ui/action/validate.h"
 #include "../handler/get_version.h"
 #include "../handler/get_app_name.h"
-#include "../handler/get_fvk.h"
 #include "../handler/get_address.h"
 #include "../handler/test_math.h"
 #include "../helper/send_response.h"
@@ -41,6 +40,7 @@
 #include "../crypto/jubjub.h"
 #include "../crypto/phash.h"
 #include "../crypto/prf.h"
+#include "../crypto/key.h"
 #include "../crypto/debug.h"
 
 #define MOVE_FIELD(s,field) memmove(&s.field, p, sizeof(s.field)); p += sizeof(s.field);
@@ -54,6 +54,7 @@ int apdu_dispatcher(const command_t *cmd) {
     }
 
     uint8_t *p;
+    uint8_t fvk[128];
     switch (cmd->ins) {
         case GET_VERSION:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -73,19 +74,8 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
 
-            transparent_derive_pubkey(cmd->p1);
-            sapling_derive_spending_key(cmd->p1);
-            orchard_derive_spending_key(cmd->p1);
-
             return helper_send_response_bytes(NULL, 0);
 
-        case GET_FVK:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-
-            return handler_get_fvk();
-        
         case GET_PUBKEY:
             if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -93,13 +83,23 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != 0)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            uint8_t pk[33];
-            derive_pubkey(pk, cmd->p1);
+            derive_default_keys();
+            return helper_send_response_bytes(G_context.transparent_key_info.pub_key, 33);
 
-            return helper_send_response_bytes(pk, 33);
+        case GET_FVK:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
 
+            derive_default_keys();
+            memmove(fvk, &G_context.proofk_info.ak, 32);
+            memmove(fvk + 32, &G_context.proofk_info.nk, 32);
+            memmove(fvk + 64, &G_context.exp_sk_info.ovk, 32);
+            memmove(fvk + 96, &G_context.exp_sk_info.dk, 32);
+            return helper_send_response_bytes(fvk, 128);
+        
         case GET_OFVK: {
-            uint8_t fvk[96];
+            derive_default_keys();
             memmove(fvk, G_context.orchard_key_info.ak, 32);
             memmove(fvk + 32, G_context.orchard_key_info.nk, 32);
             swap_endian(fvk + 32, 32);

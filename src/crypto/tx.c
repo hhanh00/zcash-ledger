@@ -179,6 +179,16 @@ int add_t_output(t_out_t *output, bool confirmation) {
         reset_app();
         return io_send_sw(SW_BAD_STATE);
     }
+    if (output->address_type != 0)  // only p2pkh for now
+        return SW_INVALID_PARAM;
+
+#ifndef DEBUG
+    // In production, wallet clients cannot by pass user confirmation
+    confirmation = true;
+#endif
+
+    if (memcmp(output->address_hash, G_context.transparent_key_info.pkh, 20) == 0)
+        confirmation = false;
 
     // In the T_OUT stage, we receive transparent outputs
     // We computed the ZTxTrAmountsHash and prepared the hasher
@@ -187,8 +197,6 @@ int add_t_output(t_out_t *output, bool confirmation) {
 
     G_context.signing_ctx.has_t_out = true;
     G_context.signing_ctx.t_net -= (int64_t)output->amount;
-    if (output->address_type != 0)  // only p2pkh for now
-        return SW_INVALID_PARAM;
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
     cx_hash(ph, 0, (uint8_t *) &output->amount, 8, NULL, 0);  // output amount
@@ -206,7 +214,7 @@ int add_s_output(s_out_t *output, bool confirmation) {
         reset_app();
         return io_send_sw(SW_BAD_STATE);
     }
-    ui_display_processing();
+    ui_display_processing("z-out");
 
     // In the S_OUT stage, we receive sapling outputs
     // We computed the ZTxIdOutputsHash and move on to
@@ -221,8 +229,9 @@ int add_s_output(s_out_t *output, bool confirmation) {
     confirmation = true;
 #endif
 
-    if (memcmp(output->address, G_context.exp_sk_info.d, 11) == 0 &&
+    if ((memcmp(output->address, G_context.exp_sk_info.d, 11) == 0 &&
         memcmp(output->address + 11, G_context.exp_sk_info.pk_d, 32) == 0)
+        || output->amount == 0)
         confirmation = false;
 
     uint8_t rseed[32];
@@ -251,7 +260,7 @@ int add_o_action(o_action_t *action, bool confirmation) {
         reset_app();
         return io_send_sw(SW_BAD_STATE);
     }
-    ui_display_processing();
+    ui_display_processing("o-out");
     G_context.signing_ctx.has_o_action = true;
     G_context.signing_ctx.amount_o_out += action->amount;
 
@@ -260,7 +269,8 @@ int add_o_action(o_action_t *action, bool confirmation) {
     confirmation = true;
 #endif
 
-    if (memcmp(action->address, G_context.orchard_key_info.address, 43) == 0)
+    if (memcmp(action->address, G_context.orchard_key_info.address, 43) == 0 || 
+        action->amount == 0)
         confirmation = false;
 
     PRINTF("d %.*H\n", 11, action->address);
@@ -484,7 +494,7 @@ int sign_transparent(uint8_t *txin_sig_digest) {
         reset_app();
         return io_send_sw(SW_BAD_STATE);
     }
-    ui_display_processing();
+    ui_display_processing("sign t");
 
     uint8_t sig_hash[32];
     finish_sighash(sig_hash, txin_sig_digest);
@@ -508,7 +518,7 @@ int sign_sapling() {
         reset_app();
         return io_send_sw(SW_BAD_STATE);
     }
-    ui_display_processing();
+    ui_display_processing("sign z");
 
     uint8_t alpha[64];
     prf_chacha(&chacha_alpha_rng, alpha, 64);
@@ -536,7 +546,7 @@ int sign_orchard() {
         reset_app();
         return io_send_sw(SW_BAD_STATE);
     }
-    ui_display_processing();
+    ui_display_processing("sign o");
 
     uint8_t signature[64];
     do_sign_orchard(signature);

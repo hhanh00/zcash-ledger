@@ -16,21 +16,33 @@
  *****************************************************************************/
 
 #include <stdint.h>   // uint*_t
+#include <string.h>   // memset, explicit_bzero
 #include <stdbool.h>  // bool
-#include <stddef.h>   // size_t
-#include <string.h>  // memmove
+#include <os.h>       // sprintf
 
-#include "os.h"
+#include "key.h"
+#include "transparent.h"
+#include "sapling.h"
+#include "orchard.h"
+#include "ua.h"
+#include "../globals.h"
 
-#include "get_fvk.h"
-#include "../helper/send_response.h"
-#include "globals.h"
+static void derive_keys_inner(uint8_t account) {
+    transparent_derive_pubkey(account);
+    sapling_derive_spending_key(account);
+    orchard_derive_spending_key(account);
+    G_context.account = account;
+    G_context.keys_derived = true;
+}
 
-int handler_get_fvk() {
-    fvk_ctx_t fvk;
-    memmove(&fvk.ak, &G_context.proofk_info.ak, 32);
-    memmove(&fvk.nk, &G_context.proofk_info.nk, 32);
-    memmove(&fvk.ovk, &G_context.exp_sk_info.ovk, 32);
-    memmove(&fvk.dk, &G_context.exp_sk_info.dk, 32);
-    return helper_send_response_bytes((uint8_t *)&fvk, sizeof(fvk_ctx_t));
+void derive_default_keys() {
+    if (!G_context.keys_derived)
+        derive_keys_inner(0);
+    encode_my_ua();
+}
+
+void derive_keys(uint8_t account) {
+    if (!G_context.keys_derived || G_context.account != account)
+        derive_keys_inner(account);
+    encode_my_ua();
 }

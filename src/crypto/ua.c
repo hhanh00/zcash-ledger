@@ -49,7 +49,7 @@ int encode_my_ua() {
 
     encode_ua_inner(p);
 
-    return ui_display_address();
+    return 0;
 }
 
 int encode_ua(uint8_t *orchard_address) {

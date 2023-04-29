@@ -44,8 +44,10 @@ static void ui_action_validate_address(bool choice) {
     ui_menu_main();
 }
 
+char processing_msg[20];
+
 // Step with icon and text
-UX_STEP_NOCB(ux_show_processing_step, pn, {&C_icon_processing, "Processing"});
+UX_STEP_NOCB(ux_show_processing_step, pnn, {&C_icon_processing, "Processing", processing_msg});
 // Step with icon and text
 UX_STEP_NOCB(ux_display_confirm_addr_step, pn, {&C_icon_eye, "Confirm Address"});
 // Step with title/text for address
@@ -87,7 +89,8 @@ UX_STEP_CB(ux_display_reject_step,
 UX_FLOW(ux_processing_flow,
         &ux_show_processing_step);
 
-int ui_display_processing() {
+int ui_display_processing(char *msg) {
+    strcpy(processing_msg, msg);
     ux_flow_init(0, ux_processing_flow, NULL);
     return 0;
 }
@@ -97,7 +100,7 @@ int ui_display_processing() {
 // #2 screen: display address
 // #3 screen: approve button
 // #4 screen: reject button
-UX_FLOW(ux_display_fvk_flow,
+UX_FLOW(ux_display_address_flow,
         &ux_display_confirm_addr_step,
         &ux_display_address_step,
         &ux_display_approve_step,
@@ -106,7 +109,7 @@ UX_FLOW(ux_display_fvk_flow,
 int ui_display_address() {
     g_validate_callback = &ui_action_validate_address;
 
-    ux_flow_init(0, ux_display_fvk_flow, NULL);
+    ux_flow_init(0, ux_display_address_flow, NULL);
     return 0;
 }
 

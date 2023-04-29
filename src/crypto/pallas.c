@@ -744,28 +744,28 @@ static int h_star(uint8_t *hash, uint8_t *data, size_t len) {
 }
 
 int pallas_sign(uint8_t *signature, fv_t *sk, uint8_t *message) {
-    uint8_t buffer[144];
-    memset(buffer, 0, sizeof(buffer));
+    uint8_t m_buffer[144];
+    memset(m_buffer, 0, sizeof(m_buffer));
 
-    cx_get_random_bytes(buffer, 80);
-    prf_chacha(&chacha_sig_rng, buffer, 80);
-    memmove(buffer + 80, message, 64);
-    PRINTF("random %.*H\n", 80, buffer);
+    cx_get_random_bytes(m_buffer, 80);
+    prf_chacha(&chacha_sig_rng, m_buffer, 80);
+    memmove(m_buffer + 80, message, 64);
+    PRINTF("random %.*H\n", 80, m_buffer);
 
     uint8_t r_buffer[64]; // we need 64 bytes but only the first 32 will be used as a return value
-    h_star(r_buffer, buffer, 144);
+    h_star(r_buffer, m_buffer, 144);
     PRINTF("nonce %.*H\n", 32, r_buffer);
 
     fv_t r;
     memmove(&r, r_buffer, 32);
     jac_p_t p;
     pallas_base_mult(&p, &SPEND_AUTH_GEN, &r);
-    pallas_to_bytes(buffer, &p); // R = r.G
-    PRINTF("R %.*H\n", 32, buffer);
+    pallas_to_bytes(m_buffer, &p); // R = r.G
+    PRINTF("R %.*H\n", 32, m_buffer);
 
-    memmove(signature, buffer, 32); // R
-    memmove(buffer + 32, message, 64);
-    h_star(r_buffer, buffer, 96);
+    memmove(signature, m_buffer, 32); // R
+    memmove(m_buffer + 32, message, 64);
+    h_star(r_buffer, m_buffer, 96);
     fv_t *S = (fv_t *)(signature + 32);
     memmove(S, r_buffer, 32);
 
