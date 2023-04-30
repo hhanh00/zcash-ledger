@@ -1,0 +1,24 @@
+[package]
+name = "tests-gen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+incrementalmerkletree = "0.3.1"
+orchard = "0.3.0"
+zcash_primitives = { version = "0.10", features = [ "transparent-inputs" ] }
+zcash_proofs = "0.10"
+secp256k1 = "0.21"
+sha2 = "0.10"
+ripemd = "0.1"
+
+rand = "0.8"
+rand_chacha = "0.3"
+byteorder = "1.4"
+
+[patch.crates-io]
+halo2_gadgets  = { git = "https://github.com/zcash/halo2.git", rev = "642924d614305d882cc122739c59144109f4bd3f" }
+halo2_proofs = { git = "https://github.com/zcash/halo2.git", rev = "642924d614305d882cc122739c59144109f4bd3f" }
+orchard = { git= "https://github.com/hhanh00/orchard.git", rev = "cba746399db8fc1a65520895bc16e8048380aee2" }
+
