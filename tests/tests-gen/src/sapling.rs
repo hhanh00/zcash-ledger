@@ -3,21 +3,31 @@ use incrementalmerkletree::bridgetree::BridgeTree;
 use incrementalmerkletree::{Altitude, Hashable, Tree};
 use rand::RngCore;
 use std::io::Write;
-use std::str::FromStr;
 
 use byteorder::{WriteBytesExt, LE};
-use zcash_primitives::consensus::{BlockHeight, Network};
-use zcash_primitives::memo::Memo;
+use jubjub::Scalar;
+
+use zcash_primitives::consensus::{MainNetwork, Parameters};
+use zcash_primitives::constants::SPENDING_KEY_GENERATOR;
+use zcash_primitives::memo::{MemoBytes};
 use zcash_primitives::merkle_tree::MerklePath;
+use zcash_primitives::sapling::note_encryption::sapling_note_encryption;
+use zcash_primitives::sapling::redjubjub::PublicKey;
 use zcash_primitives::sapling::{merkle_hash, Note, PaymentAddress, Rseed};
 
-use crate::random256;
-use zcash_primitives::sapling::value::NoteValue;
-use zcash_primitives::transaction::components::sapling::builder::{SaplingBuilder, Unauthorized};
+use crate::{ledger_add_s_output, ledger_set_stage, random256};
+use zcash_primitives::sapling::value::{
+    NoteValue, TrapdoorSum, ValueCommitTrapdoor, ValueCommitment,
+};
+use zcash_primitives::transaction::components::sapling::builder::{
+    SaplingMetadata, SpendDescriptionInfo, Unauthorized,
+};
 use zcash_primitives::transaction::components::sapling::Bundle;
+use zcash_primitives::transaction::components::{
+    Amount, OutputDescription, SpendDescription,
+};
 use zcash_primitives::zip32::ExtendedSpendingKey;
-use zcash_proofs::prover::LocalTxProver;
-use zcash_proofs::sapling::SaplingProvingContext;
+use crate::transport::{ledger_set_net_sapling};
 
 fn random_sapling_note<R: RngCore>(address: &PaymentAddress, value: u64, mut rng: R) -> Note {
     let rseed = random256(&mut rng);
@@ -41,24 +51,24 @@ impl Hashable for SaplingMerkleHash {
 }
 
 pub fn build_sapling_bundle<R: RngCore>(
-    network: Network,
     sk: &ExtendedSpendingKey,
     recipient_address: &PaymentAddress,
     spends: &[u64],
     outputs: &[u64],
-    prover: &LocalTxProver,
     mut rng: R,
 ) -> Result<Option<Bundle<Unauthorized>>> {
+    let mut notes = vec![];
     if spends.is_empty() && outputs.is_empty() {
+        ledger_set_stage(4)?;
         return Ok(None);
     }
     let dfvk = sk.to_diversifiable_full_viewing_key();
 
     let (_, address) = dfvk.default_address();
+    let _d = address.diversifier();
 
     let mut tree: BridgeTree<_, 32> = BridgeTree::new(1);
 
-    let mut notes = vec![];
     for i in 0..100 {
         let (note, is_witness) = if i >= 10 && i < 10 + spends.len() {
             let note = random_sapling_note(&address, spends[i - 10], &mut rng);
@@ -78,10 +88,13 @@ pub fn build_sapling_bundle<R: RngCore>(
 
     let anchor = tree.root(0).unwrap();
 
-    let mut sapling_builder =
-        SaplingBuilder::new(network.clone(), BlockHeight::from_u32(1_000_000));
-    let d = address.diversifier();
+    let diversifier = address.diversifier();
 
+    let mut value_balance = 0;
+    let mut shielded_spends = vec![];
+    let proof_generation_key = sk.expsk.proof_generation_key();
+    let nk = proof_generation_key.to_viewing_key().nk;
+    let mut bsk = TrapdoorSum::zero();
     for (note, (&p, _)) in notes.iter().zip(tree.witnessed_indices()) {
         let path = tree.authentication_path(p.clone(), &anchor).unwrap();
         let mut witness = vec![];
@@ -90,36 +103,83 @@ pub fn build_sapling_bundle<R: RngCore>(
             witness.write_u8(32)?;
             witness.write_all(&hash.0)?;
         }
-        witness.write_u64::<LE>(p.into())?;
-        let path = MerklePath::from_slice(&witness).unwrap();
-        sapling_builder
-            .add_spend(&mut rng, sk.clone(), d.clone(), note.clone(), path)
-            .unwrap();
+        let position: u64 = p.into();
+        witness.write_u64::<LE>(position)?;
+        let merkle_path = MerklePath::from_slice(&witness).unwrap();
+        let mut alpha = [0u8; 64];
+        rng.fill_bytes(&mut alpha);
+        let alpha = Scalar::from_bytes_wide(&alpha);
+        let nullifier = note.nf(&nk, position);
+        let rcv = ValueCommitTrapdoor::random(&mut rng);
+        bsk += &rcv;
+        let cv = ValueCommitment::derive(note.value, rcv);
+        let rk = PublicKey(proof_generation_key.ak.into()).randomize(alpha, SPENDING_KEY_GENERATOR);
+        value_balance += note.value.inner() as i64;
+
+        shielded_spends.push(SpendDescription {
+            cv,
+            anchor: jubjub::Base::from_bytes(&anchor.0).unwrap(),
+            nullifier,
+            rk,
+            zkproof: [0; 192],
+            spend_auth_sig: SpendDescriptionInfo {
+                extsk: sk.clone(),
+                diversifier: diversifier.clone(),
+                note: note.clone(),
+                alpha,
+                merkle_path,
+            },
+        });
     }
 
+    let mut shielded_outputs = vec![];
     for output in outputs {
-        sapling_builder
-            .add_output(
-                &mut rng,
-                None,
-                recipient_address.clone(),
-                NoteValue::from_raw(*output),
-                Memo::from_str("Text Memo").unwrap().into(),
-            )
-            .unwrap();
-    }
-
-    let mut ctx = SaplingProvingContext::new();
-    println!("Building");
-    let bundle = sapling_builder
-        .build(
-            prover,
-            &mut ctx,
-            &mut rng,
-            BlockHeight::from_u32(1_000_000),
+        let mut rseed_bytes = [0u8; 32];
+        rng.fill_bytes(&mut rseed_bytes);
+        let rseed = Rseed::AfterZip212(rseed_bytes);
+        let note = Note::from_parts(
+            recipient_address.clone(),
+            NoteValue::from_raw(*output),
+            rseed,
+        );
+        let rcv = ValueCommitTrapdoor::random(&mut rng);
+        bsk -= &rcv;
+        let cv = ValueCommitment::derive(note.value, rcv);
+        let cmu = note.cmu();
+        value_balance -= *output as i64;
+        let encryptor = sapling_note_encryption::<R, MainNetwork>(
             None,
-        )
-        .unwrap();
+            note,
+            recipient_address.clone(),
+            MemoBytes::empty(),
+            &mut rng,
+        );
+        let enc_ciphertext = encryptor.encrypt_note_plaintext();
+        let out_ciphertext = encryptor.encrypt_outgoing_plaintext(&cv, &cmu, &mut rng);
+        let epk = encryptor.epk();
+        shielded_outputs.push(OutputDescription {
+            cv,
+            cmu,
+            ephemeral_key: epk.to_bytes(),
+            enc_ciphertext,
+            out_ciphertext,
+            zkproof: [0; 192],
+        });
+        ledger_add_s_output(*output, epk.to_bytes().as_ref(),
+            &recipient_address.to_bytes(), &enc_ciphertext[0..52], &rseed_bytes)?;
+    }
+    ledger_set_stage(4)?;
 
-    Ok(Some(bundle.unwrap()))
+    ledger_set_net_sapling(value_balance.into())?;
+
+    let bundle: Bundle<Unauthorized> = Bundle::from_parts(
+        shielded_spends,
+        shielded_outputs,
+        Amount::from_i64(value_balance).unwrap(),
+        Unauthorized {
+            tx_metadata: SaplingMetadata::empty(),
+        },
+    );
+
+    Ok(Some(bundle))
 }

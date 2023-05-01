@@ -16,7 +16,7 @@ int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len);
 int change_stage(uint8_t new_stage);
 
 /* These function MUST be called and in this order */
-int init_tx(uint8_t *header_hash);
+int init_tx();
 int add_t_input_amount(uint64_t amount); // ZTxTrAmountsHash
 int add_t_output(t_out_t *output, bool confirmation); // ZTxIdOutputsHash
 int add_s_output(s_out_t *output, bool confirmation); // ZTxIdSOutC__Hash

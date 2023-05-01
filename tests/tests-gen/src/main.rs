@@ -1,24 +1,36 @@
-use ::orchard::keys::Scope;
-use anyhow::Result;
+use ::orchard::keys::{Scope};
+use anyhow::{Result};
+use blake2b_simd::{Hash, Params};
+use byteorder::{WriteBytesExt, LE};
+use std::io::Write;
 
-use rand::{RngCore, SeedableRng};
-use rand_chacha::ChaCha20Rng;
+use rand::rngs::OsRng;
+use rand::{RngCore};
 
 use secp256k1::SecretKey;
 
 use zcash_primitives::consensus::{BlockHeight, BranchId, Network};
+use zcash_primitives::consensus::Network::MainNetwork;
 use zcash_primitives::legacy::TransparentAddress;
+use zcash_primitives::sapling::keys::PreparedIncomingViewingKey;
+
+use zcash_primitives::sapling::SaplingIvk;
+
+use zcash_primitives::transaction::sighash::{SignableInput, TransparentAuthorizingContext};
+use zcash_primitives::transaction::sighash_v5::v5_signature_hash;
+use zcash_primitives::transaction::txid::{TxIdDigester};
 use zcash_primitives::transaction::{TransactionData, TxVersion, Unauthorized};
-use zcash_primitives::zip32::ExtendedSpendingKey;
+use zcash_primitives::zip32::{ExtendedSpendingKey};
 
 use crate::orchard::build_orchard_bundle;
 use crate::sapling::build_sapling_bundle;
 use crate::transparent::build_transparent_bundle;
-use zcash_proofs::prover::LocalTxProver;
+use crate::transport::{ledger_add_s_output, ledger_add_t_input, ledger_add_t_output, ledger_confirm_fee, ledger_get_sighash, ledger_init_tx, ledger_set_orchard_merkle_proof, ledger_set_sapling_merkle_proof, ledger_set_stage, ledger_set_transparent_merkle_proof};
 
 pub mod orchard;
 pub mod sapling;
 pub mod transparent;
+pub mod transport;
 
 pub fn random256<R: RngCore>(mut r: R) -> [u8; 32] {
     let mut res = [0u8; 32];
@@ -26,40 +38,77 @@ pub fn random256<R: RngCore>(mut r: R) -> [u8; 32] {
     res
 }
 
+pub struct TxConfig {
+    t_ins: u32,
+    t_outs: u32,
+    s_ins: u32,
+    s_outs: u32,
+    o_ins: u32,
+    o_outs: u32,
+}
+
+fn generate_amounts(c: u32, base: u32) -> Vec<u64> {
+    if c == 0 {
+        return vec![];
+    }
+    vec![base as u64; c as usize]
+}
+
 pub fn main() -> Result<()> {
-    let network: Network = Network::MainNetwork;
-    let prover = LocalTxProver::with_default_location().unwrap();
-    let mut rng = ChaCha20Rng::from_seed([0; 32]);
+    let config = TxConfig {
+        t_ins: 0,
+        t_outs: 1,
+        s_ins: 1,
+        s_outs: 4,
+        o_ins: 0,
+        o_outs: 0,
+    };
+
+    assert!(test_sighash(config, OsRng)?);
+    Ok(())
+}
+
+const BASE_AMOUNT: u32 = 1000;
+
+pub fn test_sighash<R: RngCore>(config: TxConfig, mut rng: R) -> Result<bool> {
+    ledger_init_tx()?;
 
     let tsk = SecretKey::from_slice(&[1; 32]).unwrap();
     let transparent_bundle = build_transparent_bundle(
         &tsk,
-        &TransparentAddress::PublicKey([3; 20]),
-        &[10000, 15000],
-        &[14000, 10000],
+        &TransparentAddress::PublicKey([0; 20]),
+        &generate_amounts(config.t_ins, BASE_AMOUNT),
+        &generate_amounts(config.t_outs, BASE_AMOUNT),
         &mut rng,
     )
     .unwrap();
 
     let sk = ExtendedSpendingKey::master(&random256(&mut rng));
-    let sk2 = ExtendedSpendingKey::master(&random256(&mut rng));
+    let (_di, recipient_address) = sk.default_address();
+    let ivk = sk.to_diversifiable_full_viewing_key().fvk().vk.ivk();
     let sapling_bundle = build_sapling_bundle(
-        network,
         &sk,
-        &sk2.default_address().1,
-        &[10000, 20000],
-        &[25000],
-        &prover,
+        &recipient_address,
+        &generate_amounts(config.s_ins, BASE_AMOUNT),
+        &generate_amounts(config.s_outs, BASE_AMOUNT),
         &mut rng,
     )
     .unwrap();
 
     let osk = ::orchard::keys::SpendingKey::from_bytes([2; 32]).unwrap();
     let fvk = ::orchard::keys::FullViewingKey::from(&osk);
-    let address = fvk.address_at(0u64, Scope::External);
-    let orchard_bundle = build_orchard_bundle(&fvk, &address, &[], &[], &mut rng).unwrap();
 
-    let _tx_data = TransactionData::<Unauthorized>::from_parts(
+    let address = fvk.address_at(0u64, Scope::External);
+    let orchard_bundle = build_orchard_bundle(
+        &fvk,
+        &address,
+        &generate_amounts(config.o_ins, BASE_AMOUNT),
+        &generate_amounts(config.o_outs, BASE_AMOUNT),
+        &mut rng,
+    )
+    .unwrap();
+
+    let tx_data = TransactionData::<Unauthorized>::from_parts(
         TxVersion::Zip225,
         BranchId::Nu5,
         0,
@@ -70,5 +119,286 @@ pub fn main() -> Result<()> {
         orchard_bundle,
     );
 
-    Ok(())
+    let txid_parts = tx_data.digest(TxIdDigester);
+    let sig_hash = v5_signature_hash(&tx_data, &SignableInput::Shielded, &txid_parts);
+    let mut ok = sighash(ivk.clone(), &tx_data, None)? == sig_hash;
+    println!("Shielded sighash {:?}", sig_hash);
+
+    let n_txin = tx_data
+        .transparent_bundle()
+        .map(|b| b.vin.len())
+        .unwrap_or(0);
+    for i in 0..n_txin {
+        let bundle = tx_data.transparent_bundle().unwrap();
+        let amount = bundle.authorization.input_amounts()[i];
+        let script = &bundle.authorization.input_scriptpubkeys()[i];
+        let sig_hash = v5_signature_hash(
+            &tx_data,
+            &SignableInput::Transparent {
+                hash_type: 1,
+                index: i,
+                script_code: script,
+                script_pubkey: script,
+                value: amount,
+            },
+            &txid_parts,
+        );
+        // Check that the sig hash we calculate matches the sig hash calculated by the
+        // official crate
+        let eq =
+            sighash(ivk.clone(), &tx_data, Some(i as u32))? ==
+            sig_hash;
+        if !eq { ok = false; }
+    }
+    Ok(ok)
+}
+
+pub fn sighash(
+    ivk: SaplingIvk,
+    tx_data: &TransactionData<Unauthorized>,
+    index: Option<u32>,
+) -> Result<Hash> {
+    let mut h_header = Params::new()
+        .hash_length(32)
+        .personal(b"ZTxIdHeadersHash")
+        .to_state();
+    h_header.write_u32::<LE>(tx_data.version().header())?;
+    h_header.write_u32::<LE>(tx_data.version().version_group_id())?;
+    h_header.write_u32::<LE>(tx_data.consensus_branch_id().into())?;
+    h_header.write_u32::<LE>(tx_data.lock_time())?;
+    h_header.write_u32::<LE>(tx_data.expiry_height().into())?;
+    let h_header = h_header.finalize();
+    println!("Header {:?}", h_header);
+
+    let transparent_bundle = tx_data.transparent_bundle();
+    let mut h_transparent = Params::new()
+        .hash_length(32)
+        .personal(b"ZTxIdTranspaHash")
+        .to_state();
+    if let Some(transparent_bundle) = transparent_bundle {
+        let mut h_prevouts = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdPrevoutHash")
+            .to_state();
+        let mut h_sequences = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdSequencHash")
+            .to_state();
+        for vin in transparent_bundle.vin.iter() {
+            h_prevouts.write_all(vin.prevout.hash())?;
+            h_prevouts.write_u32::<LE>(vin.prevout.n())?;
+            h_sequences.write_u32::<LE>(vin.sequence)?;
+        }
+        let mut h_amounts = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxTrAmountsHash")
+            .to_state();
+        for amount in transparent_bundle.authorization.input_amounts().iter() {
+            h_amounts.write_all(&amount.to_i64_le_bytes())?;
+        }
+        let mut h_script_pubkeys = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxTrScriptsHash")
+            .to_state();
+        for script_pubkey in transparent_bundle
+            .authorization
+            .input_scriptpubkeys()
+            .iter()
+        {
+            script_pubkey.write(&mut h_script_pubkeys)?;
+        }
+        let mut h_outputs = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdOutputsHash")
+            .to_state();
+        for vout in transparent_bundle.vout.iter() {
+            h_outputs.write_u64::<LE>(vout.value.into())?;
+            vout.script_pubkey.write(&mut h_outputs)?;
+        }
+        let mut h_txin = Params::new()
+            .hash_length(32)
+            .personal(b"Zcash___TxInHash")
+            .to_state();
+        match index {
+            Some(index) => {
+                let vin = &transparent_bundle.vin[index as usize];
+                h_txin.write_all(vin.prevout.hash())?;
+                h_txin.write_u32::<LE>(vin.prevout.n())?;
+                h_txin.write_all(
+                    &transparent_bundle.authorization.input_amounts()[index as usize]
+                        .to_i64_le_bytes(),
+                )?;
+                transparent_bundle.authorization.input_scriptpubkeys()[index as usize]
+                    .write(&mut h_txin)?;
+                h_txin.write_u32::<LE>(vin.sequence)?;
+            }
+            None => {}
+        }
+
+        let h_prevouts = h_prevouts.finalize();
+        let h_amounts = h_amounts.finalize();
+        let h_script_pubkeys = h_script_pubkeys.finalize();
+        let h_sequences = h_sequences.finalize();
+        let h_outputs = h_outputs.finalize();
+        let h_txin = h_txin.finalize();
+        println!("PO/S/O {:?} {:?} {:?}", h_prevouts, h_sequences, h_outputs);
+
+        let has_tins = !transparent_bundle.vin.is_empty();
+        if has_tins {
+            h_transparent.write_u8(1)?;
+        }
+        h_transparent.write_all(h_prevouts.as_bytes())?;
+        if has_tins {
+            h_transparent.write_all(h_amounts.as_bytes())?;
+            h_transparent.write_all(h_script_pubkeys.as_bytes())?;
+        }
+        h_transparent.write_all(h_sequences.as_bytes())?;
+        h_transparent.write_all(h_outputs.as_bytes())?;
+        if has_tins {
+            h_transparent.write_all(h_txin.as_bytes())?;
+        }
+        ledger_set_transparent_merkle_proof(h_header.as_bytes(),
+                                            h_prevouts.as_bytes(),
+        h_script_pubkeys.as_bytes(), h_sequences.as_bytes())?;
+    }
+    let h_transparent = h_transparent.finalize();
+    println!("Transparent {:?}", h_transparent);
+
+
+    let sapling_bundle = tx_data.sapling_bundle();
+    let mut h_sapling = Params::new()
+        .hash_length(32)
+        .personal(b"ZTxIdSaplingHash")
+        .to_state();
+    if let Some(sapling_bundle) = sapling_bundle {
+        let mut h_spc = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdSSpendCHash")
+            .to_state();
+        let mut h_spn = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdSSpendNHash")
+            .to_state();
+        for sp in sapling_bundle.shielded_spends() {
+            h_spc.write_all(&sp.nullifier().0)?;
+            h_spn.write_all(&sp.cv().to_bytes())?;
+            h_spn.write_all(&sp.anchor().to_bytes())?;
+            sp.rk().write(&mut h_spn)?;
+        }
+        let h_spc = h_spc.finalize();
+        let h_spn = h_spn.finalize();
+        let mut h_spend = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdSSpendsHash")
+            .to_state();
+        h_spend.write_all(h_spc.as_bytes())?;
+        h_spend.write_all(h_spn.as_bytes())?;
+        let h_spend = h_spend.finalize();
+        let mut h_oc = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdSOutC__Hash")
+            .to_state();
+        let mut h_om = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdSOutM__Hash")
+            .to_state();
+        let mut h_on = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdSOutN__Hash")
+            .to_state();
+        let _pivk = PreparedIncomingViewingKey::new(&ivk);
+        for out in sapling_bundle.shielded_outputs() {
+            h_oc.write_all(&out.cmu().to_bytes())?;
+            h_oc.write_all(&out.ephemeral_key().0)?;
+            h_oc.write_all(&out.enc_ciphertext()[0..52])?;
+            h_om.write_all(&out.enc_ciphertext()[52..564])?;
+            h_on.write_all(&out.cv().to_bytes())?;
+            h_on.write_all(&out.enc_ciphertext()[564..])?;
+            h_on.write_all(out.out_ciphertext())?;
+        }
+        let h_oc = h_oc.finalize();
+        let h_om = h_om.finalize();
+        let h_on = h_on.finalize();
+        let mut h_output = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdSOutputHash")
+            .to_state();
+        h_output.write_all(h_oc.as_bytes())?;
+        h_output.write_all(h_om.as_bytes())?;
+        h_output.write_all(h_on.as_bytes())?;
+        let h_output = h_output.finalize();
+        h_sapling.write_all(h_spend.as_bytes())?;
+        h_sapling.write_all(h_output.as_bytes())?;
+        h_sapling.write_i64::<LE>(sapling_bundle.value_balance().into())?;
+        ledger_set_sapling_merkle_proof(h_spend.as_bytes(), h_om.as_bytes(), h_on.as_bytes())?;
+    }
+    let h_sapling = h_sapling.finalize();
+    println!("Sapling {:?}", h_sapling);
+
+    let orchard_bundle = tx_data.orchard_bundle();
+    let mut h_orchard = Params::new()
+        .hash_length(32)
+        .personal(b"ZTxIdOrchardHash")
+        .to_state();
+    if let Some(orchard_bundle) = orchard_bundle {
+        let mut h_ac = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdOrcActCHash")
+            .to_state();
+        let mut h_am = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdOrcActMHash")
+            .to_state();
+        let mut h_an = Params::new()
+            .hash_length(32)
+            .personal(b"ZTxIdOrcActNHash")
+            .to_state();
+        for action in orchard_bundle.actions() {
+            h_ac.write_all(&action.nullifier().to_bytes())?;
+            h_ac.write_all(&action.cmx().to_bytes())?;
+            h_ac.write_all(&action.encrypted_note().epk_bytes)?;
+            h_ac.write_all(&action.encrypted_note().enc_ciphertext[0..52])?;
+            h_am.write_all(&action.encrypted_note().enc_ciphertext[52..564])?;
+            h_an.write_all(&action.cv_net().to_bytes())?;
+            h_an.write_all(&<[u8; 32]>::from(action.rk()))?;
+            h_an.write_all(&action.encrypted_note().enc_ciphertext[564..])?;
+            h_an.write_all(&action.encrypted_note().out_ciphertext)?;
+        }
+        let h_ac = h_ac.finalize();
+        let h_am = h_am.finalize();
+        let h_an = h_an.finalize();
+        h_orchard.write_all(h_ac.as_bytes())?;
+        h_orchard.write_all(h_am.as_bytes())?;
+        h_orchard.write_all(h_an.as_bytes())?;
+        h_orchard.write_u8(orchard_bundle.flags().to_byte())?;
+        h_orchard.write_i64::<LE>(orchard_bundle.value_balance().into())?;
+        h_orchard.write_all(&orchard_bundle.anchor().to_bytes())?;
+        ledger_set_orchard_merkle_proof(&orchard_bundle.anchor().to_bytes(),
+                                        h_am.as_bytes(), h_an.as_bytes())?;
+    }
+    let h_orchard = h_orchard.finalize();
+    println!("Orchard {:?}", h_orchard);
+
+    let branch_id: u32 = tx_data.consensus_branch_id().into();
+    let perso = [
+        b"ZcashTxHash_".as_slice(),
+        &branch_id.to_le_bytes().as_slice(),
+    ]
+    .concat();
+
+    let mut h_sighash = Params::new().hash_length(32).personal(&perso).to_state();
+    h_sighash.write_all(h_header.as_bytes())?;
+    h_sighash.write_all(h_transparent.as_bytes())?;
+    h_sighash.write_all(h_sapling.as_bytes())?;
+    h_sighash.write_all(h_orchard.as_bytes())?;
+    let h_sighash = h_sighash.finalize();
+
+    ledger_confirm_fee()?;
+
+    let device_sighash = ledger_get_sighash()?;
+    println!("Sighash {:?}", h_sighash);
+
+    assert_eq!(h_sighash.as_bytes(), &device_sighash);
+
+    Ok(h_sighash)
 }

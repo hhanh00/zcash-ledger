@@ -14,7 +14,7 @@ typedef void (*action_validate_cb)(bool);
  * @return 0 if success, negative integer otherwise.
  *
  */
-int ui_display_address(void);
+int ui_display_address();
 
 int ui_display_processing();
 int ui_confirm_t_out(t_out_t *s_out);

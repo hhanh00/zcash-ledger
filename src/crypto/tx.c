@@ -53,9 +53,8 @@ static int sapling_bundle_hash();
 static int orchard_bundle_hash();
 static int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest);
 
-int init_tx(uint8_t *header_digest) {
+int init_tx() {
     memset(&G_context.signing_ctx, 0, sizeof(tx_signing_ctx_t));
-    memmove(G_context.signing_ctx.header_hash, header_digest, 32);
     G_context.signing_ctx.stage = T_IN;
     cx_get_random_bytes(G_context.signing_ctx.mseed, 32);
 
@@ -224,7 +223,7 @@ int add_s_output(s_out_t *output, bool confirmation) {
     G_context.signing_ctx.has_s_out = true;
     G_context.signing_ctx.amount_s_out += output->amount;
 
-#ifndef DEBUG
+#ifndef TEST
     // In production, wallet clients cannot by pass user confirmation
     confirmation = true;
 #endif
@@ -236,6 +235,11 @@ int add_s_output(s_out_t *output, bool confirmation) {
 
     uint8_t rseed[32];
     prf_chacha(&chacha_rseed_rng, rseed, 32);
+
+    #ifdef TEST
+    memmove(rseed, output->rseed, 32);
+    #endif
+
     PRINTF("RSEED: %.*H\n", 32, rseed);
     PRINTF("AMOUNT: %.*H\n", 8, &output->amount);
 
@@ -264,7 +268,7 @@ int add_o_action(o_action_t *action, bool confirmation) {
     G_context.signing_ctx.has_o_action = true;
     G_context.signing_ctx.amount_o_out += action->amount;
 
-#ifndef DEBUG
+#ifndef TEST
     // In production, wallet clients cannot by pass user confirmation
     confirmation = true;
 #endif
@@ -282,6 +286,11 @@ int add_o_action(o_action_t *action, bool confirmation) {
 
     uint8_t rseed[32];
     prf_chacha(&chacha_rseed_rng, rseed, 32);
+
+    #ifdef TEST
+    memmove(rseed, action->rseed, 32);
+    #endif
+
     PRINTF("rseed %.*H\n", 32, rseed);
 
     u_int8_t note_cmx[32];
@@ -467,13 +476,13 @@ static int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
         cx_hash(ph, 0, txin_sig_digest, 32, NULL, 0);
     cx_hash(ph, CX_LAST, NULL, 0, transparent_hash, 32);
 
-    PRINTF("HEADER: %.*H\n", 32, G_context.signing_ctx.header_hash);
+    PRINTF("HEADER: %.*H\n", 32, G_context.signing_ctx.t_proofs.header_digest);
     PRINTF("TRANSPARENT SIG BUNDLE: %.*H\n", 32, transparent_hash);
 
     cx_blake2b_init2_no_throw(&tx_t_hasher, 256,
                               NULL, 0,
                               (uint8_t *) "ZcashTxHash_\xB4\xD0\xD6\xC2", 16);
-    cx_hash(ph, 0, G_context.signing_ctx.header_hash, 32, NULL, 0);
+    cx_hash(ph, 0, G_context.signing_ctx.t_proofs.header_digest, 32, NULL, 0);
     cx_hash(ph, 0, transparent_hash, 32, NULL, 0);
     cx_hash(ph, 0, G_context.signing_ctx.sapling_bundle_hash, 32, NULL, 0);
     cx_hash(ph, CX_LAST, G_context.signing_ctx.orchard_bundle_hash, 32, sighash, 32);

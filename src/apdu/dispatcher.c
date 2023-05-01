@@ -45,8 +45,15 @@
 
 #define MOVE_FIELD(s,field) memmove(&s.field, p, sizeof(s.field)); p += sizeof(s.field);
 #define TRANSPARENT_OUT_LEN (8+1+20)
-#define SAPLING_OUT_LEN (43+8+32+52)
-#define ORCHARD_OUT_LEN (32+43+8+32+52)
+
+#ifdef TEST
+#define RSEED_LEN 32
+#else
+#define RSEED_LEN 0
+#endif
+
+#define SAPLING_OUT_LEN (43+8+32+52+RSEED_LEN)
+#define ORCHARD_OUT_LEN (32+43+8+32+52+RSEED_LEN)
 
 int apdu_dispatcher(const command_t *cmd) {
     if (cmd->cla != CLA) {
@@ -112,10 +119,10 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 32)
+            if (cmd->lc != 0)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return init_tx(cmd->data);
+            return init_tx();
 
         case ADD_T_IN:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -164,6 +171,9 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(s_out, amount);
                 MOVE_FIELD(s_out, epk);
                 MOVE_FIELD(s_out, enc);
+                #ifdef TEST
+                MOVE_FIELD(s_out, rseed);
+                #endif
 
                 return add_s_output(&s_out, cmd->p1 == 1);
             }
@@ -185,6 +195,9 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(o_action, amount);
                 MOVE_FIELD(o_action, epk);
                 MOVE_FIELD(o_action, enc);
+                #ifdef TEST
+                MOVE_FIELD(o_action, rseed);
+                #endif
 
                 return add_o_action(&o_action, cmd->p1 == 1);
             }
@@ -216,7 +229,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 3 * 32)
+            if (cmd->lc != 4 * 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             return set_t_merkle_proof((t_proofs_t *)cmd->data);

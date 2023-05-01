@@ -147,7 +147,6 @@ typedef struct {
     int64_t o_net;
     uint8_t tsk[32];
     uint8_t mseed[32];
-    uint8_t header_hash[32];
     uint8_t amount_hash[32];
     uint8_t t_outputs_hash[32];
     t_proofs_t t_proofs;
