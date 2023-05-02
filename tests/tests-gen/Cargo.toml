@@ -26,9 +26,14 @@ hex-literal = "0.4"
 
 reqwest = { version = "0.11.4", features = ["blocking", "json", "rustls-tls"] }
 serde_json = "1.0"
+struson = "0.1.0"
 
 [patch.crates-io]
 halo2_gadgets  = { git = "https://github.com/zcash/halo2.git", rev = "642924d614305d882cc122739c59144109f4bd3f" }
 halo2_proofs = { git = "https://github.com/zcash/halo2.git", rev = "642924d614305d882cc122739c59144109f4bd3f" }
 orchard = { git = "https://github.com/hhanh00/orchard.git", rev = "fa4ec31bd17b7b54e7474f270e8b5a4ae1a0de5c" }
 #orchard = { path = "../../../../ywallet/orchard" }
+
+[patch."https://github.com/hhanh00/librustzcash.git"]
+zcash_primitives = { path = "../../../../ywallet/librustzcash/zcash_primitives", features = [ "transparent-inputs" ] }
+

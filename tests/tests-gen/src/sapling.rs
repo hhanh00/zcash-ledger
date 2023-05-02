@@ -7,7 +7,7 @@ use std::io::Write;
 use byteorder::{WriteBytesExt, LE};
 use jubjub::Scalar;
 
-use zcash_primitives::consensus::{MainNetwork, Parameters};
+use zcash_primitives::consensus::{MainNetwork};
 use zcash_primitives::constants::SPENDING_KEY_GENERATOR;
 use zcash_primitives::memo::{MemoBytes};
 use zcash_primitives::merkle_tree::MerklePath;
@@ -15,7 +15,7 @@ use zcash_primitives::sapling::note_encryption::sapling_note_encryption;
 use zcash_primitives::sapling::redjubjub::PublicKey;
 use zcash_primitives::sapling::{merkle_hash, Note, PaymentAddress, Rseed};
 
-use crate::{ledger_add_s_output, ledger_set_stage, random256};
+use crate::{random256, TestWriter};
 use zcash_primitives::sapling::value::{
     NoteValue, TrapdoorSum, ValueCommitTrapdoor, ValueCommitment,
 };
@@ -27,7 +27,6 @@ use zcash_primitives::transaction::components::{
     Amount, OutputDescription, SpendDescription,
 };
 use zcash_primitives::zip32::ExtendedSpendingKey;
-use crate::transport::{ledger_set_net_sapling};
 
 fn random_sapling_note<R: RngCore>(address: &PaymentAddress, value: u64, mut rng: R) -> Note {
     let rseed = random256(&mut rng);
@@ -55,11 +54,12 @@ pub fn build_sapling_bundle<R: RngCore>(
     recipient_address: &PaymentAddress,
     spends: &[u64],
     outputs: &[u64],
+    test_writer: &mut TestWriter,
     mut rng: R,
 ) -> Result<Option<Bundle<Unauthorized>>> {
     let mut notes = vec![];
     if spends.is_empty() && outputs.is_empty() {
-        ledger_set_stage(4)?;
+        test_writer.ledger_set_stage(4)?;
         return Ok(None);
     }
     let dfvk = sk.to_diversifiable_full_viewing_key();
@@ -165,12 +165,12 @@ pub fn build_sapling_bundle<R: RngCore>(
             out_ciphertext,
             zkproof: [0; 192],
         });
-        ledger_add_s_output(*output, epk.to_bytes().as_ref(),
+        test_writer.ledger_add_s_output(*output, epk.to_bytes().as_ref(),
             &recipient_address.to_bytes(), &enc_ciphertext[0..52], &rseed_bytes)?;
     }
-    ledger_set_stage(4)?;
+    test_writer.ledger_set_stage(4)?;
 
-    ledger_set_net_sapling(value_balance.into())?;
+    test_writer.ledger_set_net_sapling(value_balance.into())?;
 
     let bundle: Bundle<Unauthorized> = Bundle::from_parts(
         shielded_spends,

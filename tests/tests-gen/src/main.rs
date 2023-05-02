@@ -1,16 +1,18 @@
+use std::fmt::{Display, Formatter};
 use ::orchard::keys::{Scope};
 use anyhow::{Result};
 use blake2b_simd::{Hash, Params};
 use byteorder::{WriteBytesExt, LE};
 use std::io::Write;
+use std::path::Path;
 
 use rand::rngs::OsRng;
 use rand::{RngCore};
 
 use secp256k1::SecretKey;
 
-use zcash_primitives::consensus::{BlockHeight, BranchId, Network};
-use zcash_primitives::consensus::Network::MainNetwork;
+use zcash_primitives::consensus::{BlockHeight, BranchId};
+
 use zcash_primitives::legacy::TransparentAddress;
 use zcash_primitives::sapling::keys::PreparedIncomingViewingKey;
 
@@ -25,7 +27,7 @@ use zcash_primitives::zip32::{ExtendedSpendingKey};
 use crate::orchard::build_orchard_bundle;
 use crate::sapling::build_sapling_bundle;
 use crate::transparent::build_transparent_bundle;
-use crate::transport::{ledger_add_s_output, ledger_add_t_input, ledger_add_t_output, ledger_confirm_fee, ledger_get_sighash, ledger_init_tx, ledger_set_orchard_merkle_proof, ledger_set_sapling_merkle_proof, ledger_set_stage, ledger_set_transparent_merkle_proof};
+use crate::transport::TestWriter;
 
 pub mod orchard;
 pub mod sapling;
@@ -38,6 +40,7 @@ pub fn random256<R: RngCore>(mut r: R) -> [u8; 32] {
     res
 }
 
+#[derive(Debug)]
 pub struct TxConfig {
     t_ins: u32,
     t_outs: u32,
@@ -45,6 +48,19 @@ pub struct TxConfig {
     s_outs: u32,
     o_ins: u32,
     o_outs: u32,
+}
+
+impl Display for TxConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.t_ins != 0 { write!(f, "t")?; }
+        if self.s_ins != 0 { write!(f, "z")?; }
+        if self.o_ins != 0 { write!(f, "o")?; }
+        write!(f, "2")?;
+        if self.t_outs != 0 { write!(f, "t")?; }
+        if self.s_outs != 0 { write!(f, "z")?; }
+        if self.o_outs != 0 { write!(f, "o")?; }
+        Ok(())
+    }
 }
 
 fn generate_amounts(c: u32, base: u32) -> Vec<u64> {
@@ -55,23 +71,34 @@ fn generate_amounts(c: u32, base: u32) -> Vec<u64> {
 }
 
 pub fn main() -> Result<()> {
-    let config = TxConfig {
-        t_ins: 0,
-        t_outs: 1,
-        s_ins: 1,
-        s_outs: 4,
-        o_ins: 0,
-        o_outs: 0,
-    };
+    let mut test_writer = TestWriter::new(Path::new("test.json"));
 
-    assert!(test_sighash(config, OsRng)?);
+    for i in 1..8 {
+        for j in 0..8 {
+            let config = TxConfig {
+                t_ins: i & 1,
+                t_outs: j & 1,
+                s_ins: (i & 2) >> 1,
+                s_outs: (j & 2) >> 1,
+                o_ins: (i & 4) >> 2,
+                o_outs: (j & 4) >> 2,
+            };
+
+            println!("{:?}", config);
+
+            assert!(test_sighash(&config.to_string(), config, &mut test_writer, OsRng)?);
+        }
+    }
+
+    test_writer.close();
     Ok(())
 }
 
 const BASE_AMOUNT: u32 = 1000;
 
-pub fn test_sighash<R: RngCore>(config: TxConfig, mut rng: R) -> Result<bool> {
-    ledger_init_tx()?;
+pub fn test_sighash<R: RngCore>(name: &str, config: TxConfig, test_writer: &mut TestWriter, mut rng: R) -> Result<bool> {
+    test_writer.ledger_init_tx(name)?;
+    println!("Test {}", name);
 
     let tsk = SecretKey::from_slice(&[1; 32]).unwrap();
     let transparent_bundle = build_transparent_bundle(
@@ -79,6 +106,7 @@ pub fn test_sighash<R: RngCore>(config: TxConfig, mut rng: R) -> Result<bool> {
         &TransparentAddress::PublicKey([0; 20]),
         &generate_amounts(config.t_ins, BASE_AMOUNT),
         &generate_amounts(config.t_outs, BASE_AMOUNT),
+        test_writer,
         &mut rng,
     )
     .unwrap();
@@ -91,6 +119,7 @@ pub fn test_sighash<R: RngCore>(config: TxConfig, mut rng: R) -> Result<bool> {
         &recipient_address,
         &generate_amounts(config.s_ins, BASE_AMOUNT),
         &generate_amounts(config.s_outs, BASE_AMOUNT),
+        test_writer,
         &mut rng,
     )
     .unwrap();
@@ -104,6 +133,7 @@ pub fn test_sighash<R: RngCore>(config: TxConfig, mut rng: R) -> Result<bool> {
         &address,
         &generate_amounts(config.o_ins, BASE_AMOUNT),
         &generate_amounts(config.o_outs, BASE_AMOUNT),
+        test_writer,
         &mut rng,
     )
     .unwrap();
@@ -120,8 +150,9 @@ pub fn test_sighash<R: RngCore>(config: TxConfig, mut rng: R) -> Result<bool> {
     );
 
     let txid_parts = tx_data.digest(TxIdDigester);
+    println!("TxId parts {:?}", txid_parts);
     let sig_hash = v5_signature_hash(&tx_data, &SignableInput::Shielded, &txid_parts);
-    let mut ok = sighash(ivk.clone(), &tx_data, None)? == sig_hash;
+    let mut ok = sighash(ivk.clone(), &tx_data, None, test_writer)? == sig_hash;
     println!("Shielded sighash {:?}", sig_hash);
 
     let n_txin = tx_data
@@ -146,10 +177,11 @@ pub fn test_sighash<R: RngCore>(config: TxConfig, mut rng: R) -> Result<bool> {
         // Check that the sig hash we calculate matches the sig hash calculated by the
         // official crate
         let eq =
-            sighash(ivk.clone(), &tx_data, Some(i as u32))? ==
+            sighash(ivk.clone(), &tx_data, Some(i as u32), test_writer)? ==
             sig_hash;
         if !eq { ok = false; }
     }
+    test_writer.ledger_end_tx()?;
     Ok(ok)
 }
 
@@ -157,6 +189,7 @@ pub fn sighash(
     ivk: SaplingIvk,
     tx_data: &TransactionData<Unauthorized>,
     index: Option<u32>,
+    test_writer: &mut TestWriter
 ) -> Result<Hash> {
     let mut h_header = Params::new()
         .hash_length(32)
@@ -169,7 +202,11 @@ pub fn sighash(
     h_header.write_u32::<LE>(tx_data.expiry_height().into())?;
     let h_header = h_header.finalize();
     println!("Header {:?}", h_header);
+    if index.is_none() {
+        test_writer.ledger_set_header_digest(h_header.as_bytes())?;
+    }
 
+    let mut txin_digest = None;
     let transparent_bundle = tx_data.transparent_bundle();
     let mut h_transparent = Params::new()
         .hash_length(32)
@@ -241,6 +278,7 @@ pub fn sighash(
         let h_sequences = h_sequences.finalize();
         let h_outputs = h_outputs.finalize();
         let h_txin = h_txin.finalize();
+        txin_digest = Some(h_txin);
         println!("PO/S/O {:?} {:?} {:?}", h_prevouts, h_sequences, h_outputs);
 
         let has_tins = !transparent_bundle.vin.is_empty();
@@ -257,13 +295,13 @@ pub fn sighash(
         if has_tins {
             h_transparent.write_all(h_txin.as_bytes())?;
         }
-        ledger_set_transparent_merkle_proof(h_header.as_bytes(),
-                                            h_prevouts.as_bytes(),
-        h_script_pubkeys.as_bytes(), h_sequences.as_bytes())?;
+        if index.is_none() {
+            test_writer.ledger_set_transparent_merkle_proof(h_prevouts.as_bytes(),
+                                                            h_script_pubkeys.as_bytes(), h_sequences.as_bytes())?;
+        }
     }
     let h_transparent = h_transparent.finalize();
     println!("Transparent {:?}", h_transparent);
-
 
     let sapling_bundle = tx_data.sapling_bundle();
     let mut h_sapling = Params::new()
@@ -291,8 +329,10 @@ pub fn sighash(
             .hash_length(32)
             .personal(b"ZTxIdSSpendsHash")
             .to_state();
-        h_spend.write_all(h_spc.as_bytes())?;
-        h_spend.write_all(h_spn.as_bytes())?;
+        if !sapling_bundle.shielded_spends().is_empty() {
+            h_spend.write_all(h_spc.as_bytes())?;
+            h_spend.write_all(h_spn.as_bytes())?;
+        }
         let h_spend = h_spend.finalize();
         let mut h_oc = Params::new()
             .hash_length(32)
@@ -323,14 +363,18 @@ pub fn sighash(
             .hash_length(32)
             .personal(b"ZTxIdSOutputHash")
             .to_state();
-        h_output.write_all(h_oc.as_bytes())?;
-        h_output.write_all(h_om.as_bytes())?;
-        h_output.write_all(h_on.as_bytes())?;
+        if !sapling_bundle.shielded_outputs().is_empty() {
+            h_output.write_all(h_oc.as_bytes())?;
+            h_output.write_all(h_om.as_bytes())?;
+            h_output.write_all(h_on.as_bytes())?;
+        }
         let h_output = h_output.finalize();
         h_sapling.write_all(h_spend.as_bytes())?;
         h_sapling.write_all(h_output.as_bytes())?;
         h_sapling.write_i64::<LE>(sapling_bundle.value_balance().into())?;
-        ledger_set_sapling_merkle_proof(h_spend.as_bytes(), h_om.as_bytes(), h_on.as_bytes())?;
+        if index.is_none() {
+            test_writer.ledger_set_sapling_merkle_proof(h_spend.as_bytes(), h_om.as_bytes(), h_on.as_bytes())?;
+        }
     }
     let h_sapling = h_sapling.finalize();
     println!("Sapling {:?}", h_sapling);
@@ -354,6 +398,7 @@ pub fn sighash(
             .personal(b"ZTxIdOrcActNHash")
             .to_state();
         for action in orchard_bundle.actions() {
+            println!("CMX {:?}", action.cmx());
             h_ac.write_all(&action.nullifier().to_bytes())?;
             h_ac.write_all(&action.cmx().to_bytes())?;
             h_ac.write_all(&action.encrypted_note().epk_bytes)?;
@@ -373,8 +418,10 @@ pub fn sighash(
         h_orchard.write_u8(orchard_bundle.flags().to_byte())?;
         h_orchard.write_i64::<LE>(orchard_bundle.value_balance().into())?;
         h_orchard.write_all(&orchard_bundle.anchor().to_bytes())?;
-        ledger_set_orchard_merkle_proof(&orchard_bundle.anchor().to_bytes(),
-                                        h_am.as_bytes(), h_an.as_bytes())?;
+        if index.is_none() {
+            test_writer.ledger_set_orchard_merkle_proof(&orchard_bundle.anchor().to_bytes(),
+                                                        h_am.as_bytes(), h_an.as_bytes())?;
+        }
     }
     let h_orchard = h_orchard.finalize();
     println!("Orchard {:?}", h_orchard);
@@ -393,10 +440,15 @@ pub fn sighash(
     h_sighash.write_all(h_orchard.as_bytes())?;
     let h_sighash = h_sighash.finalize();
 
-    ledger_confirm_fee()?;
-
-    let device_sighash = ledger_get_sighash()?;
+    let device_sighash = match index {
+        None => {
+            test_writer.ledger_confirm_fee()?; // confirm the fee only once
+            test_writer.ledger_get_shielded_sighash()?
+        },
+        Some(_) => test_writer.ledger_get_transparent_sighash(txin_digest.unwrap().as_bytes())?,
+    };
     println!("Sighash {:?}", h_sighash);
+    println!("Ledger Sighash {:?}", hex::encode(&device_sighash));
 
     assert_eq!(h_sighash.as_bytes(), &device_sighash);
 

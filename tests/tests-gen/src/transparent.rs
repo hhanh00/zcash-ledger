@@ -13,18 +13,19 @@ use zcash_primitives::transaction::components::transparent::builder::{
 use zcash_primitives::transaction::components::transparent::Bundle;
 use zcash_primitives::transaction::components::{Amount, OutPoint, TxOut};
 
-use crate::{ledger_add_t_input, ledger_add_t_output, ledger_set_stage, random256};
+use crate::{random256, TestWriter};
 
 pub fn build_transparent_bundle<R: RngCore>(
     sk: &SecretKey,
     recipient_address: &TransparentAddress,
     spends: &[u64],
     outputs: &[u64],
+    test_writer: &mut TestWriter,
     mut r: R,
 ) -> Result<Option<Bundle<Unauthorized>>> {
     if spends.is_empty() && outputs.is_empty() {
-        ledger_set_stage(2)?;
-        ledger_set_stage(3)?;
+        test_writer.ledger_set_stage(2)?;
+        test_writer.ledger_set_stage(3)?;
         return Ok(None);
     }
     let mut builder = TransparentBuilder::empty();
@@ -40,9 +41,9 @@ pub fn build_transparent_bundle<R: RngCore>(
             script_pubkey: source_address.clone().script(),
         };
         builder.add_input(sk.clone(), utxo, coin).unwrap();
-        ledger_add_t_input(*sp)?;
+        test_writer.ledger_add_t_input(*sp)?;
     }
-    ledger_set_stage(2)?;
+    test_writer.ledger_set_stage(2)?;
     for output in outputs {
         builder
             .add_output(
@@ -51,10 +52,10 @@ pub fn build_transparent_bundle<R: RngCore>(
             )
             .unwrap();
         if let TransparentAddress::PublicKey(pkh) = recipient_address {
-            ledger_add_t_output(*output, 0, pkh)?;
+            test_writer.ledger_add_t_output(*output, 0, pkh)?;
         }
     }
-    ledger_set_stage(3)?;
+    test_writer.ledger_set_stage(3)?;
     let bundle = builder.build().unwrap();
     Ok(Some(bundle))
 }

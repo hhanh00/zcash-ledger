@@ -12,18 +12,13 @@ use orchard::{Action, Address, Anchor, Bundle, Note};
 use orchard::note_encryption::OrchardNoteEncryption;
 use pasta_curves::pallas;
 
-
 use rand::RngCore;
 
-
-
 use zcash_primitives::transaction::components::Amount;
-use crate::ledger_set_stage;
-use crate::transport::{ledger_add_o_action, ledger_set_net_orchard};
+use crate::TestWriter;
 
-
-fn random_orchard_note<R: RngCore>(recipient: Address, value: u64, mut rng: R) -> Note {
-    let rho = Nullifier::dummy(&mut rng);
+fn random_orchard_note<R: RngCore>(recipient: Address, value: u64, rho: Option<Nullifier>, mut rng: R) -> Note {
+    let rho = rho.unwrap_or_else(|| Nullifier::dummy(&mut rng));
     let value = NoteValue::from_raw(value);
     let rseed = RandomSeed::random(&mut rng, &rho);
     let note = Note::from_parts(recipient, value, rho, rseed).unwrap();
@@ -35,10 +30,11 @@ pub fn build_orchard_bundle<R: RngCore>(
     recipient_address: &Address,
     spends: &[u64],
     outputs: &[u64],
+    test_writer: &mut TestWriter,
     mut rng: R,
 ) -> Result<Option<Bundle<InProgress<Unproven, Unauthorized>, Amount>>> {
     if spends.is_empty() && outputs.is_empty() {
-        ledger_set_stage(5)?;
+        test_writer.ledger_set_stage(5)?;
         return Ok(None);
     }
     let mut tree: BridgeTree<_, 32> = BridgeTree::new(1);
@@ -46,11 +42,11 @@ pub fn build_orchard_bundle<R: RngCore>(
     let mut notes = vec![];
     for i in 0..100 {
         let (note, is_witness) = if i >= 10 && i < 10 + spends.len() {
-            let note = random_orchard_note(recipient_address.clone(), spends[i - 10], &mut rng);
+            let note = random_orchard_note(recipient_address.clone(), spends[i - 10], None, &mut rng);
             notes.push(note.clone());
             (note, true)
         } else {
-            let note = random_orchard_note(recipient_address.clone(), 0, &mut rng); // dummy notes
+            let note = random_orchard_note(recipient_address.clone(), 0, None, &mut rng); // dummy notes
             (note, false)
         };
         let cmu = note.commitment();
@@ -71,7 +67,7 @@ pub fn build_orchard_bundle<R: RngCore>(
         let spend_note = if i < spends.len() {
             notes[i]
         } else {
-            random_orchard_note(recipient_address.clone(), 0, &mut rng)
+            random_orchard_note(recipient_address.clone(), 0, None, &mut rng)
         };
         let amount = if i < outputs.len() {
             outputs[i]
@@ -79,15 +75,19 @@ pub fn build_orchard_bundle<R: RngCore>(
             0
         };
         let rcv = ValueCommitTrapdoor::random(&mut rng);
-        let output_note = random_orchard_note(recipient_address.clone(), amount, &mut rng);
-        let rseed_bytes = output_note.rseed().as_bytes();
         let nf = spend_note.nullifier(fvk);
+        let output_note = random_orchard_note(recipient_address.clone(), amount, Some(nf.clone()), &mut rng);
+        let rseed_bytes = output_note.rseed().as_bytes();
         let mut alpha = [0u8; 64];
         rng.fill_bytes(&mut alpha);
         let ak: SpendValidatingKey = fvk.clone().into();
         let rk = ak.randomize(&pallas::Scalar::zero());
         let cmx = output_note.commitment();
         let cmx: ExtractedNoteCommitment = cmx.into();
+        println!("cmx {:?}", cmx);
+        println!("address {}", hex::encode(&output_note.recipient().to_raw_address_bytes()));
+        println!("rho {:?}", &output_note.rho());
+        println!("rseed {}", hex::encode(output_note.rseed().as_bytes()));
         let v_net: ValueSum = spend_note.value() - output_note.value();
         let vv = i64::try_from(v_net).unwrap();
         total_net += vv;
@@ -113,10 +113,10 @@ pub fn build_orchard_bundle<R: RngCore>(
             nf, rk, cmx.into(), encrypted_note, cv_net, SigningMetadata {
                 dummy_ask: None, parts: SigningParts { ak, alpha: Default::default() } }
         ));
-        ledger_add_o_action(&nf.to_bytes(), amount, &epk, &recipient_address.to_raw_address_bytes(),
+        test_writer.ledger_add_o_action(&nf.to_bytes(), amount, &epk, &recipient_address.to_raw_address_bytes(),
             &enc[0..52], rseed_bytes)?;
     }
-    ledger_set_stage(5)?;
+    test_writer.ledger_set_stage(5)?;
 
     let actions = NonEmpty::from_slice(&actions).unwrap();
     let bundle: Bundle<InProgress<Unproven, OrchardUnAuth>, Amount> = Bundle::from_parts(
@@ -126,7 +126,7 @@ pub fn build_orchard_bundle<R: RngCore>(
         anchor,
         InProgress::<Unproven, OrchardUnAuth>::empty()
     );
-    ledger_set_net_orchard(total_net)?;
+    test_writer.ledger_set_net_orchard(total_net)?;
 
     Ok(Some(bundle))
 }
