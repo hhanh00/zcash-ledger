@@ -75,3 +75,8 @@ def unpack_bn_response(response: bytes) -> bytes:
     assert len(response) == 0
 
     return data
+
+def unpack_sized_response(response: bytes, size: int) -> bytes:
+    response, data = pop_sized_buf_from_buffer(response, size)
+    assert len(response) == 0
+    return data
