@@ -42,12 +42,12 @@ class ZcashCommandSender:
     #                                  p2=P2.P2_LAST,
     #                                  data=b"")
 
-    # def get_app_name(self) -> RAPDU:
-    #     return self.backend.exchange(cla=CLA,
-    #                                  ins=InsType.GET_APP_NAME,
-    #                                  p1=P1.P1_START,
-    #                                  p2=P2.P2_LAST,
-    #                                  data=b"")
+    def send_request_no_params(self, ins) -> RAPDU:
+        return self.backend.exchange(cla=CLA,
+                                     ins=ins,
+                                     p1=0,
+                                     p2=0,
+                                     data=b"")
 
     def send_and_check_message(self, msg):
         req = binascii.unhexlify(msg['req'])

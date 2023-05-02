@@ -10,9 +10,7 @@ def pop_size_prefixed_buf_from_buf(buffer:bytes) -> Tuple[bytes, int, bytes]:
     data_len = buffer[0]
     return buffer[1+data_len:], data_len, buffer[1:data_len+1]
 
-# Unpack from response:
-# response = app_name (var)
-def unpack_get_app_name_response(response: bytes) -> str:
+def unpack_ascii(response: bytes) -> str:
     return response.decode("ascii")
 
 # Unpack from response:

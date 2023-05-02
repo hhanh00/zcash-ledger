@@ -31,8 +31,6 @@
 #include "../crypto/orchard.h"
 #include "../crypto/tx.h"
 #include "../ui/action/validate.h"
-#include "../handler/get_version.h"
-#include "../handler/get_app_name.h"
 #include "../handler/get_address.h"
 #include "../handler/test_math.h"
 #include "../helper/send_response.h"
@@ -55,6 +53,8 @@
 #define SAPLING_OUT_LEN (43+8+32+52+RSEED_LEN)
 #define ORCHARD_OUT_LEN (32+43+8+32+52+RSEED_LEN)
 
+const uint8_t VERSION[] = { 1, 0, 1 };
+
 int apdu_dispatcher(const command_t *cmd) {
     if (cmd->cla != CLA) {
         return io_send_sw(SW_CLA_NOT_SUPPORTED);
@@ -67,14 +67,13 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
+            return helper_send_response_bytes(VERSION, 3);
 
-            return handler_get_version();
         case GET_APP_NAME:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-
-            return handler_get_app_name();
+            return helper_send_response_bytes((uint8_t *)"Zcash", 5);
         
         case INITIALIZE:
             if (cmd->p2 != 0) {
