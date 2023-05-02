@@ -35,6 +35,7 @@
 #include "globals.h"
 
 static uint8_t spending_key[32];
+
 void orchard_derive_spending_key(int8_t account) {
     uint8_t hash[64];
     uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
@@ -44,6 +45,14 @@ void orchard_derive_spending_key(int8_t account) {
                                 5,
                                 spending_key,
                                 NULL);
+
+    cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
+                              NULL, 0,
+                              (uint8_t *) "ZOrchardSeedHash", 16);
+    cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
+            CX_LAST,
+            spending_key, 32,
+            spending_key, 32);
 
     PRINTF("SPENDING KEY %.*H\n", 32, spending_key);
     memmove(hash, spending_key, 32);

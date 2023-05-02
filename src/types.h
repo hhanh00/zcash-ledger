@@ -23,8 +23,8 @@ typedef enum {
     GET_VERSION = 0x03,     /// version of the application
     GET_APP_NAME = 0x04,    /// name of the application
     INITIALIZE = 0x05,
-    GET_FVK = 0x06,         /// full viewing key (diversifiable viewing key)
-    GET_PUBKEY = 0x07,
+    GET_PUBKEY = 0x06,
+    GET_FVK = 0x07,         /// full viewing key (diversifiable viewing key)
     GET_OFVK = 0x08,        /// orchard fvk
     INIT_TX = 0x10,
     CHANGE_STAGE = 0x11,
@@ -43,12 +43,12 @@ typedef enum {
     SIGN_TRANSPARENT = 0x21,
     SIGN_SAPLING = 0x22,
     SIGN_ORCHARD = 0x23,
+    GET_S_SIGHASH = 0x24,
     END_TX = 0x30,
     TEST_CMU = 0x80,
     TEST_JUBJUB_HASH = 0x81,
     TEST_PEDERSEN_HASH = 0x82,
-    GET_S_SIGHASH = 0x83,
-    GET_T_SIGHASH = 0x84,
+    GET_T_SIGHASH = 0x83,
     GET_DEBUG_BUFFER = 0xFE,
     TEST_MATH = 0xFF,
 } command_e;

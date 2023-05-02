@@ -306,6 +306,15 @@ int apdu_dispatcher(const command_t *cmd) {
 
             return sign_orchard();
 
+        case GET_S_SIGHASH:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 0)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return get_sighash(NULL);
+
         case END_TX:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -332,15 +341,6 @@ int apdu_dispatcher(const command_t *cmd) {
         }
 
         case GET_T_SIGHASH:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 0)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            return get_sighash(NULL);
-
-        case GET_S_SIGHASH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }

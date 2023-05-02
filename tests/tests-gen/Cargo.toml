@@ -8,6 +8,7 @@ anyhow = "1.0"
 incrementalmerkletree = "0.3.1"
 orchard = "0.3.0"
 zcash_primitives = { git = "https://github.com/hhanh00/librustzcash.git", rev = "e2fe0b8d386fad99e00d6135c5caf3cc04045646", features = [ "transparent-inputs" ] }
+zcash_client_backend = { git = "https://github.com/hhanh00/librustzcash.git", rev = "e2fe0b8d386fad99e00d6135c5caf3cc04045646", features = [ "transparent-inputs" ] }
 zcash_note_encryption = "0.3.0"
 pasta_curves = "0.5"
 jubjub = "0.10"
@@ -24,6 +25,9 @@ blake2b_simd = "1.0"
 hex = "0.4"
 hex-literal = "0.4"
 
+tiny-bip39 = "0.8"
+tiny-hderive = "0.3.0"
+
 reqwest = { version = "0.11.4", features = ["blocking", "json", "rustls-tls"] }
 serde_json = "1.0"
 struson = "0.1.0"
@@ -36,4 +40,5 @@ orchard = { git = "https://github.com/hhanh00/orchard.git", rev = "fa4ec31bd17b7
 
 [patch."https://github.com/hhanh00/librustzcash.git"]
 zcash_primitives = { path = "../../../../ywallet/librustzcash/zcash_primitives", features = [ "transparent-inputs" ] }
+zcash_client_backend = { path = "../../../../ywallet/librustzcash/zcash_client_backend" }
 

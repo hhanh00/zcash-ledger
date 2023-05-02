@@ -48,7 +48,7 @@ int derive_ssk(uint8_t *ssk, uint8_t account) {
 
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
                               NULL, 0,
-                              (uint8_t *) "ZMSeedPRNG__Hash", 16);
+                              (uint8_t *) "ZSaplingSeedHash", 16);
     cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
             CX_LAST,
             ssk, 32,
@@ -67,6 +67,7 @@ void sapling_derive_spending_key(int8_t account) {
     derive_ssk(spending_key, account);
     G_context.account = account;
 
+    PRINTF("SK %.*H\n", 32, spending_key);
     uint8_t xsk[64];
     memmove(xsk, spending_key, 32); // ask
     prf_expand_seed(xsk, 0);
@@ -83,7 +84,7 @@ void sapling_derive_spending_key(int8_t account) {
     memmove(exp_sk->ovk, xsk, 32);
 
     // dk - diversifier key
-    memmove(xsk, spending_key, 32); // ovk
+    memmove(xsk, spending_key, 32); // dk
     prf_expand_seed(xsk, 0x10);
     memmove(exp_sk->dk, xsk, 32);
 

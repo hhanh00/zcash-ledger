@@ -33,6 +33,7 @@ pub mod orchard;
 pub mod sapling;
 pub mod transparent;
 pub mod transport;
+pub mod key;
 
 pub fn random256<R: RngCore>(mut r: R) -> [u8; 32] {
     let mut res = [0u8; 32];

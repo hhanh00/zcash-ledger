@@ -13,9 +13,9 @@ CLA: int = 0xE0
 class InsType(IntEnum):
     GET_VERSION = 0x03
     GET_APP_NAME = 0x04
-    GET_PUBLIC_KEY = 0x05
-    SIGN_TX = 0x06
-    TEST_MATH = 0x07
+    GET_PUBKEY = 0x06
+    GET_FVK = 0x07
+    GET_OFVK = 0x08
     INIT_TX = 0x10
 
 

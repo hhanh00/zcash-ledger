@@ -221,17 +221,17 @@ impl TestWriter {
         Ok(())
     }
 
-    pub fn ledger_get_transparent_sighash(&mut self, txin_digest: &[u8]) -> Result<Vec<u8>> {
+    pub fn ledger_get_shielded_sighash(&mut self) -> Result<Vec<u8>> {
         let mut bb: Vec<u8> = vec![];
-        bb.write_all(&hex!("E083000020"))?;
-        bb.write_all(txin_digest)?;
+        bb.write_all(&hex!("E024000000"))?;
         let sighash = self.apdu(&bb)?;
         Ok(sighash)
     }
 
-    pub fn ledger_get_shielded_sighash(&mut self) -> Result<Vec<u8>> {
+    pub fn ledger_get_transparent_sighash(&mut self, txin_digest: &[u8]) -> Result<Vec<u8>> {
         let mut bb: Vec<u8> = vec![];
-        bb.write_all(&hex!("E084000000"))?;
+        bb.write_all(&hex!("E083000020"))?;
+        bb.write_all(txin_digest)?;
         let sighash = self.apdu(&bb)?;
         Ok(sighash)
     }
