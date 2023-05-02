@@ -225,11 +225,20 @@ int apdu_dispatcher(const command_t *cmd) {
             memmove(&net, p, 8);
             return set_o_net(net);
 
+        case SET_HEADER_DIGEST:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 32)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return set_header_digest(cmd->data);
+
         case SET_T_MERKLE_PROOF:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 4 * 32)
+            if (cmd->lc != 3 * 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             return set_t_merkle_proof((t_proofs_t *)cmd->data);
@@ -272,15 +281,6 @@ int apdu_dispatcher(const command_t *cmd) {
             }
             return get_proofgen_key();
 
-        case GET_SIGHASH:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 0)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            return get_sighash();
-
         case SIGN_TRANSPARENT:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -316,7 +316,7 @@ int apdu_dispatcher(const command_t *cmd) {
             reset_app();
             return helper_send_response_bytes(NULL, 0);
 
-#ifndef DEBUG
+#ifdef TEST
         case TEST_CMU: {
             note_t note;
             memset(&note, 0, sizeof(note_t));
@@ -331,7 +331,24 @@ int apdu_dispatcher(const command_t *cmd) {
             cmx(note_cmx, note.address, note.value, note.rseed, note.rho);
             return helper_send_response_bytes(note_cmx, 32);
         }
-#endif
+
+        case GET_T_SIGHASH:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 0)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return get_sighash(NULL);
+
+        case GET_S_SIGHASH:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 32)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+
+            return get_sighash(cmd->data);
 
         case TEST_JUBJUB_HASH: {
             uint8_t gd_hash[32];
@@ -370,6 +387,7 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
             return handler_test_math();
+#endif
             
         default:
             return io_send_sw(SW_INS_NOT_SUPPORTED);

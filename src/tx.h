@@ -26,7 +26,6 @@ typedef struct {
 } o_action_t;
 
 typedef struct {
-    uint8_t header_digest[32];
     uint8_t prevouts_sig_digest[32];
     uint8_t scriptpubkeys_sig_digest[32];
     uint8_t sequence_sig_digest[32];

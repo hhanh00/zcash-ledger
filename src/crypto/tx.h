@@ -28,6 +28,7 @@ int set_s_net(int64_t balance);
 int set_o_net(int64_t balance);
 
 // These functions must be called before confirm_fee
+int set_header_digest(uint8_t *hash);
 int set_t_merkle_proof(t_proofs_t *t_proofs);
 int set_s_merkle_proof(s_proofs_t *s_proofs);
 int set_o_merkle_proof(o_proofs_t *o_proofs);
@@ -39,4 +40,4 @@ int sign_orchard();
 
 // Private
 int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len);
-int get_sighash();
+int get_sighash(uint8_t *txin_sig_hash);

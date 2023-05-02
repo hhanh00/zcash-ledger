@@ -28,25 +28,27 @@ typedef enum {
     GET_OFVK = 0x08,        /// orchard fvk
     INIT_TX = 0x10,
     CHANGE_STAGE = 0x11,
-    SET_T_MERKLE_PROOF = 0x12,
-    SET_S_MERKLE_PROOF = 0x13,
-    SET_O_MERKLE_PROOF = 0x14,
-    ADD_T_IN = 0x15,
-    ADD_T_OUT = 0x16,
-    ADD_S_OUT = 0x17,
-    ADD_O_ACTION = 0x18,
-    SET_S_NET = 0x19,
-    SET_O_NET = 0x1A,
-    CONFIRM_FEE = 0x1B,
-    GET_SIGHASH = 0x20,
-    GET_PROOFGEN_KEY = 0x21,
-    SIGN_TRANSPARENT = 0x22,
-    SIGN_SAPLING = 0x23,
-    SIGN_ORCHARD = 0x24,
+    ADD_T_IN = 0x12,
+    ADD_T_OUT = 0x13,
+    ADD_S_OUT = 0x14,
+    ADD_O_ACTION = 0x15,
+    SET_S_NET = 0x16,
+    SET_O_NET = 0x17,
+    SET_HEADER_DIGEST = 0x18,
+    SET_T_MERKLE_PROOF = 0x19,
+    SET_S_MERKLE_PROOF = 0x1A,
+    SET_O_MERKLE_PROOF = 0x1B,
+    CONFIRM_FEE = 0x1C,
+    GET_PROOFGEN_KEY = 0x20,
+    SIGN_TRANSPARENT = 0x21,
+    SIGN_SAPLING = 0x22,
+    SIGN_ORCHARD = 0x23,
     END_TX = 0x30,
     TEST_CMU = 0x80,
     TEST_JUBJUB_HASH = 0x81,
     TEST_PEDERSEN_HASH = 0x82,
+    GET_S_SIGHASH = 0x83,
+    GET_T_SIGHASH = 0x84,
     GET_DEBUG_BUFFER = 0xFE,
     TEST_MATH = 0xFF,
 } command_e;
@@ -149,6 +151,7 @@ typedef struct {
     uint8_t mseed[32];
     uint8_t amount_hash[32];
     uint8_t t_outputs_hash[32];
+    uint8_t header_hash[32];
     t_proofs_t t_proofs;
     s_proofs_t s_proofs;
     o_proofs_t o_proofs;

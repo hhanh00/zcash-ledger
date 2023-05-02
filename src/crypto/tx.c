@@ -322,6 +322,12 @@ int set_o_net(int64_t balance) {
     return helper_send_response_bytes(NULL, 0);
 }
 
+int set_header_digest(uint8_t *hash) {
+    memmove(&G_context.signing_ctx.header_hash, hash, sizeof(t_proofs_t));
+
+    return helper_send_response_bytes(NULL, 0);
+}
+
 int set_t_merkle_proof(t_proofs_t *t_proofs) {
     memmove(&G_context.signing_ctx.t_proofs, t_proofs, sizeof(t_proofs_t));
 
@@ -476,13 +482,13 @@ static int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
         cx_hash(ph, 0, txin_sig_digest, 32, NULL, 0);
     cx_hash(ph, CX_LAST, NULL, 0, transparent_hash, 32);
 
-    PRINTF("HEADER: %.*H\n", 32, G_context.signing_ctx.t_proofs.header_digest);
+    PRINTF("HEADER: %.*H\n", 32, G_context.signing_ctx.header_hash);
     PRINTF("TRANSPARENT SIG BUNDLE: %.*H\n", 32, transparent_hash);
 
     cx_blake2b_init2_no_throw(&tx_t_hasher, 256,
                               NULL, 0,
                               (uint8_t *) "ZcashTxHash_\xB4\xD0\xD6\xC2", 16);
-    cx_hash(ph, 0, G_context.signing_ctx.t_proofs.header_digest, 32, NULL, 0);
+    cx_hash(ph, 0, G_context.signing_ctx.header_hash, 32, NULL, 0);
     cx_hash(ph, 0, transparent_hash, 32, NULL, 0);
     cx_hash(ph, 0, G_context.signing_ctx.sapling_bundle_hash, 32, NULL, 0);
     cx_hash(ph, CX_LAST, G_context.signing_ctx.orchard_bundle_hash, 32, sighash, 32);
@@ -494,7 +500,12 @@ static int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
     return 0;
 }
 
-int get_sighash() {
+int get_sighash(uint8_t *txin_sig_hash) {
+    if (txin_sig_hash) {
+        uint8_t sighash[32];
+        finish_sighash(sighash, txin_sig_hash);
+        return helper_send_response_bytes(sighash, 32);
+    }
     return helper_send_response_bytes(G_context.signing_ctx.sapling_sig_hash, 32);
 }
 
