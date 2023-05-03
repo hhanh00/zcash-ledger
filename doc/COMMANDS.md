@@ -6,8 +6,40 @@
 | --- | --- | --- |
 | `GET_VERSION` | 0x03 | Get application version as `MAJOR`, `MINOR`, `PATCH` |
 | `GET_APP_NAME` | 0x04 | Get ASCII encoded application name |
-| `GET_PUBLIC_KEY` | 0x05 | Get public key given BIP32 path |
-| `SIGN_TX` | 0x06 | Sign transaction given BIP32 path and raw transaction |
+| `INITIALIZE` | 0x05 | Initialize the wallet and derive the secret keys for a given account |
+| `GET_PUBKEY` | 0x06 | Get the transparent public key |
+| `GET_FVK` | 0x07 | Get the sapling diversified full viewing key |
+| `GET_OFVK` | 0x08 | Get the orchard diversified full viewing key |
+| `GET_PROOFGEN_KEY` | 0x09 | Get the sapling proof generation key |
+| `INIT_TX` | 0x10 | Start the transaction signing workflow |
+| `CHANGE_STAGE` | 0x11 | Step to the next stage of the signing workflow |
+| `ADD_T_IN` | 0x12 | Add a transparent input amount |
+| `ADD_T_OUT` | 0x13 | Add a transparent output |
+| `ADD_S_OUT` | 0x14 | Add a sapling output |
+| `ADD_O_ACTION` | 0x15 | Add an orchard action |
+| `SET_S_NET` | 0x16 | Set the sapling net value |
+| `SET_O_NET` | 0x17 | Set the orchard net value |
+| `SET_HEADER_DIGEST` | 0x18 | Set the tx header digest |
+| `SET_T_MERKLE_PROOF` | 0x19 | Provide the transparent merkle proof |
+| `SET_S_MERKLE_PROOF` | 0x1A | Provide the sapling merkle proof |
+| `SET_O_MERKLE_PROOF` | 0x1B | Provide the orchard merkle proof |
+| `CONFIRM_FEE` | 0x1C | Ask the user to confirm the fees |
+| `GET_PROOFGEN_KEY` | 0x20 | Get the sapling zk-proof generation key |
+| `SIGN_TRANSPARENT` | 0x21 | Sign a transparent input |
+| `SIGN_SAPLING` | 0x22 | Sign a sapling input |
+| `SIGN_ORCHARD` | 0x23 | Sign an orchard action |
+| `GET_S_SIGHASH` | 0x24 | Get the binding signature hash |
+| `END_TX` | 0x30 | End the transaction signing workflow |
+
+## NOTES
+
+- Commands from 0x10 to 01F implement the transaction definition protocol.
+The user will be asked to confirm every output and fee. After that,
+the app can use Commands 0x20 to 0x30. If the user rejects the transaction,
+calling 0x21-0x23 will result in an error INVALID_STATE.
+- It is recommended to use the transaction building library included in `zcash-sync`
+on which YWallet is built. This library will take care of executing the
+signing workflow based on a transaction defined in JSON.
 
 ## GET_VERSION
 
@@ -37,33 +69,102 @@
 | --- | --- | --- |
 | var | 0x9000 | `APPNAME (var)` |
 
-## GET_PUBLIC_KEY
+## INITIALIZE
 
 ### Command
 
 | CLA | INS | P1 | P2 | Lc | CData |
 | --- | --- | --- | --- | --- | --- |
-| 0xE0 | 0x05 | 0x00 (no display) <br> 0x01 (display) | 0x00 | 1 + 4n | `len(bip32_path) (1)` \|\|<br> `bip32_path{1} (4)` \|\|<br>`...` \|\|<br>`bip32_path{n} (4)` |
+| 0xE0 | 0x05 | account | 0x00 | 0x00 | - |
 
 ### Response
 
 | Response length (bytes) | SW | RData |
 | --- | --- | --- |
-| var | 0x9000 | `len(public_key) (1)` \|\|<br> `public_key (var)` \|\|<br> `len(chain_code) (1)` \|\|<br> `chain_code (var)` |
+| 00 | 0x9000 | - |
 
-## SIGN_TX
+## GET_PUBKEY
 
 ### Command
 
 | CLA | INS | P1 | P2 | Lc | CData |
 | --- | --- | --- | --- | --- | --- |
-| 0xE0 | 0x06 | 0x00-0x03 (chunk index) | 0x00 (more) <br> 0x80 (last) | 1 + 4n | `len(bip32_path) (1)` \|\|<br> `bip32_path{1} (4)` \|\|<br>`...` \|\|<br>`bip32_path{n} (4)` |
+| 0xE0 | 0x06 | 0x00 | 0x00 | 0x00 | - |
 
 ### Response
 
 | Response length (bytes) | SW | RData |
 | --- | --- | --- |
-| var | 0x9000 | `len(signature) (1)` \|\| <br> `signature (var)` \|\| <br> `v (1)`|
+| 33 | 0x9000 | Compressed transparent public key |
+
+## GET_FVK
+
+### Command
+
+| CLA | INS | P1 | P2 | Lc | CData |
+| --- | --- | --- | --- | --- | --- |
+| 0xE0 | 0x07 | 0x00 | 0x00 | 0x00 | - |
+
+### Response
+
+| Response length (bytes) | SW | RData |
+| --- | --- | --- |
+| 0x80 | 0x9000 | ak,nk,ovk,dk |
+
+- ak: authorization public key
+- nk: nullifier public key
+- ovk: outgoing viewing key
+- dk: diversifier key
+
+Together, they form the diversified full viewing key that
+allows the decryption of incoming and outgoing notes and
+the creation of diversified addresses.
+
+![keys](keys.png)
+
+## GET_OFVK
+
+### Command
+
+| CLA | INS | P1 | P2 | Lc | CData |
+| --- | --- | --- | --- | --- | --- |
+| 0xE0 | 0x08 | 0x00 | 0x00 | 0x00 | - |
+
+### Response
+
+| Response length (bytes) | SW | RData |
+| --- | --- | --- |
+| 0x60 | 0x9000 | ak,nk,rivk |
+
+- ak: authorization public key
+- nk: nullifier public key
+- rivk: randomized 
+
+## GET_PROOFGEN_KEY
+
+### Command
+
+| CLA | INS | P1 | P2 | Lc | CData |
+| --- | --- | --- | --- | --- | --- |
+| 0xE0 | 0x09 | 0x00 | 0x00 | 0x00 | - |
+
+This key is needed to compute the zero knowledge proof.
+
+### Response
+
+| Response length (bytes) | SW | RData |
+| --- | --- | --- |
+| 0x40 | 0x9000 | ak,nsk |
+
+- ak: authorization public key
+- nsk: nullifier secret key
+
+Remark: ak is part of the diversified full viewing key that we obtained earlier. It is sent 
+again for completeness.
+
+# Transaction Signing Commands
+
+[TRANSACTION](TRANSACTION.md)
 
 ## Status Words
 
@@ -75,12 +176,5 @@
 | 0x6D00 | `SW_INS_NOT_SUPPORTED` | No command exists with `INS` |
 | 0x6E00 | `SW_CLA_NOT_SUPPORTED` | Bad `CLA` used for this application |
 | 0xB000 | `SW_WRONG_RESPONSE_LENGTH` | Wrong response length (buffer size problem) |
-| 0xB001 | `SW_DISPLAY_BIP32_PATH_FAIL` | BIP32 path conversion to string failed |
-| 0xB002 | `SW_DISPLAY_ADDRESS_FAIL` | Address conversion to string failed |
-| 0xB003 | `SW_DISPLAY_AMOUNT_FAIL` | Amount conversion to string failed |
-| 0xB004 | `SW_WRONG_TX_LENGTH` | Wrong raw transaction length |
-| 0xB005 | `SW_TX_PARSING_FAIL` | Failed to parse raw transaction |
-| 0xB006 | `SW_TX_HASH_FAIL` | Failed to compute hash digest of raw transaction |
 | 0xB007 | `SW_BAD_STATE` | Security issue with bad state |
-| 0xB008 | `SW_SIGNATURE_FAIL` | Signature of raw transaction failed |
 | 0x9000 | `OK` | Success |

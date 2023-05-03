@@ -32,11 +32,13 @@
 #include "jubjub.h"
 #include "blake2s.h"
 
+#include "sw.h"
 #include "globals.h"
 #include "address.h"
 #include "../ui/display.h"
 #include "../ui/menu.h"
 #include "../helper/send_response.h"
+#include "../action/validate.h"
 
 int derive_ssk(uint8_t *ssk, uint8_t account) {
     uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};

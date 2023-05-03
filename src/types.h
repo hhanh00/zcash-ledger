@@ -26,6 +26,7 @@ typedef enum {
     GET_PUBKEY = 0x06,
     GET_FVK = 0x07,         /// full viewing key (diversifiable viewing key)
     GET_OFVK = 0x08,        /// orchard fvk
+    GET_PROOFGEN_KEY = 0x09,
     INIT_TX = 0x10,
     CHANGE_STAGE = 0x11,
     ADD_T_IN = 0x12,
@@ -39,7 +40,6 @@ typedef enum {
     SET_S_MERKLE_PROOF = 0x1A,
     SET_O_MERKLE_PROOF = 0x1B,
     CONFIRM_FEE = 0x1C,
-    GET_PROOFGEN_KEY = 0x20,
     SIGN_TRANSPARENT = 0x21,
     SIGN_SAPLING = 0x22,
     SIGN_ORCHARD = 0x23,

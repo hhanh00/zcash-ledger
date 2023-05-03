@@ -79,7 +79,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-
+            derive_keys(cmd->p1);
             return helper_send_response_bytes(NULL, 0);
 
         case GET_PUBKEY:
