@@ -27,21 +27,21 @@ APP_LOAD_PARAMS += --appFlags 0x200  # APPLICATION_FLAG_BOLOS_SETTINGS
 else
 APP_LOAD_PARAMS += --appFlags 0x000
 endif
-APP_LOAD_PARAMS += --path "44'"
+APP_LOAD_PARAMS += --path "44'/133'"
 APP_LOAD_PARAMS += $(COMMON_LOAD_PARAMS)
 
-APPNAME      = "Boilerplate"
+APPNAME      = "Zcash"
 APPVERSION_M = 1
 APPVERSION_N = 0
 APPVERSION_P = 1
 APPVERSION   = "$(APPVERSION_M).$(APPVERSION_N).$(APPVERSION_P)"
 
 ifeq ($(TARGET_NAME),TARGET_NANOS)
-    ICONNAME=icons/nanos_app_boilerplate.gif
+    ICONNAME=icons/nanos_zcash.gif
 else ifeq ($(TARGET_NAME),TARGET_STAX)
-    ICONNAME=icons/stax_app_boilerplate_32px.gif
+    $(error STAX is NOT SUPPORTED)
 else
-    ICONNAME=icons/nanox_app_boilerplate.gif
+    ICONNAME=icons/nanox_zcash.gif
 endif
 
 DEFINES += $(DEFINES_LIB)
@@ -124,4 +124,4 @@ delete:
 include $(BOLOS_SDK)/Makefile.rules
 
 listvariants:
-	@echo VARIANTS COIN BOL
+	@echo VARIANTS COIN Zcash

@@ -90,7 +90,7 @@ UX_FLOW(ux_processing_flow,
         &ux_show_processing_step);
 
 int ui_display_processing(char *msg) {
-    strcpy(processing_msg, msg);
+    strlcpy(processing_msg, msg, 20);
     ux_flow_init(0, ux_processing_flow, NULL);
     return 0;
 }
