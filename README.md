@@ -1,17 +1,9 @@
 ## Disclaimer
 
-This project is under development but is working AFAIK. Please
-report any issue you find.
+It is supported by a [grant from the Zcash community](https://zcashgrants.org/gallery/25215916-53ea-4041-a3b2-6d00c487917d/35722316/).
 
-It is supported by a grant from the Zcash community and will
-be submitted to Ledger for official inclusion in their app store.
-
-The submission has not been filed yet.
-
-> Use at your own risk
-
-I highly recommend using a dedicated Ledger device 
-though Ledger OS security isolates coins from each other.
+It was submitted to Ledger for review. Once it is approved,
+it will be available on the Ledger App Store.
 
 ## Security
 
@@ -26,7 +18,9 @@ cannot access other coins**
 - Nano X does not support side-loading
 - Nano Stax is not available to the public yet
 
-## Installation
+## Installation (SIDE LOADING)
+
+You can install the app on a Nano S+ via sideloading. 
 
 - Install python
 - Install [ledgerblue](https://github.com/LedgerHQ/blue-loader-python)

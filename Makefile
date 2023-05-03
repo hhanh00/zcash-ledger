@@ -124,4 +124,4 @@ delete:
 include $(BOLOS_SDK)/Makefile.rules
 
 listvariants:
-	@echo VARIANTS COIN Zcash
+	@echo VARIANTS COIN zcash
