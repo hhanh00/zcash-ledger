@@ -483,7 +483,7 @@ int sign(uint8_t *signature, fr_t *sk, uint8_t *message) {
     return 0;
 }
 
-#ifdef NO_MONTGOMERY
+#if defined(NO_MONTGOMERY) && defined(TEST)
 void simple_point_test() {
     extended_point_t p;
     ext_set_identity(&p);

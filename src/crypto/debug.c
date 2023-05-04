@@ -24,6 +24,7 @@
 #include "../helper/send_response.h"
 #include "../globals.h"
 
+#ifdef TEST
 uint8_t debug_buffer[500];
 uint8_t *pdebug;
 
@@ -40,3 +41,4 @@ void append_debug(uint8_t *data, size_t data_len) {
 int get_debug_buffer(uint8_t i) {
     return helper_send_response_bytes(debug_buffer + i*250, 250);
 }
+#endif

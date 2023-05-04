@@ -40,14 +40,14 @@ void to_address_bech32(char *address, uint8_t *d, uint8_t *pk_d) {
     bech32_encode(address, "zs", buffer, buffer_len, BECH32_ENCODING_BECH32);
 }
 
-uint8_t address[26];
-uint8_t hash[32];
-cx_sha256_t sha_hasher;
-
 /**
  * out_address must has length 80 bytes at least
 */
 void to_t_address(char *out_address, uint8_t *kh) { 
+    uint8_t address[26];
+    uint8_t hash[32];
+    cx_sha256_t sha_hasher;
+
     address[0] = 0x1C;
     address[1] = 0xB8;
     memmove(address + 2, kh, 20);

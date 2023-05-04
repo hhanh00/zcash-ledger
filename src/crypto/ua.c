@@ -28,8 +28,7 @@
 #define UA_LEN (2+20+2+43+2+43+16)
 
 static uint8_t receivers[UA_LEN];
-static uint8_t bech32_buffer[250];
-static char ua[250];
+static uint8_t bech32_buffer[220];
 
 void encode_ua_inner(uint8_t *p);
 
@@ -73,8 +72,6 @@ void encode_ua_inner(uint8_t *p) {
     size_t buffer_len = 0;
     PRINTF("receivers %.*H\n", receivers_len, receivers);
     convert_bits(bech32_buffer, &buffer_len, 5, receivers, receivers_len, 8, 1);
-    bech32_encode(ua, "u", bech32_buffer, buffer_len, BECH32_ENCODING_BECH32M);
-    size_t ua_len = strlen(ua);
-    PRINTF("ua %s\n", ua);
-    memmove(G_context.address, ua, ua_len + 1);
+    bech32_encode(G_context.address, "u", bech32_buffer, buffer_len, BECH32_ENCODING_BECH32M);
+    PRINTF("ua %s\n", G_context.address);
 }
