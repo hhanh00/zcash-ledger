@@ -100,10 +100,6 @@ void extn_set_identity(extended_niels_point_t *v);
 
 void ext_to_niels(extended_niels_point_t *v, const extended_point_t *a);
 
-/// @brief v+v -> v
-/// @param v 
-void ext_double(extended_point_t *v);
-
 /// @brief v + a -> v
 /// @param v 
 /// @param a 
@@ -160,6 +156,6 @@ static inline void n_to_pk(uint8_t *nk, fr_t *nsk) {
 
 int sign(uint8_t *signature, fr_t *sk, uint8_t *message);
 
-#ifdef DEBUG
+#ifdef TEST
 void simple_point_test();
 #endif

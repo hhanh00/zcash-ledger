@@ -66,11 +66,11 @@ void encode_ua_inner(uint8_t *p) {
     *p++ = 'u';
     p += 15;
     size_t receivers_len = p - receivers;
-    PRINTF("padded %.*H\n", receivers_len, receivers);
+    // PRINTF("padded %.*H\n", receivers_len, receivers);
 
     f4jumble(receivers, receivers_len);
     size_t buffer_len = 0;
-    PRINTF("receivers %.*H\n", receivers_len, receivers);
+    // PRINTF("receivers %.*H\n", receivers_len, receivers);
     convert_bits(bech32_buffer, &buffer_len, 5, receivers, receivers_len, 8, 1);
     bech32_encode(G_context.address, "u", bech32_buffer, buffer_len, BECH32_ENCODING_BECH32M);
     PRINTF("ua %s\n", G_context.address);

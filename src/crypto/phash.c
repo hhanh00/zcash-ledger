@@ -28,6 +28,11 @@
 
 #include "os.h"
 
+void ext_from_niels(extended_point_t *r, extended_niels_point_t *x) {
+    ext_set_identity(r);
+    ext_add(r, x);
+}
+
 int calc_cmu(uint8_t *cmu, uint8_t *address, uint8_t *rseed, uint64_t *value) {
     int error = 0;
     PRINTF("Address: %.*H\n", 43, address);
@@ -38,10 +43,13 @@ int calc_cmu(uint8_t *cmu, uint8_t *address, uint8_t *rseed, uint64_t *value) {
     jubjub_hash(gd_hash, address, 11);
     extended_niels_point_t g_d_n;
     error = extn_from_bytes(&g_d_n, gd_hash);
+    PRINTF("gdn.vpu %.*H\n", 32, g_d_n.vpu);
+    PRINTF("gdn.vmu %.*H\n", 32, g_d_n.vmu);
     if (error) return error;
     extended_point_t g_d;
-    ext_set_identity(&g_d);
-    ext_add(&g_d, &g_d_n);
+    ext_from_niels(&g_d, &g_d_n);
+    PRINTF("g.u %.*H\n", 32, g_d.u);
+    PRINTF("g.v %.*H\n", 32, g_d.v);
     ext_to_bytes(gd_hash, &g_d);
     PRINTF("G_d: %.*H\n", 32, gd_hash);
 

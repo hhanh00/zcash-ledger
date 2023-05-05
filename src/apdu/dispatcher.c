@@ -325,21 +325,6 @@ int apdu_dispatcher(const command_t *cmd) {
             return helper_send_response_bytes(NULL, 0);
 
 #ifdef TEST
-        case TEST_CMU: {
-            note_t note;
-            memset(&note, 0, sizeof(note_t));
-            p = cmd->data;
-
-            MOVE_FIELD(note, address);
-            MOVE_FIELD(note, value);
-            MOVE_FIELD(note, rseed);
-            MOVE_FIELD(note, rho);
-
-            uint8_t note_cmx[32];
-            cmx(note_cmx, note.address, note.value, note.rseed, note.rho);
-            return helper_send_response_bytes(note_cmx, 32);
-        }
-
         case GET_T_SIGHASH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -348,32 +333,6 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             return get_sighash(cmd->data);
-
-        case TEST_JUBJUB_HASH: {
-            uint8_t gd_hash[32];
-            jubjub_hash(gd_hash, cmd->data + 32, 11);
-            extended_niels_point_t g_d_n;
-            extn_from_bytes(&g_d_n, gd_hash);
-
-            extended_point_t g_d;
-            ext_set_identity(&g_d);
-            ext_add(&g_d, &g_d_n);
-            ext_to_bytes(gd_hash, &g_d);
-            PRINTF("G_d: %.*H\n", 32, gd_hash);
-
-            uint8_t rcm[64];
-            memmove(rcm, cmd->data, 32);
-            prf_expand_seed(rcm, 4);
-            fr_from_wide(rcm);
-
-            return helper_send_response_bytes(rcm, 32);
-        }
-
-        case TEST_PEDERSEN_HASH: {
-            uint8_t cmu[32];
-            pedersen_hash_cmu(cmu, (uint64_t *)cmd->data, cmd->data + 8, cmd->data + 40, (fr_t *)(cmd->data + 72));
-            return helper_send_response_bytes(cmu, 32);
-        }
 
         case GET_DEBUG_BUFFER:
             if (cmd->p2 != 0) {

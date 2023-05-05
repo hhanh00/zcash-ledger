@@ -240,6 +240,7 @@ int add_s_output(s_out_t *output, bool confirmation) {
     memmove(rseed, output->rseed, 32);
     #endif
 
+    PRINTF("ADDRESS: %.*H\n", 43, output->address);
     PRINTF("RSEED: %.*H\n", 32, rseed);
     PRINTF("AMOUNT: %.*H\n", 8, &output->amount);
 

@@ -214,6 +214,15 @@ static inline void fv_mult(fv_t *v, const fv_t *a, const fv_t *b) {
     cx_math_multm_no_throw((uint8_t *)v, (uint8_t *)a, (uint8_t *)b, fv_m, 32);
 }
 
-void print_bn(const char *label, cx_bn_t bn);
+#ifdef TEST
+void print_bn_internal(const char *label, cx_bn_t bn);
+#define print_bn(label, bn) print_bn_internal(label, bn)
+#else
+#define print_bn(label, bn)
+#endif
 
 bool ff_is_zero(uint8_t *v);
+
+#define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
+#define BN_DEF_ZERO BN_DEF(zero); cx_bn_set_u32(zero, 0);
+

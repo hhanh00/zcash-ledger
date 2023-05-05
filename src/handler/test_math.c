@@ -32,6 +32,8 @@
 #include "../helper/send_response.h"
 #include "../crypto/fr.h"
 #include "../crypto/prf.h"
+#include "../crypto/jubjub.h"
+#include "../crypto/phash.h"
 #include "../crypto/pallas.h"
 #include "../crypto/sinsemilla.h"
 #include "../crypto/ff1.h"
@@ -43,22 +45,17 @@
 
 #define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
 
-const uint8_t ask[] = { 
-    0x1A, 0x83, 0x3D, 0x7C, 0x27, 0x9D, 0xCD, 0xF5, 0x86, 0xC0, 0xFB, 0xAA, 0xCE, 0xB5, 0x36, 0x11, 0x9A, 0x12, 0x19, 0xA7, 0x3C, 0xEC, 0xD2, 0x14, 0x32, 0xA5, 0xD6, 0x25, 0x40, 0xE8, 0x7E, 0x7C
+const uint8_t data[] = { 
+    0xB3, 0x15, 0x69, 0x3B, 0x48, 0x6D, 0x4D, 0x3C, 0xD8, 0xE4, 0x25, 0x6E, 0x8C, 0x37, 0xCA, 0x4E, 0x8E, 0xC3, 0x67, 0xE4, 0xD9, 0x5D, 0x5C, 0x31, 0x46, 0x25, 0xDC, 0x7B, 0x44, 0xB5, 0x7E, 0xA2, 0xCA, 0x18, 0xFD, 0xCF, 0xF5, 0x87, 0x19, 0x06, 0xF4, 0x23, 0x8F
 };
-
-#ifdef DEBUG
-void test_hash_to_curve(uint8_t *r) {
-    hash_to_curve(&r, (uint8_t *)"HELLO", 5, "Sent from YWallet", 17);
-}
-#endif
 
 int handler_test_math() {
     int error = 0;
     jac_p_t r;
-    init_debug();
     BEGIN_TRY {
         TRY {
+            // hash_to_curve(&r, "Domain", 6, "hello", 5);
+
             // orchard_derive_spending_key(0);
 
             // CX_THROW(cx_bn_lock(32, 0)); 
@@ -110,18 +107,5 @@ int handler_test_math() {
     }
     END_TRY;
     if (error != 0) return io_send_sw(error);
-    return helper_send_response_bytes((uint8_t *)&r, 96);
+    return helper_send_response_bytes((uint8_t *)&r, 32);
 }
-
-// 628CF615D21CF30D41826ED13D4D4A1D3C9B8640E76AE52103E94683DDB8FB24
-// a85a53bfdb32c3e519768fbc054e0f5ff7ad48a0e58a276078b38b2464f8dd15
-
-// 24fbb8dd8346e90321e56ae740869b3c1d4a4d3dd16e82410df31cd215f68c62cc14620a8efd68b6991e6ff8f95caa2a47a65e21ccc02a89a93e951e2a6a777e
-// 24FBB8DD8346E90321E56AE740869B3C1D4A4D3DD16E82410DF31CD215F68C62CC14620A8EFD68B6991E6FF8F95CAA2A47A65E21CCC02A89A93E951E2A6A777E
-
-// a693b6030117ea11459e9095918dc762274efb2511ca5fa400471c7cb8706a5a32969525df9c14c452acacb35907e78f96fd35edb793d942cff62c6ad70cc066
-// 0x1976e3e92c88e6df8a700c855be3715e23e947f761754f2a09a02e9a6ba996f1
-
-// A693B6030117EA11459E9095918DC762274EFB2511CA5FA400471C7CB8706A5A32969525DF9C14C452ACACB35907E78F96FD35EDB793D942CFF62C6AD70CC066
-// 5A6A70B87C1C4700A45FCA1125FB4E2762C78D9195909E4511EA170103B693A6
-

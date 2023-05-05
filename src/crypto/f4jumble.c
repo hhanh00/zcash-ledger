@@ -33,7 +33,7 @@ void G(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t left_len) {
     memset(perso + 14, 0, 2);
     cx_blake2b_init2_no_throw(hash_ctx, 512, NULL, 0, perso, 16);
     cx_hash((cx_hash_t *)hash_ctx, CX_LAST, m, left_len, hash, 64);
-    PRINTF("G: %.*H\n", 64, hash);
+    // PRINTF("G: %.*H\n", 64, hash);
 }
 
 void H(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t left_len, size_t right_len) {
@@ -43,7 +43,7 @@ void H(cx_blake2b_t *hash_ctx, uint8_t round, uint8_t *m, size_t left_len, size_
     memset(perso + 14, 0, 2);
     cx_blake2b_init2_no_throw(hash_ctx, left_len * 8, NULL, 0, perso, 16);
     cx_hash((cx_hash_t *)hash_ctx, CX_LAST, m, right_len, hash, 64);
-    PRINTF("H: %.*H\n", left_len, hash);
+    // PRINTF("H: %.*H\n", left_len, hash);
 }
 
 static void xor(uint8_t *dst, uint8_t *src, size_t len) {

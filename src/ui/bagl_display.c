@@ -89,7 +89,7 @@ UX_STEP_CB(ux_display_reject_step,
 UX_FLOW(ux_processing_flow,
         &ux_show_processing_step);
 
-int ui_display_processing(char *msg) {
+int ui_display_processing(const char *msg) {
     strlcpy(processing_msg, msg, 20);
     ux_flow_init(0, ux_processing_flow, NULL);
     return 0;

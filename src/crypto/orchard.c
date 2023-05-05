@@ -98,7 +98,6 @@ void orchard_derive_spending_key(int8_t account) {
     cx_blake2b_init2_no_throw(&hash_ctx, 512, NULL, 0, (uint8_t *)"Zcash_ExpandSeed", 16);
     PRINTF("rivk %.*H\n", 32, hash);
     cx_hash((cx_hash_t *)&hash_ctx, 0, hash, 32, NULL, 0);
-    PRINTF("dst %.*H\n", 1, &dst);
     cx_hash((cx_hash_t *)&hash_ctx, 0, &dst, 1, NULL, 0);
     PRINTF("ak %.*H\n", 32, G_context.orchard_key_info.ak);
     cx_hash((cx_hash_t *)&hash_ctx, 0, G_context.orchard_key_info.ak, 32, NULL, 0);
