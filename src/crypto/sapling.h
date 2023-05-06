@@ -12,5 +12,7 @@ void sapling_derive_spending_key(int8_t account);
 /// @param nk 
 void sapling_ivk(uint8_t *ivk, const uint8_t *ak, const uint8_t *nk);
 
+/// @brief Get proof generation key: ak|nsk
+/// @return 
 int get_proofgen_key();
 

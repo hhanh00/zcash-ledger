@@ -1,3 +1,20 @@
+/**
+ * Montgomery multiplication helpers
+ * 
+ * The emulator Speculos does not support Montgomery Multiplication (MM)
+ * at this time.
+ * 
+ * We emulate it by using regular multiplication.
+ * 
+ * In Montgomery Form, a value x is replaced by x.h
+ * and the M. multiplication becomes MM(x*y) = MM(x*h * y*h) = xy * h
+ * i.e. it reduces the result by /R. R is chosen so that the reduction
+ * is quick.
+ * 
+ * Converting TO MF: x => x.h
+ * Converting FROM MF: x => x/h
+*/
+
 #ifdef MONTGOMERY_EMU
 static cx_bn_t R, RInv, mont_temp;
 static void init_mont(uint8_t *fx_m) {
@@ -39,7 +56,4 @@ static void init_mont(uint8_t *fx_m) {
 #endif
 
 #define CX_BN_MOD_MUL(r, a, b) cx_bn_mod_mul(r, a, b, M)
-#define CX_BN_MUL_OPT_MONT(r, a, b) (montgomery ? CX_MUL(r, a, b) : CX_BN_MOD_MUL(r, a, b))
 
-#define BN_IMPORT(dest, src, field) cx_bn_alloc_init(&dest.field, 32, src->field, 32); TO_MONT(dest.field);
-#define BN_EXPORT(src, dest, field) FROM_MONT(src.field); cx_bn_export(src.field, dest->field, 32);

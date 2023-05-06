@@ -31,7 +31,6 @@
 #include "../crypto/orchard.h"
 #include "../crypto/tx.h"
 #include "../ui/action/validate.h"
-#include "../handler/get_address.h"
 #include "../handler/test_math.h"
 #include "../helper/send_response.h"
 

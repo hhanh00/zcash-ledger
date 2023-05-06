@@ -98,11 +98,12 @@ void ext_set_identity(extended_point_t *v);
 /// @param v extended Niels point
 void extn_set_identity(extended_niels_point_t *v);
 
+/// @brief Convert an extended point into extended niels point
+/// @param v destination
+/// @param a source
 void ext_to_niels(extended_niels_point_t *v, const extended_point_t *a);
 
 /// @brief v + a -> v
-/// @param v 
-/// @param a 
 /// Note that a is a extended Niels point but v is not
 void ext_add(extended_point_t *v, const extended_niels_point_t *a);
 
@@ -111,6 +112,9 @@ void ext_add(extended_point_t *v, const extended_niels_point_t *a);
 /// @param a 
 void ext_to_bytes(uint8_t *v, const extended_point_t *a);
 
+/// @brief u-coordinate extractor
+/// @param u result
+/// @param a 
 void ext_to_u(uint8_t *u, const extended_point_t *a);
 
 /// @brief convert a 32-byte array to a point
@@ -154,8 +158,9 @@ static inline void n_to_pk(uint8_t *nk, fr_t *nsk) {
     jubjub_to_pk(nk, &PROOF_GENERATOR_NIELS, nsk);
 }
 
+/// @brief Sign a message with a secret key
+/// @param signature 64-byte signature
+/// @param sk secret key
+/// @param message 32-byte hash message
+/// @return 
 int sign(uint8_t *signature, fr_t *sk, uint8_t *message);
-
-#ifdef TEST
-void simple_point_test();
-#endif
