@@ -83,11 +83,11 @@ typedef struct {
 } bn_extended_niels_point_t;
 
 void bn_init_identity(bn_extended_point_t *v) {
-    cx_bn_alloc_init(&v->u, 32, fq_0, 32);
-    cx_bn_alloc_init(&v->v, 32, fq_1, 32);
-    cx_bn_alloc_init(&v->z, 32, fq_1, 32);
-    cx_bn_alloc_init(&v->t1, 32, fq_0, 32);
-    cx_bn_alloc_init(&v->t2, 32, fq_0, 32);
+    cx_bn_alloc(&v->u, 32); cx_bn_set_u32(v->u, 0);
+    cx_bn_alloc(&v->v, 32); cx_bn_set_u32(v->v, 1);
+    cx_bn_alloc(&v->z, 32); cx_bn_set_u32(v->z, 1);
+    cx_bn_alloc(&v->t1, 32); cx_bn_set_u32(v->t1, 0);
+    cx_bn_alloc(&v->t2, 32); cx_bn_set_u32(v->t2, 0);
     TO_MONT(v->v);
     TO_MONT(v->z);
 }
@@ -130,7 +130,7 @@ void bn_store_extended(extended_point_t *v, const bn_extended_point_t *a) {
 }
 
 static void bn_ext_double(bn_extended_point_t *v) {
-    cx_bn_t zero; cx_bn_alloc_init(&zero, 32, fq_0, 32);    
+    BN_DEF_ZERO;    
     cx_bn_t temp;
     cx_bn_alloc(&temp, 32);
     cx_bn_t uu;
@@ -189,7 +189,7 @@ static void bn_ext_double(bn_extended_point_t *v) {
 }
 
 static void bn_ext_add(bn_extended_point_t *x, const bn_extended_niels_point_t *y) {
-    cx_bn_t zero; cx_bn_alloc_init(&zero, 32, fq_0, 32);    
+    BN_DEF_ZERO;  
     cx_bn_t temp; cx_bn_alloc(&temp, 32);
     cx_bn_t a; cx_bn_alloc(&a, 32);
     cx_bn_t b; cx_bn_alloc(&b, 32);
@@ -324,39 +324,43 @@ int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     pv[31] &= 0x7F;
     swap_endian(pv, 32);
 
-    if (!fq_ok(&v)) return CX_INVALID_PARAMETER;
-
-    fq_t v2;
-    memmove(&v2, v, 32);
-    fq_square(&v2);
-
-    fq_t v2m1;
-    fq_sub(&v2m1, &v2, &fq_1); // v2-1
-
-    fq_mult(&v2, &v2, &fq_D); //v2*D
-    fq_add(&v2, &v2, &fq_1); //v2*D+1
-    fq_inv(&v2); // 1/(v2*D+1)
-    fq_mult(&v2, &v2m1, &v2); // v2 = (v2-1)/(v2*D+1)
-
-    cx_bn_lock(32, 0);
-    cx_bn_t u2, m, bn_u;
-    cx_bn_alloc_init(&u2, 32, (uint8_t *)&v2, 32);
-    cx_bn_alloc_init(&m, 32, (uint8_t *)&fq_m, 32);
-    cx_bn_alloc(&bn_u, 32);
-
-    error = cx_bn_mod_sqrt(bn_u, u2, m, sign);
-
-    fq_t u;
-    cx_bn_export(bn_u, (uint8_t *)&u, 32);
-    cx_bn_unlock();
-
-    if (error) return error;
+    if (!fq_ok(&v)) {
+        cx_bn_unlock();
+        return CX_INVALID_PARAMETER;
+    }
 
     cx_bn_lock(32, 0);
     init_mont((uint8_t *)fq_m);
+    BN_DEF(one); cx_bn_set_u32(one, 1);
+    BN_DEF(temp);
+    BN_DEF(bn_v); cx_bn_init(bn_v, v, 32);
+    BN_DEF(v2);
+    CX_BN_MOD_MUL(v2, bn_v, bn_v);
+
+    BN_DEF(v2m1);
+    cx_bn_mod_sub(v2m1, v2, one, M); // v2-1
+
+    BN_DEF(D); cx_bn_init(D, fq_D, 32);
+    CX_BN_MOD_MUL(temp, v2, D); //v2*D
+    cx_bn_mod_add_fixed(v2, temp, one, M); //v2*D+1
+    cx_bn_mod_invert_nprime(temp, v2, M); // 1/(v2*D+1)
+    BN_DEF(u2);
+    CX_BN_MOD_MUL(u2, v2m1, temp); // u2 = (v2-1)/(v2*D+1)
+
+    BN_DEF(bn_u);
+    error = cx_bn_mod_sqrt(bn_u, u2, M, sign);
+
+    fq_t u;
+    cx_bn_export(bn_u, (uint8_t *)&u, 32);
+
+    if (error) {
+        cx_bn_unlock();
+        return error;
+    }
+
     bn_extended_point_t p;
-    cx_bn_alloc_init(&p.u, 32, u, 32); TO_MONT(p.u);
-    cx_bn_alloc_init(&p.v, 32, v, 32); TO_MONT(p.v);
+    cx_bn_alloc(&p.u, 32); cx_bn_copy(p.u, bn_u); TO_MONT(p.u);
+    cx_bn_alloc(&p.v, 32); cx_bn_copy(p.v, bn_v); TO_MONT(p.v);
     cx_bn_alloc(&p.z, 32); cx_bn_set_u32(p.z, 1); TO_MONT(p.z);
     cx_bn_alloc(&p.t1, 32); cx_bn_copy(p.t1, p.u);
     cx_bn_alloc(&p.t2, 32); cx_bn_copy(p.t1, p.v);
@@ -365,7 +369,6 @@ int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     bn_ext_double(&p);
     bn_ext_double(&p); // *8 (cofactor)
 
-    BN_DEF(temp);
     BN_DEF(temp2);
     BN_DEF(temp3);
     cx_bn_mod_add_fixed(temp, p.v, p.u, M); 
