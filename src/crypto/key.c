@@ -23,6 +23,7 @@
 #include "key.h"
 #include "transparent.h"
 #include "sapling.h"
+#include "sapling2.h"
 #include "orchard.h"
 #include "ua.h"
 #include "../globals.h"
@@ -30,6 +31,7 @@
 static void derive_keys_inner(uint8_t account) {
     transparent_derive_pubkey(account);
     sapling_derive_spending_key(account);
+    sapling_derive_spending_key2(account);
     orchard_derive_spending_key(account);
     G_context.account = account;
     G_context.keys_derived = true;

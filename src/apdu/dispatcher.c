@@ -28,6 +28,7 @@
 #include "../common/buffer.h"
 #include "../crypto/transparent.h"
 #include "../crypto/sapling.h"
+#include "../crypto/sapling2.h"
 #include "../crypto/orchard.h"
 #include "../crypto/tx.h"
 #include "../ui/action/validate.h"

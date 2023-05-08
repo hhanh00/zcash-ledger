@@ -69,7 +69,7 @@ void sapling_derive_spending_key(int8_t account) {
     derive_ssk(spending_key, account);
     G_context.account = account;
 
-    PRINTF("SK %.*H\n", 32, spending_key);
+    PRINTF("SAPLING SK %.*H\n", 32, spending_key);
     uint8_t xsk[64];
     memmove(xsk, spending_key, 32); // ask
     prf_expand_seed(xsk, 0);
@@ -90,6 +90,11 @@ void sapling_derive_spending_key(int8_t account) {
     prf_expand_seed(xsk, 0x10);
     memmove(exp_sk->dk, xsk, 32);
 
+    PRINTF("ask %.*H\n", 32, exp_sk->ask);
+    PRINTF("nsk %.*H\n", 32, exp_sk->nsk);
+    PRINTF("ovk %.*H\n", 32, exp_sk->ovk);
+    PRINTF("dk %.*H\n", 32, exp_sk->dk);
+
     uint8_t di[11];
     memset(di, 0, 11);
 
@@ -100,6 +105,7 @@ void sapling_derive_spending_key(int8_t account) {
         memmove(di, &i, 4);
 
         ff1(exp_sk->d, exp_sk->dk, di);
+        PRINTF("d %.*H\n", 11, exp_sk->d);
 
         uint8_t gd_hash[32];
         jubjub_hash(gd_hash, exp_sk->d, 11);
@@ -120,14 +126,21 @@ void sapling_derive_spending_key(int8_t account) {
 
     fr_t ivk;
     sapling_ivk(ivk, ak, nk);
+    PRINTF("ivk %.*H\n", 32, ivk);
 
     extended_point_t pk_d;
     swap_endian(ivk, 32);
     ext_base_mult(&pk_d, &g_d, &ivk);
+    PRINTF("vpu %.*H\n", 32, g_d.vpu);
+    PRINTF("vmu %.*H\n", 32, g_d.vmu);
+    PRINTF("z %.*H\n", 32, g_d.z);
+    PRINTF("t2d %.*H\n", 32, g_d.t2d);
 
     ext_to_bytes(exp_sk->pk_d, &pk_d);
 
+    PRINTF("pkd %.*H\n", 32, exp_sk->pk_d);
     to_address_bech32(G_context.address, exp_sk->d, exp_sk->pk_d);
+    PRINTF("address %s\n", G_context.address);
     ui_menu_main();
 }
 

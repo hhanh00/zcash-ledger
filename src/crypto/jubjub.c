@@ -260,12 +260,15 @@ void ext_base_mult(extended_point_t *v, const extended_niels_point_t *base, fr_t
         uint8_t c = (*x)[i];
         for (int j = j0; j < 8; j++) {
             bn_ext_double(&acc);
+            PRINTF("*");
             if (((c >> (7-j)) & 1) != 0) {
                 bn_ext_add(&acc, &b);
+                PRINTF("+");
             }
         }
         j0 = 0;
     }
+    PRINTF("\n");
     bn_store_extended(v, &acc);
     // PRINTF("U: %.*H\n", 32, v->u);
     // PRINTF("V: %.*H\n", 32, v->v);
@@ -346,6 +349,7 @@ int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     cx_bn_mod_invert_nprime(temp, v2, M); // 1/(v2*D+1)
     BN_DEF(u2);
     CX_BN_MOD_MUL(u2, v2m1, temp); // u2 = (v2-1)/(v2*D+1)
+    print_bn("u2", u2);
 
     BN_DEF(bn_u);
     error = cx_bn_mod_sqrt(bn_u, u2, M, sign);
@@ -368,6 +372,12 @@ int extn_from_bytes(extended_niels_point_t *r, const uint8_t *v0) {
     bn_ext_double(&p);
     bn_ext_double(&p);
     bn_ext_double(&p); // *8 (cofactor)
+
+    print_bn("u", p.u);
+    print_bn("v", p.v);
+    print_bn("z", p.z);
+    print_bn("t1", p.t1);
+    print_bn("t2", p.t2);
 
     BN_DEF(temp2);
     BN_DEF(temp3);

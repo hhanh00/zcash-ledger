@@ -165,12 +165,17 @@ typedef struct {
     bool has_o_action;
 } tx_signing_ctx_t;
 
+typedef struct {
+    cx_blake2b_t hasher;
+} sapling_derive_ctx_t;
+
 /**
  * Structure for global context.
  */
 typedef struct {
     uint8_t account;
     bool keys_derived;
+    sapling_derive_ctx_t sapling_derive_ctx;
     transparent_key_t transparent_key_info;
     expanded_spending_key_t exp_sk_info;
     orchard_key_t orchard_key_info;
