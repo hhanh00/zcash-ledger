@@ -32,8 +32,6 @@
 #include "../helper/send_response.h"
 #include "../crypto/fr.h"
 #include "../crypto/prf.h"
-#include "../crypto/jubjub.h"
-#include "../crypto/phash.h"
 #include "../crypto/pallas.h"
 #include "../crypto/sinsemilla.h"
 #include "../crypto/ff1.h"

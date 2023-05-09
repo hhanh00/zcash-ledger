@@ -200,13 +200,18 @@ void ff1_inplace(const uint8_t *dk, uint8_t *di) {
 
         // we need to take 12 bytes because d = 12 in our case
         // we know we only need at most 6 bytes because n/2 = 5.5
-        uint8_t c[6];
-        cx_math_add_no_throw(c, a, R + 6, 6); // skip first d-6
-        c[0] &= 0x0F; // modulo 5.5 bytes
+        // skip first d-6
+        // same as cx_math_add_no_throw(c, a, R + 6, 6) but without locking BN
+        // we want 6 byte BE, the closest is 8 byte LE therefore do some byte manipulation
+        uint64_t ia; memset(&ia, 0, 8); memmove((uint8_t *)&ia + 2, a, 6); swap_endian((uint8_t *)&ia, 8);
+        uint64_t iR; memset(&iR, 0, 8); memmove((uint8_t *)&iR + 2, R+6, 6); swap_endian((uint8_t *)&iR, 8);
+        uint64_t ic = ia + iR; swap_endian((uint8_t *)&ic, 8);
+        uint8_t *c = (uint8_t *)&ic;
+        c[2] &= 0x0F; // modulo 5.5 bytes
 
         // swap a & b and replace with c
         memmove(a, b, 6);
-        memmove(b, c, 6);
+        memmove(b, c+2, 6);
     }
 
     // stitch the result back

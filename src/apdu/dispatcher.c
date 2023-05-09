@@ -28,15 +28,13 @@
 #include "../common/buffer.h"
 #include "../crypto/transparent.h"
 #include "../crypto/sapling.h"
-#include "../crypto/sapling2.h"
 #include "../crypto/orchard.h"
 #include "../crypto/tx.h"
 #include "../ui/action/validate.h"
 #include "../handler/test_math.h"
 #include "../helper/send_response.h"
 
-#include "../crypto/jubjub.h"
-#include "../crypto/phash.h"
+#include "../crypto/fr.h"
 #include "../crypto/prf.h"
 #include "../crypto/key.h"
 #include "../crypto/debug.h"
@@ -278,7 +276,10 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            return get_proofgen_key();
+            memmove(fvk, G_context.proofk_info.ak, 32);
+            memmove(fvk + 32, G_context.exp_sk_info.nsk, 32);
+            swap_endian(fvk + 32, 32);
+            return helper_send_response_bytes(fvk, 64);
 
         case SIGN_TRANSPARENT:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

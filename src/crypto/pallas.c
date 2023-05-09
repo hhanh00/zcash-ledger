@@ -496,7 +496,8 @@ int pallas_from_bytes(jac_p_t *res, uint8_t *a) {
     cx_bn_export(y, res->y, 32);
     cx_bn_unlock();
     memmove(res->x, x, 32);
-    memmove(res->z, fq_1, 32);
+    memset(res->z, 0, 32);
+    res->z[31] = 1;
     return 0;
 }
 
@@ -755,9 +756,9 @@ void pallas_base_mult(jac_p_t *res, const jac_p_t *base, fv_t *x) {
 }
 
 void pallas_jac_alloc(jac_p_bn_t *dest) {
-    cx_bn_alloc_init(&dest->x, 32, fq_0, 32);
-    cx_bn_alloc_init(&dest->y, 32, fq_0, 32);
-    cx_bn_alloc_init(&dest->z, 32, fq_0, 32);
+    cx_bn_alloc(&dest->x, 32); cx_bn_set_u32(dest->x, 0);
+    cx_bn_alloc(&dest->y, 32); cx_bn_set_u32(dest->y, 0);
+    cx_bn_alloc(&dest->z, 32); cx_bn_set_u32(dest->z, 0);
 }
 
 void pallas_jac_init(jac_p_bn_t *dest, const jac_p_t *src) {
@@ -801,7 +802,6 @@ int pallas_sign(uint8_t *signature, fv_t *sk, uint8_t *message) {
     memset(m_buffer, 0, sizeof(m_buffer));
 
     cx_get_random_bytes(m_buffer, 80);
-    prf_chacha(&chacha_sig_rng, m_buffer, 80);
     memmove(m_buffer + 80, message, 64);
     PRINTF("random %.*H\n", 80, m_buffer);
 

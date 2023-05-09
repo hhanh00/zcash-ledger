@@ -27,7 +27,11 @@
 
 #include "sw.h"
 #include "ff1.h"
+#include "address.h"
+#include "tx.h"
 #include "globals.h"
+
+#include "../helper/send_response.h"
 
 #define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
 #ifndef MOD_ADD_FIX
@@ -41,8 +45,9 @@ static const uint8_t mont_h[] = {
     0x07, 0x48, 0xd9, 0xd9, 0x9f, 0x59, 0xff, 0x11, 0x05, 0xd3, 0x14, 0x96, 0x72, 0x54, 0x39, 0x8f, 0x2b, 0x6c, 0xed, 0xcb, 0x87, 0x92, 0x5c, 0x23, 0xc9, 0x99, 0xe9, 0x90, 0xf3, 0xf2, 0x9c, 0x6d
 };
 
+#include "fr.h"
 #include "mont.h"
-#include "sapling2.h"
+#include "sapling.h"
 
 /// q is the modulus of Fq
 /// q = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
@@ -105,7 +110,6 @@ void e_to_u(uint8_t *ub, const jj_e_t *p);
 
 void sk_to_pk(uint8_t *pkb, jj_en_t *g, cx_bn_t sk);
 int hash_to_e(jj_e_t *p, const uint8_t *msg, size_t len);
-void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed);
 
 static void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk);
 
@@ -123,29 +127,32 @@ static void load_en(jj_en_t *dest, const ff_jj_en_t *src);
 static void e_to_en(jj_en_t *dest, jj_e_t *src);
 static void e_set0(jj_e_t *r);
 
-static void print_e(jj_e_t *p);
-
 #define min(a, b) ((a) > (b) ? (b) : (a))
 
-static void print_bn(const char *label, cx_bn_t x) {
-    uint8_t v[32];
-    cx_bn_export(x, v, 32);
-    PRINTF("%s %.*H\n", label, 32, v);
-}
-
-static void print_mont(const char *label, cx_bn_t x) {
+#ifdef TEST
+static void print_mont_inner(const char *label, cx_bn_t x) {
     BN_DEF(v); cx_bn_copy(v, x);
     FROM_MONT(v);
     print_bn(label, v);
     cx_bn_destroy(&v);
 }
+#define print_mont(label, x) print_mont_inner(label, x)
+#else
+#define print_mont(label, x)
+#endif
 
-typedef struct {
-    uint8_t ask[32];
-    uint8_t nsk[32];
-    uint8_t ovk[32];
-    uint8_t dk[32];
-} sapling_keys_t;
+#ifdef TEST
+static void print_e_inner(jj_e_t *p) {
+    print_mont("u", p->u);
+    print_mont("v", p->v);
+    print_mont("z", p->z);
+    print_mont("t1", p->t1);
+    print_mont("t2", p->t2);
+}
+#define print_e(p) print_e_inner(p)
+#else
+#define print_e(p)
+#endif
 
 /**
  * spending_key -> ask, nsk, ovk, dk
@@ -159,10 +166,10 @@ typedef struct {
  * 
  * stack usage = hash (2) + spk + ask + nsk + ovk + dk + ak + nk + ivk + d (1/3) + pkd
 */
-void sapling_derive_spending_key2(uint8_t account) {
+void sapling_derive_spending_key(uint8_t account) {
     cx_bn_lock(32, 0);
     BN_DEF(rM); cx_bn_init(rM, fr_m, 32);
-    sapling_keys_t keys;
+    expanded_spending_key_t *pkeys = &G_context.exp_sk_info;
     PRINTF("Derive sapling keys for account %d\n", account);
 
     uint8_t buffer[64];
@@ -176,65 +183,64 @@ void sapling_derive_spending_key2(uint8_t account) {
     // ask, nsk are scalars obtained by hashing into 512 bit integer and then reducing mod R
     // ovk, dk are the first 256 bits of the 512 bit hash
     prf_expand_spending_key(buffer, spk, 0);
-    reduce_wide_bytes(keys.ask, buffer, rM);
+    reduce_wide_bytes(pkeys->ask, buffer, rM);
 
     prf_expand_spending_key(buffer, spk, 1);
-    reduce_wide_bytes(keys.nsk, buffer, rM);
+    reduce_wide_bytes(pkeys->nsk, buffer, rM);
 
     prf_expand_spending_key(buffer, spk, 2);
-    memmove(keys.ovk, buffer, 32);
+    memmove(pkeys->ovk, buffer, 32);
 
     prf_expand_spending_key(buffer, spk, 0x10);
-    memmove(keys.dk, buffer, 32);
+    memmove(pkeys->dk, buffer, 32);
 
-    PRINTF("ask %.*H\n", 32, keys.ask);
-    PRINTF("nsk %.*H\n", 32, keys.nsk);
-    PRINTF("ovk %.*H\n", 32, keys.ovk);
-    PRINTF("dk %.*H\n", 32, keys.dk);
+    PRINTF("ask %.*H\n", 32, pkeys->ask);
+    PRINTF("nsk %.*H\n", 32, pkeys->nsk);
+    PRINTF("ovk %.*H\n", 32, pkeys->ovk);
+    PRINTF("dk %.*H\n", 32, pkeys->dk);
 
     // ak is the byte representation of A = G.ask where G is the spending auth generator point
-    BN_DEF(ask); cx_bn_init(ask, keys.ask, 32);
+    BN_DEF(ask); cx_bn_init(ask, pkeys->ask, 32);
     uint8_t akb[32];
     jj_en_t G; alloc_en(&G); load_en(&G, &SPENDING_GEN);
     sk_to_pk(akb, &G, ask);
     PRINTF("ak %.*H\n", 32, akb);
     cx_bn_destroy(&ask);
+    memmove(G_context.proofk_info.ak, akb, 32);
 
     // same thing with nsk -> nk
-    BN_DEF(nsk); cx_bn_init(ask, keys.nsk, 32);
+    BN_DEF(nsk); cx_bn_init(ask, pkeys->nsk, 32);
     uint8_t nkb[32];
     load_en(&G, &PROOF_GEN);
     sk_to_pk(nkb, &G, nsk);
     PRINTF("nk %.*H\n", 32, nkb);
     cx_bn_destroy(&nsk);
     destroy_en(&G);
+    memmove(G_context.proofk_info.nk, nkb, 32);
 
     uint8_t ivkb[32];
     get_ivk(ivkb, akb, nkb);
     PRINTF("ivk %.*H\n", 32, ivkb);
 
-    cx_bn_unlock(); // Unlock BN to use FF1
     // Find the first diversifier = default address
     uint32_t i = 0;
     uint8_t di[11];
-    PRINTF("dk %.*H\n", 32, keys.dk);
+    PRINTF("dk %.*H\n", 32, pkeys->dk);
     jj_e_t Gd;
     for (;i < 5;) {
         PRINTF("i %d\n", i);
         memset(di, 0, 11);
         memmove(di, &i, 4); // Try this index
-        ff1_inplace(keys.dk, di); // Shuffle with ff1
+        ff1_inplace(pkeys->dk, di); // Shuffle with ff1
         PRINTF("di %.*H\n", 11, di);
 
-        cx_bn_lock(32, 0);
-        init_mont(fq_m);
         alloc_e(&Gd);
         int error = hash_to_e(&Gd, di, 11);
         PRINTF("hash_to_e %d\n", error);
         if (!error) break;
-        cx_bn_unlock();
         i++;
     }
+    memmove(pkeys->d, di, 11);
 
     alloc_en(&G);
     e_to_en(&G, &Gd);
@@ -246,14 +252,106 @@ void sapling_derive_spending_key2(uint8_t account) {
     BN_DEF(ivk); cx_bn_init(ivk, ivkb, 32);
     uint8_t pkdb[32];
     sk_to_pk(pkdb, &G, ivk);
+    memmove(pkeys->pk_d, pkdb, 32);
 
     PRINTF("pkd %.*H\n", 32, pkdb);
     to_address_bech32(G_context.address, di, pkdb);
     PRINTF("address %s\n", G_context.address);
+    cx_bn_unlock();
+}
 
-    uint8_t cmu[32];
-    get_cmu(cmu, di, pkdb, 10000, pkdb);
-    PRINTF("CMU %.*H\n", 32, cmu);
+void sapling_sign(uint8_t *signature, uint8_t *sig_hash) {
+    // PRINTF("sig hash %.*H\n", 32, sig_hash);
+    cx_bn_lock(32, 0); 
+    BN_DEF(rM); cx_bn_alloc_init(&rM, 32, fr_m, 32); // Use scalar field
+    // use signature buffer as temporary storage
+    // signature has 64 bytes, it will be used to store H* output
+    // wide is a BN with 64 bytes used for the same purpose
+    cx_bn_t wide; cx_bn_alloc(&wide, 64);
+
+    cx_blake2b_t hasher; // Hasher for H*
+    cx_hash_t *ph = (cx_hash_t *)&hasher;
+    cx_blake2b_init2_no_throw(&hasher, 512,
+                              NULL, 0, (uint8_t *) "Zcash_RedJubjubH", 16);
+    cx_get_random_bytes(signature, 64);
+    cx_hash(ph, 0, signature, 64, NULL, 0);
+    cx_get_random_bytes(signature, 16);
+    cx_hash(ph, 0, signature, 16, NULL, 0); // first 80 bytes are random
+
+    // generate a random alpha in Fr
+    prf_chacha(&chacha_alpha_rng, signature, 64); // pick a random alpha (64 bytes)
+    // PRINTF("pre-ALPHA %.*H\n", 64, signature);
+    swap_endian(signature, 64);
+    cx_bn_init(wide, signature, 64);
+    BN_DEF(rsk); // it is going to be r but use it for alpha for now
+    cx_bn_reduce(rsk, wide, rM);
+    // print_bn("ALPHA", rsk);
+
+    // rerandomize the authorization key with alpha as ask
+    // ask is going to be this signature secret key
+    BN_DEF(ask); cx_bn_init(ask, G_context.exp_sk_info.ask, 32);
+    // print_bn("ask", ask);
+    cx_bn_mod_add_fixed(ask, ask, rsk, rM); // ask is now re-randomized by alpha
+    // print_bn("SK", ask);
+
+    init_mont(fq_m);
+    // generate a unique keypair
+    // nonce = H*(random|Abar|sig_hash)
+    // where Abar = bytes(ask.G)
+    jj_e_t ak; alloc_e(&ak);
+    jj_en_t G; alloc_en(&G); load_en(&G, &SPENDING_GEN);
+    en_mul(&ak, &G, ask);
+    uint8_t abar[32];
+    e_to_bytes(abar, &ak);
+    // PRINTF("PK %.*H\n", 32, abar);
+    // 80 bytes of randomness were added earlier
+    cx_hash(ph, 0, abar, 32, NULL, 0); // Abar
+    cx_hash(ph, CX_LAST, sig_hash, 32, signature, 64); // sig_hash
+    // PRINTF("H* %.*H\n", 64, signature);
+
+    // reduce to scalar field like we did for alpha
+    swap_endian(signature, 64);
+    cx_bn_init(wide, signature, 64);
+    cx_bn_reduce(rsk, wide, rM);
+    // print_bn("rsk", rsk);
+
+    en_mul(&ak, &G, rsk); // ak = R = r.G
+    uint8_t rbar[32];
+    e_to_bytes(rbar, &ak);
+    // PRINTF("Rbar %.*H\n", 32, rbar);
+    // PRINTF("Abar %.*H\n", 32, abar);
+    // PRINTF("sig_hash %.*H\n", 32, sig_hash);
+
+    // H(rbar|abar|sig_hash)
+    cx_blake2b_init2_no_throw(&hasher, 512,
+                              NULL, 0, (uint8_t *) "Zcash_RedJubjubH", 16);
+    cx_hash(ph, 0, rbar, 32, NULL, 0); // Rbar
+    cx_hash(ph, 0, abar, 32, NULL, 0); // Abar
+    cx_hash(ph, CX_LAST, sig_hash, 32, signature, 64); // sig_hash
+    // signature = H(R|A|sig_hash)
+    // reduce to scalar
+    // PRINTF("H* %.*H\n", 64, signature);
+
+    swap_endian(signature, 64);
+    cx_bn_init(wide, signature, 64);
+    BN_DEF(ar);
+    cx_bn_reduce(ar, wide, rM);
+    // print_bn("S", ar);
+    // S = H(R|A|sig_hash) [rM]
+
+    // r + S * sk
+    BN_DEF(temp);
+    cx_bn_mod_mul(temp, ar, ask, rM);
+    // print_bn("S.sk", temp);
+    cx_bn_mod_add_fixed(temp, temp, rsk, rM);
+    // print_bn("r+S.sk", temp);
+    
+    memmove(signature, rbar, 32);
+    cx_bn_export(temp, signature + 32, 32);
+    swap_endian(signature + 32, 32);
+    // PRINTF("r|s %.*H\n", 64, signature);
+
+    cx_bn_unlock(); // no need to destroy BN individually
 }
 
 void sk_to_pk(uint8_t *pkb, jj_en_t *G, cx_bn_t sk) {
@@ -266,16 +364,15 @@ void sk_to_pk(uint8_t *pkb, jj_en_t *G, cx_bn_t sk) {
 /// @brief Reduce a 64 byte value modulo M
 /// @param dest 32 bytes
 /// @param src 64 bytes, src is modified!
-/// @param M 
-static void reduce_wide_bytes(uint8_t *dest, uint8_t *src, cx_bn_t M) {
+/// @param mod
+static void reduce_wide_bytes(uint8_t *dest, uint8_t *src, cx_bn_t mod) {
     swap_endian(src, 64);
-    cx_bn_t H; cx_bn_alloc_init(&H, 64, src, 64);
-    BN_DEF(h);
-    cx_bn_reduce(h, H, M);
-    cx_bn_export(h, src, 64);
-    memmove(dest, src + 32, 32); // High 32 bytes of src are now 0
-    cx_bn_destroy(&h);
-    cx_bn_destroy(&H);
+    cx_bn_t SRC; cx_bn_alloc_init(&SRC, 64, src, 64);
+    BN_DEF(DEST);
+    cx_bn_reduce(DEST, SRC, mod);
+    cx_bn_export(DEST, dest, 32);
+    cx_bn_destroy(&DEST);
+    cx_bn_destroy(&SRC);
 }
 
 /// @brief Derive the spending key. It is obtained by first using BIP-32 with path 
@@ -661,6 +758,8 @@ void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk) {
 }
 
 void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed) {
+    cx_bn_lock(32, 0);
+    init_mont(fq_m);
     BN_DEF(rM); cx_bn_init(rM, fr_m, 32);
     uint8_t buffer[64];
     uint8_t rcmb[32];
@@ -700,6 +799,7 @@ void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rs
     destroy_ph(&ph);
     cx_bn_destroy(&rcm);
     cx_bn_destroy(&rM);
+    cx_bn_unlock();
 }
 
 static void process_chunk(pedersen_state_t *state);
@@ -812,10 +912,3 @@ static void process_acc(pedersen_state_t *state) {
     destroy_en(&G);
 }
 
-static void print_e(jj_e_t *p) {
-    print_mont("u", p->u);
-    print_mont("v", p->v);
-    print_mont("z", p->z);
-    print_mont("t1", p->t1);
-    print_mont("t2", p->t2);
-}

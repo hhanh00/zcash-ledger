@@ -9,7 +9,6 @@
 
 extern cx_chacha_context_t chacha_rseed_rng;
 extern cx_chacha_context_t chacha_alpha_rng;
-extern cx_chacha_context_t chacha_sig_rng;
 
 int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len);
 

@@ -2,7 +2,9 @@
 
 #include <stdint.h>   // uint*_t
 
-void sapling_derive_spending_key2(uint8_t account);
+void sapling_derive_spending_key(uint8_t account);
+void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed);
+void sapling_sign(uint8_t *signature, uint8_t *sig_hash);
 
 typedef struct {
     cx_bn_t u;

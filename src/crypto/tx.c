@@ -20,15 +20,15 @@
 #include <stddef.h>   // size_t
 #include <string.h>   // memset, explicit_bzero
 
+#include <ox_bn.h>
 #include <lcx_blake2.h>
 #include <lcx_ecdsa.h>
 #include "sw.h"
 
 #include "../globals.h"
+#include "fr.h"
 #include "transparent.h"
 #include "sapling.h"
-#include "phash.h"
-#include "jubjub.h"
 #include "tx.h"
 #include "orchard.h"
 #include "../ui/display.h"
@@ -46,7 +46,6 @@ const uint8_t sapling_tx_in_hash[] = {
 
 cx_chacha_context_t chacha_rseed_rng;
 cx_chacha_context_t chacha_alpha_rng;
-cx_chacha_context_t chacha_sig_rng;
 
 static int transparent_bundle_hash();
 static int sapling_bundle_hash();
@@ -82,10 +81,6 @@ int init_tx() {
 
     cx_chacha_init(&chacha_alpha_rng, 20);
     cx_chacha_set_key(&chacha_alpha_rng, seed_rng, 32);
-
-    memset(seed_rng, 3, 32);
-    cx_chacha_init(&chacha_sig_rng, 20);
-    cx_chacha_set_key(&chacha_sig_rng, seed_rng, 32);
 
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher,
                               256,
@@ -245,7 +240,7 @@ int add_s_output(s_out_t *output, bool confirmation) {
     PRINTF("AMOUNT: %.*H\n", 8, &output->amount);
 
     uint8_t cmu[32];
-    calc_cmu(cmu, output->address, rseed, &output->amount);
+    get_cmu(cmu, output->address, output->address + 11, output->amount, rseed);
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
     cx_hash(ph, 0, cmu, 32, NULL, 0);           // cmu
@@ -541,22 +536,10 @@ int sign_sapling() {
     }
     ui_display_processing("sign z");
 
-    uint8_t alpha[64];
-    prf_chacha(&chacha_alpha_rng, alpha, 64);
-    fr_from_wide(alpha);
-    PRINTF("ALPHA: %.*H\n", 32, alpha);
-
-    fr_t ask;
-
-    fr_add(&ask, &G_context.exp_sk_info.ask, (fr_t *)alpha);
-
-    uint8_t msg[64];
-    a_to_pk(msg, &ask); // first 32 bytes are re-randomized pk
-    memmove(msg + 32, G_context.signing_ctx.sapling_sig_hash, 32);
-    PRINTF("MSG: %.*H\n", 64, msg);
-
     uint8_t signature[64];
-    sign(signature, &ask, msg);
+    sapling_sign(signature, G_context.signing_ctx.sapling_sig_hash);
+
+    PRINTF("signature %.*H\n", 64, signature);
 
     ui_menu_main();
     return helper_send_response_bytes(signature, 64);
