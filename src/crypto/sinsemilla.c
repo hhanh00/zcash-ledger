@@ -23,6 +23,8 @@
 
 #define min(a, b) ((a) > (b) ? (b) : (a))
 
+#ifdef ORCHARD
+
 void init_sinsemilla(sinsemilla_state_t *state, jac_p_t *Q) {
     memset(state, 0, sizeof(sinsemilla_state_t));
     memmove(&state->p, Q, sizeof(jac_p_t));
@@ -113,3 +115,5 @@ void sinsemilla_S(jac_p_t *S, uint32_t i) {
         (uint8_t *)"z.cash:SinsemillaS", 18,
         (uint8_t *)&i, 4);
 }
+
+#endif

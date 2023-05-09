@@ -25,16 +25,11 @@
 #include "../ui/display.h"
 #include "../globals.h"
 
-#define UA_LEN (2+20+2+43+2+43+16)
-
-static uint8_t receivers[UA_LEN];
-static uint8_t bech32_buffer[220];
-
-void encode_ua_inner(uint8_t *p);
+void encode_ua_inner(uint8_t *p, uint8_t *receivers);
 
 int encode_my_ua() {
-    memset(receivers, 0, UA_LEN);
-    uint8_t *p = receivers;
+    memset(G_store.receivers, 0, UA_LEN);
+    uint8_t *p = G_store.receivers;
     *p++ = 0;
     *p++ = 20;
     memmove(p, G_context.transparent_key_info.pkh, 20); p += 20;
@@ -42,27 +37,29 @@ int encode_my_ua() {
     *p++ = 43;
     memmove(p, G_context.exp_sk_info.d, 11); p += 11;
     memmove(p, G_context.exp_sk_info.pk_d, 32); p += 32;
+    #ifdef ORCHARD
     *p++ = 3;
     *p++ = 43;
     memmove(p, G_context.orchard_key_info.address, 43); p += 43;
+    #endif
 
-    encode_ua_inner(p);
+    encode_ua_inner(p, G_store.receivers);
 
     return 0;
 }
 
 int encode_ua(uint8_t *orchard_address) {
-    memset(receivers, 0, UA_LEN);
-    uint8_t *p = receivers;
+    memset(G_store.receivers, 0, UA_LEN);
+    uint8_t *p = G_store.receivers;
     *p++ = 3;
     *p++ = 43;
     memmove(p, orchard_address, 43); p += 43;
 
-    encode_ua_inner(p);
+    encode_ua_inner(p, G_store.receivers);
     return 0;
 }
 
-void encode_ua_inner(uint8_t *p) {
+void encode_ua_inner(uint8_t *p, uint8_t *receivers) {
     *p++ = 'u';
     p += 15;
     size_t receivers_len = p - receivers;
@@ -71,7 +68,7 @@ void encode_ua_inner(uint8_t *p) {
     f4jumble(receivers, receivers_len);
     size_t buffer_len = 0;
     // PRINTF("receivers %.*H\n", receivers_len, receivers);
-    convert_bits(bech32_buffer, &buffer_len, 5, receivers, receivers_len, 8, 1);
-    bech32_encode(G_context.address, "u", bech32_buffer, buffer_len, BECH32_ENCODING_BECH32M);
-    PRINTF("ua %s\n", G_context.address);
+    convert_bits(G_store.bech32_buffer, &buffer_len, 5, receivers, receivers_len, 8, 1);
+    bech32_encode(G_store.address, "u", G_store.bech32_buffer, buffer_len, BECH32_ENCODING_BECH32M);
+    PRINTF("ua %s\n", G_store.address);
 }

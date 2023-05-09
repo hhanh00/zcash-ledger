@@ -33,11 +33,35 @@ uint8_t G_io_seproxyhal_spi_buffer[IO_SEPROXYHAL_BUFFER_SIZE_B];
 ux_state_t G_ux;
 bolos_ux_params_t G_ux_params;
 global_ctx_t G_context;
+temp_t G_store;
+
+// This symbol is defined by the link script to be at the start of the stack
+// area.
+extern unsigned long _stack;
+
+
+#ifdef ORCHARD
+void init_canary() {}
+void check_canary_inner() {}
+#else
+#define STACK_CANARY (*((volatile uint32_t*) &_stack))
+
+void init_canary() {
+    STACK_CANARY = 0xDEADBEEF;
+}
+
+void check_canary_inner() {
+    if (STACK_CANARY != 0xDEADBEEF)
+        THROW(EXCEPTION_OVERFLOW);
+    PRINTF("stack checked\n");
+}
+#endif
 
 /**
  * Handle APDU command received and send back APDU response using handlers.
  */
 void app_main() {
+    init_canary();
     // Length of APDU command received in G_io_apdu_buffer
     int input_len = 0;
     // Structured APDU command
@@ -91,6 +115,8 @@ void app_main() {
                 io_send_sw(e);
             }
             FINALLY {
+                check_canary();
+                PRINTF("check stack passed\n");
             }
             END_TRY;
         }

@@ -25,7 +25,7 @@
 #include "../globals.h"
 
 #ifdef TEST
-uint8_t debug_buffer[500];
+uint8_t debug_buffer[1];
 uint8_t *pdebug;
 
 void init_debug() {

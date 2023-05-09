@@ -55,19 +55,19 @@ UX_STEP_NOCB(ux_display_address_step,
              bnnn_paging,
              {
                  .title = "Address",
-                 .text = G_context.address,
+                 .text = G_store.address,
              });
 UX_STEP_NOCB(ux_display_amount_step,
              bnnn_paging,
              {
                  .title = "Amount",
-                 .text = G_context.amount,
+                 .text = G_store.amount,
              });
 UX_STEP_NOCB(ux_display_fee_step,
              bnnn_paging,
              {
                  .title = "Fee",
-                 .text = G_context.amount,
+                 .text = G_store.amount,
              });
 // Step with approve button
 UX_STEP_CB(ux_display_approve_step,

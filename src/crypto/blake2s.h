@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../types.h"
+#include <stdint.h>   // uint*_t
 
 /**
  * Reference implementation of the  Blake2s

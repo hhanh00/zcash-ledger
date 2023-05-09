@@ -69,7 +69,7 @@ UX_STEP_NOCB(ux_address_step,
              bnnn_paging,
              {
                  .title = "Address",
-                 .text = G_context.address,
+                 .text = G_store.address,
              });
 UX_FLOW(ux_menu_address_flow, &ux_address_step, &ux_menu_back_step);
 

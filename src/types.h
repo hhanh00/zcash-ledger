@@ -4,8 +4,22 @@
 #include <stdint.h>  // uint*_t
 
 #include <lcx_blake2.h>
+#include <lcx_sha256.h>
+#include <lcx_ripemd160.h>
+#include <ox_bn.h>
 #include "constants.h"
 #include "tx.h"
+#include "ua.h"
+#include "blake2s.h"
+#include "sapling.h"
+
+void check_canary_inner();
+
+#ifdef ORCHARD
+#define check_canary()
+#else // Only check on NanoS
+#define check_canary() check_canary_inner()
+#endif
 
 /**
  * Enumeration for the status of IO.
@@ -27,6 +41,7 @@ typedef enum {
     GET_FVK = 0x07,         /// full viewing key (diversifiable viewing key)
     GET_OFVK = 0x08,        /// orchard fvk
     GET_PROOFGEN_KEY = 0x09,
+    HAS_ORCHARD = 0x0A,
     INIT_TX = 0x10,
     CHANGE_STAGE = 0x11,
     ADD_T_IN = 0x12,
@@ -135,26 +150,31 @@ typedef struct {
     uint8_t address[43];
 } orchard_key_t;
 
+#ifdef ORCHARD
+#define ORCHARD_ONLY(x) x
+#else
+#define ORCHARD_ONLY(x)
+#endif
+
 typedef struct {
     cx_blake2b_t hasher;
     cx_blake2b_t transparent_hasher;
     int64_t fee;
     uint64_t amount_s_out;
-    uint64_t amount_o_out;
+    ORCHARD_ONLY(uint64_t amount_o_out);
     int64_t t_net;
     int64_t s_net;
     int64_t o_net;
     uint8_t tsk[32];
-    uint8_t mseed[32];
     uint8_t amount_hash[32];
     uint8_t t_outputs_hash[32];
     uint8_t header_hash[32];
     t_proofs_t t_proofs;
     s_proofs_t s_proofs;
-    o_proofs_t o_proofs;
+    ORCHARD_ONLY(o_proofs_t o_proofs);
     uint8_t s_compact_hash[32];
     uint8_t sapling_bundle_hash[32];
-    uint8_t o_compact_hash[32];
+    ORCHARD_ONLY(uint8_t o_compact_hash[32]);
     uint8_t orchard_bundle_hash[32];
     uint8_t sapling_sig_hash[32];
     signing_stage_t stage;
@@ -174,13 +194,60 @@ typedef struct {
  */
 typedef struct {
     uint8_t account;
+    union {
+        t_out_t t_out;
+        s_out_t s_out;
+        o_action_t o_action;
+    };
     bool keys_derived;
     sapling_derive_ctx_t sapling_derive_ctx;
     transparent_key_t transparent_key_info;
     expanded_spending_key_t exp_sk_info;
+    #ifdef ORCHARD
     orchard_key_t orchard_key_info;
+    #endif
     proofk_ctx_t proofk_info;
-    char address[250];
-    char amount[23];
     tx_signing_ctx_t signing_ctx;
 } global_ctx_t;
+
+/// @brief  State of the Sapling Pedersen Hasher
+typedef struct {
+    uint8_t index_pack;
+    uint8_t current_pack;
+    int bits_in_pack;
+    jj_e_t hash;
+    cx_bn_t acc;
+    cx_bn_t cur;
+    cx_bn_t zero;
+    cx_bn_t M;
+} pedersen_state_t;
+
+/// @brief Storage for temporary variables
+/// that we cannot put on the stack because 
+/// of limited space on Nano S
+typedef struct {
+    union {
+        struct {
+            cx_sha256_t sha_hasher;
+            cx_ripemd160_t ripemd_hasher;
+        };
+        struct {
+            blake2s_state hash_ctx;
+            blake2s_param hash_params;
+            uint8_t hash[32];
+            pedersen_state_t ph;
+            uint8_t Gdb[32];
+        };
+        struct {
+            uint8_t receivers[UA_LEN];
+            uint8_t bech32_buffer[2*UA_LEN];
+        };
+        struct {
+            uint8_t out_buffer[128];
+        };
+        struct {
+            char address[UA_LEN*2];
+            char amount[23];
+        };
+    };
+} temp_t;

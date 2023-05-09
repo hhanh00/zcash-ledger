@@ -25,7 +25,7 @@
 
 void validate_address(bool choice) {
     if (choice) {
-        helper_send_response_bytes((uint8_t *)G_context.address, 78);
+        helper_send_response_bytes(NULL, 0);
     } else {
         reset_app();
         io_send_sw(SW_DENY);

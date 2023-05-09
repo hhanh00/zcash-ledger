@@ -55,7 +55,8 @@ static int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest);
 int init_tx() {
     memset(&G_context.signing_ctx, 0, sizeof(tx_signing_ctx_t));
     G_context.signing_ctx.stage = T_IN;
-    cx_get_random_bytes(G_context.signing_ctx.mseed, 32);
+    uint8_t mseed[32];
+    cx_get_random_bytes(mseed, 32);
 
     uint8_t seed_rng[32];
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
@@ -63,7 +64,7 @@ int init_tx() {
                               (uint8_t *) "ZRSeedPRNG__Hash", 16);
     cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
             CX_LAST,
-            G_context.signing_ctx.mseed, 32,
+            mseed, 32,
             seed_rng, 32);
 
     cx_chacha_init(&chacha_rseed_rng, 20);
@@ -74,7 +75,7 @@ int init_tx() {
                               (uint8_t *) "ZAlphaPRNG__Hash", 16);
     cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
             CX_LAST,
-            G_context.signing_ctx.mseed, 32,
+            mseed, 32,
             seed_rng, 32);
 
     PRINTF("ALPHA SEED: %.*H\n", 32, seed_rng);
@@ -89,7 +90,7 @@ int init_tx() {
                               (uint8_t *) "ZTxTrAmountsHash",
                               16);
 
-    return helper_send_response_bytes(G_context.signing_ctx.mseed, 32);
+    return helper_send_response_bytes(mseed, 32);
 }
 
 int change_stage(uint8_t new_stage) {
@@ -132,10 +133,12 @@ int change_stage(uint8_t new_stage) {
                                       (uint8_t *) "ZTxIdOrcActCHash", 16);
             break;
         case FEE:
+            #ifdef ORCHARD
             cx_hash(ph, CX_LAST,
                     NULL, 0,
                     G_context.signing_ctx.o_compact_hash, 32);
             PRINTF("O ACTIONS COMPACT: %.*H\n", 32, G_context.signing_ctx.o_compact_hash);
+            #endif
 
             // Transaction in/out must have been confirmed
             // We can compute the sig hash components
@@ -235,12 +238,15 @@ int add_s_output(s_out_t *output, bool confirmation) {
     memmove(rseed, output->rseed, 32);
     #endif
 
+    uint8_t cmu[32];
+    check_canary();
     PRINTF("ADDRESS: %.*H\n", 43, output->address);
     PRINTF("RSEED: %.*H\n", 32, rseed);
     PRINTF("AMOUNT: %.*H\n", 8, &output->amount);
 
-    uint8_t cmu[32];
     get_cmu(cmu, output->address, output->address + 11, output->amount, rseed);
+    PRINTF("CMU %.*H\n", 32, cmu);
+    check_canary();
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
     cx_hash(ph, 0, cmu, 32, NULL, 0);           // cmu
@@ -255,6 +261,7 @@ int add_s_output(s_out_t *output, bool confirmation) {
     return helper_send_response_bytes(NULL, 0);
 }
 
+#ifdef ORCHARD
 int add_o_action(o_action_t *action, bool confirmation) { 
     if (G_context.signing_ctx.stage != O_ACTION) {
         reset_app();
@@ -304,6 +311,7 @@ int add_o_action(o_action_t *action, bool confirmation) {
     ui_menu_main();
     return helper_send_response_bytes(NULL, 0);
 }
+#endif
 
 int set_s_net(int64_t balance) {
     G_context.signing_ctx.has_s_in = balance != (int64_t)G_context.signing_ctx.amount_s_out;
@@ -312,11 +320,13 @@ int set_s_net(int64_t balance) {
     return helper_send_response_bytes(NULL, 0);
 }
 
+#ifdef ORCHARD
 int set_o_net(int64_t balance) { 
     G_context.signing_ctx.o_net = balance;
 
     return helper_send_response_bytes(NULL, 0);
 }
+#endif
 
 int set_header_digest(uint8_t *hash) {
     memmove(&G_context.signing_ctx.header_hash, hash, sizeof(t_proofs_t));
@@ -336,11 +346,13 @@ int set_s_merkle_proof(s_proofs_t *s_proofs) {
     return helper_send_response_bytes(NULL, 0);
 }
 
+#ifdef ORCHARD
 int set_o_merkle_proof(o_proofs_t *o_proofs) { 
     memmove(&G_context.signing_ctx.o_proofs, o_proofs, sizeof(o_proofs_t));
 
     return helper_send_response_bytes(NULL, 0);
 }
+#endif
 
 int confirm_fee(bool confirmation) {
     if (G_context.signing_ctx.stage != FEE) {
@@ -443,6 +455,7 @@ int orchard_bundle_hash() {
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
                               NULL, 0,
                               (uint8_t *) "ZTxIdOrchardHash", 16);
+    #ifdef ORCHARD
     if (G_context.signing_ctx.has_o_action) {
         uint8_t flags = 3;
         PRINTF("%.*H\n", 32, G_context.signing_ctx.o_compact_hash);
@@ -459,6 +472,7 @@ int orchard_bundle_hash() {
         cx_hash(ph, 0, (uint8_t *)&G_context.signing_ctx.o_net, 8, NULL, 0);
         cx_hash(ph, 0, G_context.signing_ctx.o_proofs.orchard_anchor, 32, NULL, 0);
     }
+    #endif
     cx_hash(ph, CX_LAST, NULL, 0, G_context.signing_ctx.orchard_bundle_hash, 32);
     PRINTF("ORCHARD BUNDLE: %.*H\n", 32, G_context.signing_ctx.orchard_bundle_hash);
 

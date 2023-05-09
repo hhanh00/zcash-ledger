@@ -84,18 +84,6 @@ static const uint8_t fq_D2[32] = {
   0x02, 0x0C, 0xBF, 0xAD, 0xAC, 0x68, 0x7D, 0x62,
 };
 
-/// @brief  State of the Sinsemilla Hasher
-typedef struct {
-    uint8_t index_pack;
-    uint8_t current_pack;
-    int bits_in_pack;
-    jj_e_t hash;
-    cx_bn_t acc;
-    cx_bn_t cur;
-    cx_bn_t zero;
-    cx_bn_t M;
-} pedersen_state_t;
-
 void init_ph(pedersen_state_t *state);
 void destroy_ph(pedersen_state_t *state);
 void update_ph(pedersen_state_t *state, uint8_t *data, size_t data_bit_len);
@@ -154,6 +142,8 @@ static void print_e_inner(jj_e_t *p) {
 #define print_e(p)
 #endif
 
+static uint8_t buffer[64];
+
 /**
  * spending_key -> ask, nsk, ovk, dk
  * ask -> ak
@@ -172,7 +162,6 @@ void sapling_derive_spending_key(uint8_t account) {
     expanded_spending_key_t *pkeys = &G_context.exp_sk_info;
     PRINTF("Derive sapling keys for account %d\n", account);
 
-    uint8_t buffer[64];
     uint8_t spk[32];
 
     derive_spending_key(spk, account);
@@ -201,62 +190,57 @@ void sapling_derive_spending_key(uint8_t account) {
 
     // ak is the byte representation of A = G.ask where G is the spending auth generator point
     BN_DEF(ask); cx_bn_init(ask, pkeys->ask, 32);
-    uint8_t akb[32];
     jj_en_t G; alloc_en(&G); load_en(&G, &SPENDING_GEN);
-    sk_to_pk(akb, &G, ask);
-    PRINTF("ak %.*H\n", 32, akb);
+    sk_to_pk(G_context.proofk_info.ak, &G, ask);
+    PRINTF("ak %.*H\n", 32, G_context.proofk_info.ak);
     cx_bn_destroy(&ask);
-    memmove(G_context.proofk_info.ak, akb, 32);
 
     // same thing with nsk -> nk
     BN_DEF(nsk); cx_bn_init(ask, pkeys->nsk, 32);
-    uint8_t nkb[32];
     load_en(&G, &PROOF_GEN);
-    sk_to_pk(nkb, &G, nsk);
-    PRINTF("nk %.*H\n", 32, nkb);
+    sk_to_pk(G_context.proofk_info.nk, &G, nsk);
+    PRINTF("nk %.*H\n", 32, G_context.proofk_info.nk);
     cx_bn_destroy(&nsk);
     destroy_en(&G);
-    memmove(G_context.proofk_info.nk, nkb, 32);
 
-    uint8_t ivkb[32];
-    get_ivk(ivkb, akb, nkb);
-    PRINTF("ivk %.*H\n", 32, ivkb);
+    get_ivk(pkeys->pk_d, G_context.proofk_info.ak, G_context.proofk_info.nk); // use pk_d as ivk to save on stack
+    PRINTF("ivk %.*H\n", 32, pkeys->pk_d);
+    check_canary();
 
     // Find the first diversifier = default address
     uint32_t i = 0;
-    uint8_t di[11];
     PRINTF("dk %.*H\n", 32, pkeys->dk);
-    jj_e_t Gd;
-    for (;i < 5;) {
+    jj_e_t Gd; alloc_e(&Gd);
+    for (;i < 500;) {
         PRINTF("i %d\n", i);
-        memset(di, 0, 11);
-        memmove(di, &i, 4); // Try this index
-        ff1_inplace(pkeys->dk, di); // Shuffle with ff1
-        PRINTF("di %.*H\n", 11, di);
+        memset(pkeys->d, 0, 11);
+        memmove(pkeys->d, &i, 4); // Try this index
+        ff1_inplace(pkeys->dk, pkeys->d); // Shuffle with ff1
+        PRINTF("di %.*H\n", 11, pkeys->d);
+        check_canary();
 
-        alloc_e(&Gd);
-        int error = hash_to_e(&Gd, di, 11);
+        int error = hash_to_e(&Gd, pkeys->d, 11);
         PRINTF("hash_to_e %d\n", error);
+        check_canary();
         if (!error) break;
         i++;
     }
-    memmove(pkeys->d, di, 11);
 
     alloc_en(&G);
     e_to_en(&G, &Gd);
+    destroy_e(&Gd);
     print_bn("vpu", G.vpu);
     print_bn("vmu", G.vmu);
     print_bn("z", G.z);
     print_bn("t2d", G.t2d);
-    swap_endian(ivkb, 32);
-    BN_DEF(ivk); cx_bn_init(ivk, ivkb, 32);
-    uint8_t pkdb[32];
-    sk_to_pk(pkdb, &G, ivk);
-    memmove(pkeys->pk_d, pkdb, 32);
+    swap_endian(pkeys->pk_d, 32); // that's ivk
+    BN_DEF(ivk); cx_bn_init(ivk, pkeys->pk_d, 32);
+    sk_to_pk(pkeys->pk_d, &G, ivk);
+    destroy_en(&G);
 
-    PRINTF("pkd %.*H\n", 32, pkdb);
-    to_address_bech32(G_context.address, di, pkdb);
-    PRINTF("address %s\n", G_context.address);
+    PRINTF("pkd %.*H\n", 32, pkeys->pk_d);
+    // to_address_bech32(G_context.address, pkeys->d, pkeys->pk_d);
+    // PRINTF("address %s\n", G_context.address);
     cx_bn_unlock();
 }
 
@@ -657,19 +641,16 @@ void e_to_u(uint8_t *ub, const jj_e_t *p) {
 
 int hash_to_e(jj_e_t *p, const uint8_t *msg, size_t len) {
     int error = 0;
-    blake2s_state hash_ctx;
-    blake2s_param hash_params;
-    memset(&hash_params, 0, sizeof(hash_params));
-    hash_params.digest_length = 32;
-    hash_params.fanout = 1;
-    hash_params.depth = 1;
-    memmove(&hash_params.personal, "Zcash_gd", 8);
+    memset(&G_store.hash_params, 0, sizeof(G_store.hash_params));
+    G_store.hash_params.digest_length = 32;
+    G_store.hash_params.fanout = 1;
+    G_store.hash_params.depth = 1;
+    memmove(&G_store.hash_params.personal, "Zcash_gd", 8);
 
-    uint8_t hash[32];
-    blake2s_init_param(&hash_ctx, &hash_params);
-    blake2s_update(&hash_ctx, "096b36a5804bfacef1691e173c366a47ff5ba84a44f26ddd7e8d9f79d5b42df0", 64);
-    blake2s_update(&hash_ctx, msg, len);
-    blake2s_final(&hash_ctx, hash, 32);
+    blake2s_init_param(&G_store.hash_ctx, &G_store.hash_params);
+    blake2s_update(&G_store.hash_ctx, "096b36a5804bfacef1691e173c366a47ff5ba84a44f26ddd7e8d9f79d5b42df0", 64);
+    blake2s_update(&G_store.hash_ctx, msg, len);
+    blake2s_final(&G_store.hash_ctx, G_store.hash, 32);
 
     BN_DEF(one); cx_bn_set_u32(one, 1); TO_MONT(one);
     BN_DEF(v); 
@@ -680,11 +661,11 @@ int hash_to_e(jj_e_t *p, const uint8_t *msg, size_t len) {
     BN_DEF(u2);
     BN_DEF(u);
 
-    uint8_t sign = hash[31] >> 7;
-    hash[31] &= 0x7F;
-    swap_endian(hash, 32);
+    uint8_t sign = G_store.hash[31] >> 7;
+    G_store.hash[31] &= 0x7F;
+    swap_endian(G_store.hash, 32);
 
-    cx_bn_init(v, hash, 32);
+    cx_bn_init(v, G_store.hash, 32);
     int diff;
     cx_bn_cmp(v, M, &diff);
     if (diff >= 0) {
@@ -741,62 +722,64 @@ end:
 }
 
 void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk) {
-    blake2s_state hash_ctx;
-    blake2s_param hash_params;
-    memset(&hash_params, 0, sizeof(hash_params));
-    hash_params.digest_length = 32;
-    hash_params.fanout = 1;
-    hash_params.depth = 1;
-    memmove(&hash_params.personal, "Zcashivk", 8);
+    memset(&G_store.hash_params, 0, sizeof(G_store.hash_params));
+    G_store.hash_params.digest_length = 32;
+    G_store.hash_params.fanout = 1;
+    G_store.hash_params.depth = 1;
+    memmove(&G_store.hash_params.personal, "Zcashivk", 8);
 
-    blake2s_init_param(&hash_ctx, &hash_params);
-    blake2s_update(&hash_ctx, ak, 32);
-    blake2s_update(&hash_ctx, nk, 32);
-    blake2s_final(&hash_ctx, ivk, 32);
+    blake2s_init_param(&G_store.hash_ctx, &G_store.hash_params);
+    blake2s_update(&G_store.hash_ctx, ak, 32);
+    blake2s_update(&G_store.hash_ctx, nk, 32);
+    blake2s_final(&G_store.hash_ctx, ivk, 32);
 
     ivk[31] &= 0x07;
 }
 
+// TODO This blows the stack
 void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed) {
     cx_bn_lock(32, 0);
     init_mont(fq_m);
     BN_DEF(rM); cx_bn_init(rM, fr_m, 32);
-    uint8_t buffer[64];
     uint8_t rcmb[32];
     prf_expand_spending_key(buffer, rseed, 4);
     reduce_wide_bytes(rcmb, buffer, rM);
+    check_canary();
     PRINTF("rcm %.*H\n", 32, rcmb);
+    check_canary();
 
-    pedersen_state_t ph;
-    init_ph(&ph);
+    PRINTF("init ph\n");
+
+    init_ph(&G_store.ph);
     uint8_t perso = 0x3F;
-    update_ph(&ph, &perso, 6);
-    update_ph(&ph, (uint8_t *)&value, 64); // value
+    update_ph(&G_store.ph, &perso, 6);
+    update_ph(&G_store.ph, (uint8_t *)&value, 64); // value
     jj_e_t Gd; alloc_e(&Gd);
     hash_to_e(&Gd, d, 11);
-    uint8_t Gdb[32];
-    e_to_bytes(Gdb, &Gd);
+    check_canary();
+    e_to_bytes(G_store.Gdb, &Gd);
     destroy_e(&Gd);
-    PRINTF("Gd %.*H\n", 32, Gdb);
-    update_ph(&ph, Gdb, 256); // Gd
+    PRINTF("Gd %.*H\n", 32, G_store.Gdb);
+    update_ph(&G_store.ph, G_store.Gdb, 256); // Gd
     PRINTF("pkd %.*H\n", 32, pkd);
-    update_ph(&ph, pkd, 256); // pkd
-    finalize_ph(&ph);
+    update_ph(&G_store.ph, pkd, 256); // pkd
+    finalize_ph(&G_store.ph);
+    check_canary();
 
     jj_en_t Gcmu; alloc_en(&Gcmu); load_en(&Gcmu, &CMU_RAND_GEN);
     BN_DEF(rcm); cx_bn_init(rcm, rcmb, 32);
     jj_e_t pkcmu; alloc_e(&pkcmu);
     en_mul(&pkcmu, &Gcmu, rcm);
     e_to_en(&Gcmu, &pkcmu);
-    een_add_assign(&ph.hash, &Gcmu);
+    een_add_assign(&G_store.ph.hash, &Gcmu);
     destroy_en(&Gcmu);
     destroy_e(&pkcmu);
 
-    print_e(&ph.hash);
+    print_e(&G_store.ph.hash);
 
-    e_to_u(cmu, &ph.hash);
+    e_to_u(cmu, &G_store.ph.hash);
 
-    destroy_ph(&ph);
+    destroy_ph(&G_store.ph);
     cx_bn_destroy(&rcm);
     cx_bn_destroy(&rM);
     cx_bn_unlock();
@@ -826,6 +809,7 @@ void update_ph(pedersen_state_t *state, uint8_t *data, size_t data_bit_len) {
     size_t byte_length = (data_bit_len + 7) / 8;
 
     for (size_t i = 0; i < byte_length; i++) {
+        check_canary();
         uint8_t byte = data[i];
         // process 8 bits at a time, until the last byte if it is not an full byte
         int bits_to_process = (i == byte_length - 1 && data_bit_len % 8 != 0) ? data_bit_len % 8 : 8;
@@ -901,6 +885,7 @@ static void process_chunk(pedersen_state_t *state) {
 }
 
 static void process_acc(pedersen_state_t *state) {
+    check_canary();
     print_bn("acc", state->acc);
     uint8_t index_gen = state->index_pack / 63;
     jj_en_t G; alloc_en(&G); load_en(&G, &PH_GENS[index_gen]);

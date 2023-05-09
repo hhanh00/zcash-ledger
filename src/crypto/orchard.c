@@ -34,6 +34,7 @@
 
 #include "globals.h"
 
+#ifdef ORCHARD
 static uint8_t spending_key[32];
 
 void orchard_derive_spending_key(int8_t account) {
@@ -228,4 +229,4 @@ void do_sign_orchard(uint8_t *signature) {
 
     pallas_sign(signature, &ask, msg);
 }
-
+#endif

@@ -29,8 +29,12 @@
 
 static void derive_keys_inner(uint8_t account) {
     transparent_derive_pubkey(account);
+    check_canary();
     sapling_derive_spending_key(account);
+    check_canary();
+    #ifdef ORCHARD
     orchard_derive_spending_key(account);
+    #endif
     G_context.account = account;
     G_context.keys_derived = true;
 }

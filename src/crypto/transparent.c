@@ -57,14 +57,12 @@ int derive_taddress(uint8_t *pkh, uint8_t account) {
     uint8_t pk[33];
     derive_pubkey(pk, account);
     
-    cx_sha256_t sha_hasher;
-    cx_sha256_init_no_throw(&sha_hasher);
-    cx_hash_no_throw((cx_hash_t *)&sha_hasher, CX_LAST, pk, 33, pk, 32);
+    cx_sha256_init_no_throw(&G_store.sha_hasher);
+    cx_hash_no_throw((cx_hash_t *)&G_store.sha_hasher, CX_LAST, pk, 33, pk, 32);
     PRINTF("SHA256: %.*H\n", 32, pk);
 
-    cx_ripemd160_t ripemd_hasher;
-    cx_ripemd160_init_no_throw(&ripemd_hasher);
-    cx_hash_no_throw((cx_hash_t *)&ripemd_hasher, CX_LAST, pk, 32, pkh, 20);
+    cx_ripemd160_init_no_throw(&G_store.ripemd_hasher);
+    cx_hash_no_throw((cx_hash_t *)&G_store.ripemd_hasher, CX_LAST, pk, 32, pkh, 20);
     PRINTF("PKH: %.*H\n", 20, pkh);
 
     return 0;
