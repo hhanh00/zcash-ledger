@@ -30,6 +30,7 @@
 #include "fr.h"
 #include "ff1.h"
 #include "jubjub.h"
+#include "phash.h"
 #include "blake2s.h"
 
 #include "sw.h"
@@ -141,6 +142,13 @@ void sapling_derive_spending_key(int8_t account) {
     PRINTF("pkd %.*H\n", 32, exp_sk->pk_d);
     to_address_bech32(G_context.address, exp_sk->d, exp_sk->pk_d);
     PRINTF("address %s\n", G_context.address);
+
+    uint8_t raw_address[43];
+    memmove(raw_address, exp_sk->d, 11);
+    memmove(raw_address + 11, exp_sk->pk_d, 32);
+    uint8_t cmu[32];
+    uint64_t value = 10000;
+    calc_cmu(cmu, raw_address, raw_address + 11, &value);
     ui_menu_main();
 }
 

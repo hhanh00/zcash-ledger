@@ -74,6 +74,8 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_
     
     uint8_t buffer[73]; // 1 + 8 + 32 + 32
     memset(buffer, 0, sizeof(buffer));
+    PRINTF("Gd %.*H\n", 32, g_d);
+    PRINTF("pkd %.*H\n", 32, pk_d);
     memmove(buffer, (uint8_t *)value, 8);
     memmove(buffer + 8, (uint8_t *)g_d, 32);
     memmove(buffer + 40, (uint8_t *)pk_d, 32);
@@ -107,14 +109,19 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_
         memmove(&tmp, &cur, 32);
         if ((n & 1) != 0) {
             fr_add(&tmp, &tmp, &cur);
+            // PRINTF("+");
         }
         fr_double(&cur);
         if ((n & 2) != 0) {
             fr_add(&tmp, &tmp, &cur);
+            // PRINTF("+");
         }
         if ((n & 4) != 0) {
             fr_negate(&tmp);
+            // PRINTF("-");
         }
+        // PRINTF("=\n");
+        // PRINTF("\n%.*H\n", 32, tmp);
 
         fr_add(&acc, &acc, &tmp);
         fr_double(&cur);
@@ -128,6 +135,7 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_
         }
 
         if (chunk % 63 == 62) {
+            PRINTF("acc %.*H\n", 32, acc);
             ext_base_mult(&tmp_p, &PEDERSEN_HASH_GENS[chunk / 63], &acc);
             ext_to_niels(&tmp_pn, &tmp_p);
             ext_add(&pedersen_hash, &tmp_pn);
@@ -136,6 +144,8 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_
             memmove(&cur, fq_1, 32);
         }
     }
+    PRINTF("\n");
+    PRINTF("acc %.*H\n", 32, acc);
 
     ext_base_mult(&tmp_p, &PEDERSEN_HASH_GENS[3], &acc);
     ext_to_niels(&tmp_pn, &tmp_p);
@@ -144,6 +154,12 @@ void pedersen_hash_cmu(uint8_t *cmu, uint64_t *value, uint8_t *g_d, uint8_t *pk_
     ext_base_mult(&tmp_p, &CMU_RAND_GEN, rcm);
     ext_to_niels(&tmp_pn, &tmp_p);
     ext_add(&pedersen_hash, &tmp_pn);
+
+    PRINTF("u %.*H\n", 32, pedersen_hash.u);
+    PRINTF("v %.*H\n", 32, pedersen_hash.v);
+    PRINTF("z %.*H\n", 32, pedersen_hash.z);
+    PRINTF("t1 %.*H\n", 32, pedersen_hash.t1);
+    PRINTF("t2 %.*H\n", 32, pedersen_hash.t2);
 
     ext_to_u(cmu, &pedersen_hash);
 }

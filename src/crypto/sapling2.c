@@ -79,18 +79,38 @@ static const uint8_t fq_D2[32] = {
   0x02, 0x0C, 0xBF, 0xAD, 0xAC, 0x68, 0x7D, 0x62,
 };
 
+/// @brief  State of the Sinsemilla Hasher
+typedef struct {
+    uint8_t index_pack;
+    uint8_t current_pack;
+    int bits_in_pack;
+    jj_e_t hash;
+    cx_bn_t acc;
+    cx_bn_t cur;
+    cx_bn_t zero;
+    cx_bn_t M;
+} pedersen_state_t;
+
+void init_ph(pedersen_state_t *state);
+void destroy_ph(pedersen_state_t *state);
+void update_ph(pedersen_state_t *state, uint8_t *data, size_t data_bit_len);
+void finalize_ph(pedersen_state_t *state);
+
 void swap_endian(uint8_t *data, int8_t len);
 void en_mul(jj_e_t *pk, jj_en_t *G, cx_bn_t sk);
 void e_double(jj_e_t *r);
 void een_add_assign(jj_e_t *x, jj_en_t *y);
 void e_to_bytes(uint8_t *pkb, jj_e_t *p);
+void e_to_u(uint8_t *ub, const jj_e_t *p);
 
 void sk_to_pk(uint8_t *pkb, jj_en_t *g, cx_bn_t sk);
 int hash_to_e(jj_e_t *p, const uint8_t *msg, size_t len);
+void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed);
 
 static void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk);
 
 static int derive_spending_key(uint8_t *spk, uint8_t account);
+
 static void prf_expand_spending_key(uint8_t *buffer, uint8_t *key, uint8_t t);
 static void reduce_wide_bytes(uint8_t *dest, uint8_t *src, cx_bn_t M);
 
@@ -102,6 +122,10 @@ static void destroy_en(jj_en_t *r);
 static void load_en(jj_en_t *dest, const ff_jj_en_t *src);
 static void e_to_en(jj_en_t *dest, jj_e_t *src);
 static void e_set0(jj_e_t *r);
+
+static void print_e(jj_e_t *p);
+
+#define min(a, b) ((a) > (b) ? (b) : (a))
 
 static void print_bn(const char *label, cx_bn_t x) {
     uint8_t v[32];
@@ -226,6 +250,10 @@ void sapling_derive_spending_key2(uint8_t account) {
     PRINTF("pkd %.*H\n", 32, pkdb);
     to_address_bech32(G_context.address, di, pkdb);
     PRINTF("address %s\n", G_context.address);
+
+    uint8_t cmu[32];
+    get_cmu(cmu, di, pkdb, 10000, pkdb);
+    PRINTF("CMU %.*H\n", 32, cmu);
 }
 
 void sk_to_pk(uint8_t *pkb, jj_en_t *G, cx_bn_t sk) {
@@ -506,6 +534,28 @@ void e_to_bytes(uint8_t *pkb, jj_e_t *p) {
         cx_bn_set_bit(v, 255);
     cx_bn_export(v, pkb, 32);
     swap_endian(pkb, 32); // to LE
+    cx_bn_destroy(&zinv);
+    cx_bn_destroy(&u);
+    cx_bn_destroy(&v);
+}
+
+/// @brief Coordinate u extractor
+/// @param u 32 bytes
+/// @param p 
+void e_to_u(uint8_t *ub, const jj_e_t *p) {
+    BN_DEF(zinv);
+    cx_bn_copy(zinv, p->z);
+    cx_bn_mod_invert_nprime(zinv, zinv, M);
+
+    // Do not use the Montgomery Multiplication because
+    // zinv contains the 1/h factor equivalent to FROM_MONT
+    BN_DEF(u);
+    CX_BN_MOD_MUL(u, p->u, zinv);
+
+    cx_bn_export(u, ub, 32);
+    swap_endian(ub, 32);
+    cx_bn_destroy(&zinv);
+    cx_bn_destroy(&u);
 }
 
 int hash_to_e(jj_e_t *p, const uint8_t *msg, size_t len) {
@@ -608,4 +658,164 @@ void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk) {
     blake2s_final(&hash_ctx, ivk, 32);
 
     ivk[31] &= 0x07;
+}
+
+void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed) {
+    BN_DEF(rM); cx_bn_init(rM, fr_m, 32);
+    uint8_t buffer[64];
+    uint8_t rcmb[32];
+    prf_expand_spending_key(buffer, rseed, 4);
+    reduce_wide_bytes(rcmb, buffer, rM);
+    PRINTF("rcm %.*H\n", 32, rcmb);
+
+    pedersen_state_t ph;
+    init_ph(&ph);
+    uint8_t perso = 0x3F;
+    update_ph(&ph, &perso, 6);
+    update_ph(&ph, (uint8_t *)&value, 64); // value
+    jj_e_t Gd; alloc_e(&Gd);
+    hash_to_e(&Gd, d, 11);
+    uint8_t Gdb[32];
+    e_to_bytes(Gdb, &Gd);
+    destroy_e(&Gd);
+    PRINTF("Gd %.*H\n", 32, Gdb);
+    update_ph(&ph, Gdb, 256); // Gd
+    PRINTF("pkd %.*H\n", 32, pkd);
+    update_ph(&ph, pkd, 256); // pkd
+    finalize_ph(&ph);
+
+    jj_en_t Gcmu; alloc_en(&Gcmu); load_en(&Gcmu, &CMU_RAND_GEN);
+    BN_DEF(rcm); cx_bn_init(rcm, rcmb, 32);
+    jj_e_t pkcmu; alloc_e(&pkcmu);
+    en_mul(&pkcmu, &Gcmu, rcm);
+    e_to_en(&Gcmu, &pkcmu);
+    een_add_assign(&ph.hash, &Gcmu);
+    destroy_en(&Gcmu);
+    destroy_e(&pkcmu);
+
+    print_e(&ph.hash);
+
+    e_to_u(cmu, &ph.hash);
+
+    destroy_ph(&ph);
+    cx_bn_destroy(&rcm);
+    cx_bn_destroy(&rM);
+}
+
+static void process_chunk(pedersen_state_t *state);
+static void process_acc(pedersen_state_t *state);
+
+void init_ph(pedersen_state_t *state) {
+    memset(state, 0, sizeof(pedersen_state_t));
+    alloc_e(&state->hash); e_set0(&state->hash);
+    cx_bn_alloc(&state->zero, 32); cx_bn_set_u32(state->zero, 0);
+    cx_bn_alloc(&state->cur, 32); cx_bn_set_u32(state->cur, 1);
+    cx_bn_alloc(&state->acc, 32); cx_bn_set_u32(state->acc, 0);
+    cx_bn_alloc(&state->M, 32); cx_bn_init(state->M, fr_m, 32);
+}
+
+void destroy_ph(pedersen_state_t *state) {
+    destroy_e(&state->hash);
+    cx_bn_destroy(&state->zero);
+    cx_bn_destroy(&state->cur);
+    cx_bn_destroy(&state->acc);
+    cx_bn_destroy(&state->M);
+}
+
+void update_ph(pedersen_state_t *state, uint8_t *data, size_t data_bit_len) {
+    size_t byte_length = (data_bit_len + 7) / 8;
+
+    for (size_t i = 0; i < byte_length; i++) {
+        uint8_t byte = data[i];
+        // process 8 bits at a time, until the last byte if it is not an full byte
+        int bits_to_process = (i == byte_length - 1 && data_bit_len % 8 != 0) ? data_bit_len % 8 : 8;
+
+        while (bits_to_process > 0) {
+            // number of bits needed to fill up our current pack
+            int bits_to_add = min(3 - state->bits_in_pack, bits_to_process);
+
+            // mask that extracts 'bits_to_add' bits
+            uint8_t mask = ((1 << bits_to_add) - 1);
+            // take these bits in LE from the byte input
+            uint8_t bits = byte & mask; 
+            // add them in front of the current pack
+            state->current_pack |= (bits << state->bits_in_pack);
+
+            // shift the input byte to remove the extracted bits
+            byte >>= bits_to_add;
+
+            // update our counts
+            state->bits_in_pack += bits_to_add;
+            bits_to_process -= bits_to_add;
+
+            // if the pack is full, emit it
+            if (state->bits_in_pack == 3) {
+                process_chunk(state);
+                state->bits_in_pack = 0;
+                state->current_pack = 0;
+            }
+        }
+    }
+}
+
+void finalize_ph(pedersen_state_t *state) {
+    if (state->bits_in_pack > 0) {
+        process_chunk(state);
+        state->bits_in_pack = 0;
+    }
+    process_acc(state);
+    print_e(&state->hash);
+}
+
+static void process_chunk(pedersen_state_t *state) {
+    uint8_t c = state->current_pack;
+    BN_DEF(temp); cx_bn_copy(temp, state->cur); // temp = cur
+    if ((c & 1) != 0) {
+        // PRINTF("+");
+        cx_bn_mod_add_fixed(temp, temp, state->cur, state->M); // temp += cur
+    }
+    cx_bn_mod_add_fixed(state->cur, state->cur, state->cur, state->M); // double cur
+    if ((c & 2) != 0) {
+        // PRINTF("+");
+        cx_bn_mod_add_fixed(temp, temp, state->cur, state->M); // temp += cur
+    }
+    if ((c & 4) != 0) {
+        // PRINTF("-");
+        cx_bn_mod_sub(temp, state->zero, temp, state->M); // temp = -temp
+    }
+    cx_bn_mod_add_fixed(state->cur, state->cur, state->cur, state->M); // double cur
+    cx_bn_mod_add_fixed(state->cur, state->cur, state->cur, state->M); // double cur
+    cx_bn_mod_add_fixed(state->cur, state->cur, state->cur, state->M); // double cur
+    // PRINTF("=\n");
+    // print_bn("temp", temp);
+    cx_bn_mod_add_fixed(state->acc, state->acc, temp, state->M); // acc += temp
+    cx_bn_destroy(&temp);
+
+    if (state->index_pack % 63 == 62) {
+        process_acc(state);
+        cx_bn_set_u32(state->acc, 0);
+        cx_bn_set_u32(state->cur, 1);
+    }
+
+    state->index_pack++;
+}
+
+static void process_acc(pedersen_state_t *state) {
+    print_bn("acc", state->acc);
+    uint8_t index_gen = state->index_pack / 63;
+    jj_en_t G; alloc_en(&G); load_en(&G, &PH_GENS[index_gen]);
+    jj_e_t pk; alloc_e(&pk);
+    en_mul(&pk, &G, state->acc);
+    e_to_en(&G, &pk);
+    een_add_assign(&state->hash, &G);
+    destroy_e(&pk);
+    destroy_en(&G);
+}
+
+static void print_e(jj_e_t *p) {
+    print_mont("u", p->u);
+    print_mont("v", p->v);
+    print_mont("z", p->z);
+    print_mont("t1", p->t1);
+    print_mont("t2", p->t2);
 }
