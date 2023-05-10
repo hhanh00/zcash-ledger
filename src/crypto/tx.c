@@ -57,6 +57,7 @@ int init_tx() {
     memset(&G_context.signing_ctx, 0, sizeof(tx_signing_ctx_t));
     G_context.signing_ctx.stage = T_IN;
     uint8_t mseed[32];
+    // get 32 random bytes to seed our alpha & rseed PRNG
     cx_get_random_bytes(mseed, 32);
 
     uint8_t seed_rng[32];
@@ -78,8 +79,6 @@ int init_tx() {
             CX_LAST,
             mseed, 32,
             seed_rng, 32);
-
-    PRINTF("ALPHA SEED: %.*H\n", 32, seed_rng);
 
     cx_chacha_init(&chacha_alpha_rng, 20);
     cx_chacha_set_key(&chacha_alpha_rng, seed_rng, 32);
@@ -148,7 +147,7 @@ int change_stage(uint8_t new_stage) {
     }
     G_context.signing_ctx.stage = new_stage;
 
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 
 const uint32_t PAY2PKH_1 = 0x14A97619;  // First part of the pay2pkh bitcoin script (reversed)
@@ -169,7 +168,7 @@ int add_t_input_amount(uint64_t amount) {
     G_context.signing_ctx.t_net += (int64_t)amount;
     cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher, 0, (uint8_t *) &amount, 8, NULL, 0);
 
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 
 int add_t_output(t_out_t *output, bool confirmation) {
@@ -204,7 +203,7 @@ int add_t_output(t_out_t *output, bool confirmation) {
 
     if (confirmation)
         return ui_confirm_t_out(output);
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 
 int add_s_output(s_out_t *output, bool confirmation) {
@@ -236,18 +235,17 @@ int add_s_output(s_out_t *output, bool confirmation) {
     prf_chacha(&chacha_rseed_rng, rseed, 32);
 
     #ifdef TEST
+    // take rseed from the client during testing
     memmove(rseed, output->rseed, 32);
     #endif
 
     uint8_t cmu[32];
-    check_canary();
     PRINTF("ADDRESS: %.*H\n", 43, output->address);
     PRINTF("RSEED: %.*H\n", 32, rseed);
     PRINTF("AMOUNT: %.*H\n", 8, &output->amount);
 
     get_cmu(cmu, output->address, output->address + 11, output->amount, rseed);
     PRINTF("CMU %.*H\n", 32, cmu);
-    check_canary();
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
     cx_hash(ph, 0, cmu, 32, NULL, 0);           // cmu
@@ -259,7 +257,7 @@ int add_s_output(s_out_t *output, bool confirmation) {
     if (confirmation)
         return ui_confirm_s_out(output);
     ui_menu_main();
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 
 #ifdef ORCHARD
@@ -292,6 +290,7 @@ int add_o_action(o_action_t *action, bool confirmation) {
     prf_chacha(&chacha_rseed_rng, rseed, 32);
 
     #ifdef TEST
+    // take rseed from the client during testing
     memmove(rseed, action->rseed, 32);
     #endif
 
@@ -310,7 +309,7 @@ int add_o_action(o_action_t *action, bool confirmation) {
     if (confirmation)
         return ui_confirm_o_out(action);
     ui_menu_main();
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 #endif
 
@@ -318,40 +317,40 @@ int set_s_net(int64_t balance) {
     G_context.signing_ctx.has_s_in = balance != (int64_t)G_context.signing_ctx.amount_s_out;
     G_context.signing_ctx.s_net = balance;
 
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 
 #ifdef ORCHARD
 int set_o_net(int64_t balance) { 
     G_context.signing_ctx.o_net = balance;
 
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 #endif
 
 int set_header_digest(uint8_t *hash) {
     memmove(&G_context.signing_ctx.header_hash, hash, sizeof(t_proofs_t));
 
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 
 int set_t_merkle_proof(t_proofs_t *t_proofs) {
     memmove(&G_context.signing_ctx.t_proofs, t_proofs, sizeof(t_proofs_t));
 
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 
 int set_s_merkle_proof(s_proofs_t *s_proofs) {
     memmove(&G_context.signing_ctx.s_proofs, s_proofs, sizeof(s_proofs_t));
 
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 
 #ifdef ORCHARD
 int set_o_merkle_proof(o_proofs_t *o_proofs) { 
     memmove(&G_context.signing_ctx.o_proofs, o_proofs, sizeof(o_proofs_t));
 
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 #endif
 
@@ -360,6 +359,11 @@ int confirm_fee(bool confirmation) {
         reset_app();
         return io_send_sw(SW_BAD_STATE);
     }
+
+#ifndef TEST
+    // In production, wallet clients cannot by pass user confirmation
+    confirmation = true;
+#endif
 
     int64_t fee = G_context.signing_ctx.t_net + G_context.signing_ctx.s_net + G_context.signing_ctx.o_net;
     transparent_bundle_hash();
@@ -377,7 +381,7 @@ int confirm_fee(bool confirmation) {
     else 
         G_context.signing_ctx.stage = SIGN;
 
-    return helper_send_response_bytes(NULL, 0);
+    return io_send_sw(SW_OK);
 }
 
 int transparent_bundle_hash() {
@@ -398,6 +402,7 @@ int transparent_bundle_hash() {
                             NULL, 0,
                             (uint8_t *) "ZTxIdTranspaHash", 16);
     if (G_context.signing_ctx.has_t_in || G_context.signing_ctx.has_t_out) {
+        // Without t-in, the sighash is the same as the txid
         if (G_context.signing_ctx.has_t_in) {
             uint8_t hash_type = 1;
             cx_hash(ph, 0, &hash_type, 1, NULL, 0);
@@ -473,6 +478,9 @@ int orchard_bundle_hash() {
         cx_hash(ph, 0, (uint8_t *)&G_context.signing_ctx.o_net, 8, NULL, 0);
         cx_hash(ph, 0, G_context.signing_ctx.o_proofs.orchard_anchor, 32, NULL, 0);
     }
+    else {
+        PRINTF(">> EMPTY ORCHARD BUNDLE\n");
+    }
     #endif
     cx_hash(ph, CX_LAST, NULL, 0, G_context.signing_ctx.orchard_bundle_hash, 32);
     PRINTF("ORCHARD BUNDLE: %.*H\n", 32, G_context.signing_ctx.orchard_bundle_hash);
@@ -498,7 +506,7 @@ static int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
 
     cx_blake2b_init2_no_throw(&tx_t_hasher, 256,
                               NULL, 0,
-                              (uint8_t *) "ZcashTxHash_\xB4\xD0\xD6\xC2", 16);
+                              (uint8_t *) "ZcashTxHash_\xB4\xD0\xD6\xC2", 16); // BranchID
     cx_hash(ph, 0, G_context.signing_ctx.header_hash, 32, NULL, 0);
     cx_hash(ph, 0, transparent_hash, 32, NULL, 0);
     cx_hash(ph, 0, G_context.signing_ctx.sapling_bundle_hash, 32, NULL, 0);

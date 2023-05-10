@@ -29,6 +29,7 @@
 #include "ff1.h"
 #include "orchard.h"
 #include "tx.h"
+#include "key.h"
 #include "../ui/display.h"
 #include "../ui/menu.h"
 
@@ -36,16 +37,11 @@
 
 #ifdef ORCHARD
 static uint8_t spending_key[32];
+static uint8_t hash[64];
 
 void orchard_derive_spending_key(int8_t account) {
-    uint8_t hash[64];
-    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
     ui_display_processing("o-key");
-    os_perso_derive_node_bip32(CX_CURVE_256K1,
-                                bip32_path,
-                                5,
-                                spending_key,
-                                NULL);
+    derive_tsk(spending_key, account);
 
     cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
                               NULL, 0,
@@ -129,7 +125,7 @@ void orchard_derive_spending_key(int8_t account) {
 
     uint8_t d[11];
     memset(d, 0, 11);
-    ff1(d, G_context.orchard_key_info.dk, d);
+    ff1_inplace(G_context.orchard_key_info.dk, d);
     PRINTF("d %.*H\n", 11, d);
     memcpy(G_context.orchard_key_info.div, d, 11);
 

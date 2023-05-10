@@ -25,7 +25,7 @@
 
 void validate_address(bool choice) {
     if (choice) {
-        helper_send_response_bytes(NULL, 0);
+        io_send_sw(SW_OK);
     } else {
         reset_app();
         io_send_sw(SW_DENY);
@@ -35,7 +35,7 @@ void validate_address(bool choice) {
 void validate_out(bool choice) {
     if (choice) {
         ui_menu_main();
-        helper_send_response_bytes(NULL, 0);
+        io_send_sw(SW_OK);
     } else {
         reset_app();
         io_send_sw(SW_DENY);
@@ -45,7 +45,7 @@ void validate_out(bool choice) {
 void validate_fee(bool choice) {
     if (choice) {
         G_context.signing_ctx.stage = SIGN; // last confirmation approved - ok to sign
-        helper_send_response_bytes(NULL, 0);
+        io_send_sw(SW_OK);
     } else {
         reset_app();
         io_send_sw(SW_DENY);

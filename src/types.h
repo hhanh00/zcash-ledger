@@ -116,13 +116,6 @@ typedef struct {
     fr_t nsk; // nullifier key
 } proofgen_key_t;
 
-// typedef struct {
-//     jubjub_point_t ak; // authorizing key
-//     jubjub_point_t nk; // nullifier key
-//     ovk_t ovk;
-//     dk_t dk;
-// } fvk_ctx_t;
-
 typedef enum {
     IDLE,
     T_IN,
@@ -225,27 +218,30 @@ typedef struct {
 /// @brief Storage for temporary variables
 /// that we cannot put on the stack because 
 /// of limited space on Nano S
+/// we use union to overlap memory which is ok
+/// if we are sure we don't use two sections
+/// at the same time
 typedef struct {
     union {
-        struct {
+        struct { // transparent address
             cx_sha256_t sha_hasher;
             cx_ripemd160_t ripemd_hasher;
         };
-        struct {
+        struct { // jubjub point hash
             blake2s_state hash_ctx;
             blake2s_param hash_params;
-            uint8_t hash[32];
+            uint8_t hash[32]; 
             pedersen_state_t ph;
             uint8_t Gdb[32];
         };
-        struct {
+        struct { // UA
             uint8_t receivers[UA_LEN];
             uint8_t bech32_buffer[2*UA_LEN];
         };
-        struct {
+        struct { // out buffer to client
             uint8_t out_buffer[128];
         };
-        struct {
+        struct { // display on screen
             char address[UA_LEN*2];
             char amount[23];
         };

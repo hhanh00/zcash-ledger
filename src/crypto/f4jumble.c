@@ -23,6 +23,8 @@
 #include <lcx_hash.h>
 #include <lcx_blake2.h>
 #include "f4jumble.h"
+#include "../types.h"
+#include "../globals.h"
 
 static uint8_t hash[64];
 

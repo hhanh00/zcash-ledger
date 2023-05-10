@@ -71,86 +71,9 @@ Res = A | B
  * For a given di & dk, the output d is the same
  * (no IV)
 */
-int ff1(uint8_t *d, const uint8_t *dk, uint8_t *di) {
-    int error = 0;
-
-    // data should be in radix 2, we flip bit per bit
-    // while keeping the byte endianess
-    swap_bit_endian(di, 11); 
-
-    uint8_t a[6];
-    uint8_t b[6];
-
-    // split di into a|b
-    a[0] = di[0] >> 4;
-    b[0] = di[5] & 0xF;
-    for (int i = 1; i < 6; i++) {
-        a[i] = di[i-1] << 4 | di[i] >> 4;
-        b[i] = di[i+5];
-    }
-
-    cx_aes_key_t aes_key;
-
-    for (int i = 0; i < 10; i++) {
-        cx_aes_init_key_no_throw(dk, 32, &aes_key);
-        uint8_t R[16];
-        memset(R, 0, 16);
-        size_t out_len = 16;
-
-        uint8_t P[16];
-        memset(P, 0, 16);
-        P[0] = 1;
-        P[1] = 2;
-        P[2] = 1;
-        P[5] = 2;
-        P[6] = 10;
-        P[7] = 44;
-        P[11] = 88;
-
-        // technically, P is constant and the first output block of AES is going to be
-        // the same across the 10 rounds
-        // but it does not make much difference in performance and the code is simplier like this
-        error = cx_aes_iv_no_throw(&aes_key, CX_ENCRYPT | CX_PAD_NONE | CX_CHAIN_CBC, (uint8_t *)R, 16, 
-            (uint8_t *)P, 16, (uint8_t *)R, &out_len);
-        if (error) return error;
-
-        memset(P, 0, 16);
-        P[9] = i;
-        memmove(&P[10], b, 6);
-        // block depends on the round number and b
-        error = cx_aes_iv_no_throw(&aes_key, CX_ENCRYPT | CX_PAD_NONE | CX_CHAIN_CBC | CX_LAST, (uint8_t *)R, 16, 
-            (uint8_t *)P, 16, (uint8_t *)R, &out_len);
-        if (error) return error;
-        memmove(d, R, 16);
-
-        // we need to take 12 bytes because d = 12 in our case
-        // we know we only need at most 6 bytes because n/2 = 5.5
-        uint8_t c[6];
-        cx_math_add_no_throw(c, a, R + 6, 6); // skip first d-6
-        c[0] &= 0x0F; // modulo 5.5 bytes
-
-        // swap a & b and replace with c
-        memmove(a, b, 6);
-        memmove(b, c, 6);
-    }
-
-    // stitch the result back
-    // it's the reverse of the split we did above
-    memset(d, 0, 11);
-    for (int i = 0; i < 5; i++) {
-        d[i] = a[i] << 4 | a[i+1] >> 4;
-        d[i+6] = b[i+1];
-    }
-    d[5] = a[5] << 4 | (b[0] & 0x0F);
-    swap_bit_endian(d, 11);
-
-    return error;
-}
-
 /// @brief Performs FF1 in place
 /// @param dk 
 /// @param di 
-/// BN must be UNLOCKED
 void ff1_inplace(const uint8_t *dk, uint8_t *di) {
     // data should be in radix 2, we flip bit per bit
     // while keeping the byte endianess

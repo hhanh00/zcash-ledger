@@ -26,7 +26,6 @@
 #include "fr.h"
 #include "pallas.h"
 #include "tx.h"
-#include "debug.h"
 
 #include "globals.h"
 

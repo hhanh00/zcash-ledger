@@ -14,6 +14,7 @@
  * Converting TO MF: x => x.h
  * Converting FROM MF: x => x/h
 */
+#include <ox_bn.h>
 
 #ifdef MONTGOMERY_EMU
 static cx_bn_t R, RInv, mont_temp;

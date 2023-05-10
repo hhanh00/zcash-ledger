@@ -27,6 +27,10 @@
 #include "ua.h"
 #include "../globals.h"
 
+/// @brief Derive the master seed
+/// @param tsk transparent secret key, seed of sapling and orchard keys
+/// @param account 
+/// @return 
 int derive_tsk(uint8_t *tsk, uint8_t account) {
     uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
     os_perso_derive_node_bip32(CX_CURVE_256K1, bip32_path, 5,

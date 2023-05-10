@@ -207,9 +207,8 @@ void sapling_derive_spending_key(uint8_t account) {
     cx_bn_destroy(&nsk);
     destroy_en(&G);
 
-    get_ivk(pkeys->pk_d, G_context.proofk_info.ak, G_context.proofk_info.nk); // use pk_d as ivk to save on stack
+    get_ivk(pkeys->pk_d, G_context.proofk_info.ak, G_context.proofk_info.nk); // use pk_d as ivk to save on space
     PRINTF("ivk %.*H\n", 32, pkeys->pk_d);
-    check_canary();
 
     // Find the first diversifier = default address
     uint32_t i = 0;
@@ -220,15 +219,14 @@ void sapling_derive_spending_key(uint8_t account) {
         memmove(pkeys->d, &i, 4); // Try this index
         ff1_inplace(pkeys->dk, pkeys->d); // Shuffle with ff1
         PRINTF("di %.*H\n", 11, pkeys->d);
-        check_canary();
 
         int error = hash_to_e(&Gd, pkeys->d, 11);
         PRINTF("hash_to_e %d\n", error);
-        check_canary();
         if (!error) break;
         i++;
     }
 
+    // Convert G to ext niels
     alloc_en(&G);
     e_to_en(&G, &Gd);
     destroy_e(&Gd);
@@ -236,9 +234,9 @@ void sapling_derive_spending_key(uint8_t account) {
     print_bn("vmu", G.vmu);
     print_bn("z", G.z);
     print_bn("t2d", G.t2d);
-    swap_endian(pkeys->pk_d, 32); // that's ivk
+    swap_endian(pkeys->pk_d, 32); // that's in fact ivk
     BN_DEF(ivk); cx_bn_init(ivk, pkeys->pk_d, 32);
-    sk_to_pk(pkeys->pk_d, &G, ivk);
+    sk_to_pk(pkeys->pk_d, &G, ivk); // pkd = Gd.ivk
     destroy_en(&G);
 
     PRINTF("pkd %.*H\n", 32, pkeys->pk_d);
@@ -248,6 +246,11 @@ void sapling_derive_spending_key(uint8_t account) {
     ui_menu_main();
 }
 
+/// @brief Sign a sig_hash using the secret key ask
+/// randomized by alpha. 
+/// alpha comes from our PRNG
+/// @param signature 
+/// @param sig_hash 
 void sapling_sign(uint8_t *signature, uint8_t *sig_hash) {
     // PRINTF("sig hash %.*H\n", 32, sig_hash);
     cx_bn_lock(32, 0); 
@@ -440,6 +443,7 @@ static void load_en(jj_en_t *dest, const ff_jj_en_t *src) {
 void en_mul(jj_e_t *pk, jj_en_t *G, cx_bn_t sk) {
     bool bit;
     e_set0(pk);
+    // Skip the higest 4 bits as they are always 0 for Fr
     for (uint16_t i = 4; i < 256; i++) {
         cx_bn_tst_bit(sk, 255 - i, &bit);
         e_double(pk);
@@ -525,7 +529,6 @@ void e_double(jj_e_t *r) {
 /// @brief x += y
 /// @param r point in extended coord
 /// @param a point in extended niels coord
-
 void een_add_assign(jj_e_t *x, jj_en_t *y) {
     BN_DEF(temp);
     BN_DEF(a);
@@ -581,6 +584,9 @@ void een_add_assign(jj_e_t *x, jj_en_t *y) {
     cx_bn_destroy(&temp);
 }
 
+/// @brief Convert from ext to ext niels
+/// @param dest 
+/// @param src 
 void e_to_en(jj_en_t *dest, jj_e_t *src) {
     BN_DEF(D2); cx_bn_init(D2, fq_D2, 32); TO_MONT(D2);
     BN_DEF(temp);
@@ -735,7 +741,6 @@ void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk) {
     ivk[31] &= 0x07;
 }
 
-// TODO This blows the stack
 void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed) {
     cx_bn_lock(32, 0);
     init_mont(fq_m);
@@ -743,19 +748,15 @@ void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rs
     uint8_t rcmb[32];
     prf_expand_spending_key(buffer, rseed, 4);
     reduce_wide_bytes(rcmb, buffer, rM);
-    check_canary();
     PRINTF("rcm %.*H\n", 32, rcmb);
-    check_canary();
 
     PRINTF("init ph\n");
-
     init_ph(&G_store.ph);
     uint8_t perso = 0x3F;
     update_ph(&G_store.ph, &perso, 6);
     update_ph(&G_store.ph, (uint8_t *)&value, 64); // value
     jj_e_t Gd; alloc_e(&Gd);
     hash_to_e(&Gd, d, 11);
-    check_canary();
     e_to_bytes(G_store.Gdb, &Gd);
     destroy_e(&Gd);
     PRINTF("Gd %.*H\n", 32, G_store.Gdb);
@@ -763,7 +764,6 @@ void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rs
     PRINTF("pkd %.*H\n", 32, pkd);
     update_ph(&G_store.ph, pkd, 256); // pkd
     finalize_ph(&G_store.ph);
-    check_canary();
 
     jj_en_t Gcmu; alloc_en(&Gcmu); load_en(&Gcmu, &CMU_RAND_GEN);
     BN_DEF(rcm); cx_bn_init(rcm, rcmb, 32);
@@ -808,11 +808,11 @@ void update_ph(pedersen_state_t *state, uint8_t *data, size_t data_bit_len) {
     size_t byte_length = (data_bit_len + 7) / 8;
 
     for (size_t i = 0; i < byte_length; i++) {
-        check_canary();
         uint8_t byte = data[i];
         // process 8 bits at a time, until the last byte if it is not an full byte
         int bits_to_process = (i == byte_length - 1 && data_bit_len % 8 != 0) ? data_bit_len % 8 : 8;
 
+        // emit in chunks of 3 bits
         while (bits_to_process > 0) {
             // number of bits needed to fill up our current pack
             int bits_to_add = min(3 - state->bits_in_pack, bits_to_process);
@@ -842,6 +842,7 @@ void update_ph(pedersen_state_t *state, uint8_t *data, size_t data_bit_len) {
 }
 
 void finalize_ph(pedersen_state_t *state) {
+    // process the last partial chunk if any
     if (state->bits_in_pack > 0) {
         process_chunk(state);
         state->bits_in_pack = 0;
@@ -852,6 +853,8 @@ void finalize_ph(pedersen_state_t *state) {
 
 static void process_chunk(pedersen_state_t *state) {
     uint8_t c = state->current_pack;
+    // accumulate 3 bits into state->acc
+    // scale state->cur
     BN_DEF(temp); cx_bn_copy(temp, state->cur); // temp = cur
     if ((c & 1) != 0) {
         // PRINTF("+");
@@ -883,8 +886,10 @@ static void process_chunk(pedersen_state_t *state) {
     state->index_pack++;
 }
 
+/// @brief process a group of 63 chunks, use one of the PH generators
+/// we need 4 points for the data that we hash
+/// @param state 
 static void process_acc(pedersen_state_t *state) {
-    check_canary();
     print_bn("acc", state->acc);
     uint8_t index_gen = state->index_pack / 63;
     jj_en_t G; alloc_en(&G); load_en(&G, &PH_GENS[index_gen]);
@@ -895,4 +900,3 @@ static void process_acc(pedersen_state_t *state) {
     destroy_e(&pk);
     destroy_en(&G);
 }
-

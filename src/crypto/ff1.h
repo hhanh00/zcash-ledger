@@ -13,6 +13,4 @@
  * 
  * cannot throw/error
 */
-int ff1(uint8_t *d, const uint8_t *dk, uint8_t *di);
-
 void ff1_inplace(const uint8_t *dk, uint8_t *di);

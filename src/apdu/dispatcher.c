@@ -37,7 +37,6 @@
 #include "../crypto/fr.h"
 #include "../crypto/prf.h"
 #include "../crypto/key.h"
-#include "../crypto/debug.h"
 
 #define MOVE_FIELD(s,field) memmove(&s.field, p, sizeof(s.field)); p += sizeof(s.field);
 #define TRANSPARENT_OUT_LEN (8+1+20)
@@ -79,7 +78,7 @@ int apdu_dispatcher(const command_t *cmd) {
             }
             derive_keys(cmd->p1);
             check_canary();
-            return helper_send_response_bytes(NULL, 0);
+            return io_send_sw(SW_OK);
 
         case GET_PUBKEY:
             if (cmd->p2 != 0) {
@@ -115,7 +114,7 @@ int apdu_dispatcher(const command_t *cmd) {
             swap_endian(G_store.out_buffer + 64, 32);
             return helper_send_response_bytes(G_store.out_buffer, 96);
             #else
-                return io_send_sw(SW_INS_NOT_SUPPORTED);
+            return io_send_sw(SW_INS_NOT_SUPPORTED);
             #endif
         }
 
@@ -181,6 +180,7 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(G_context.s_out, epk);
                 MOVE_FIELD(G_context.s_out, enc);
                 #ifdef TEST
+                // in prod, rseed is picked by our PRNG, not the client's
                 MOVE_FIELD(G_context.s_out, rseed);
                 #endif
 
@@ -205,6 +205,7 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(G_context.o_action, epk);
                 MOVE_FIELD(G_context.o_action, enc);
                 #ifdef TEST
+                // in prod, rseed is picked by our PRNG, not the client's
                 MOVE_FIELD(G_context.o_action, rseed);
                 #endif
 
@@ -351,7 +352,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != 0)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
             reset_app();
-            return helper_send_response_bytes(NULL, 0);
+            return io_send_sw(SW_OK);
 
 #ifdef TEST
         case GET_T_SIGHASH:
@@ -362,12 +363,6 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             return get_sighash(cmd->data);
-
-        case GET_DEBUG_BUFFER:
-            if (cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            return get_debug_buffer(cmd->p1);
 
         case TEST_MATH:
             if (cmd->p2 != 0) {
