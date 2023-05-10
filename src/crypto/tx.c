@@ -144,14 +144,16 @@ int change_stage(uint8_t new_stage) {
             // We can compute the sig hash components
 
             break;
+        default: // should have been caught by the check at the top
+            return io_send_sw(SW_INVALID_PARAM);
     }
     G_context.signing_ctx.stage = new_stage;
 
     return io_send_sw(SW_OK);
 }
 
-const uint32_t PAY2PKH_1 = 0x14A97619;  // First part of the pay2pkh bitcoin script (reversed)
-const uint16_t PAY2PKH_2 = 0xAC88;      // Second part of the pay2pkh bitcoin script (reversed)
+const uint8_t PAY2PKH_1[] = { 0x19, 0x76, 0xA9, 0x14 }; // First part of the pay2pkh bitcoin script
+const uint8_t PAY2PKH_2[] = { 0x88, 0xAC };             // Second part of the pay2pkh bitcoin script
 
 int add_t_input_amount(uint64_t amount) {
     if (G_context.signing_ctx.stage != T_IN) {
@@ -166,6 +168,7 @@ int add_t_input_amount(uint64_t amount) {
 
     G_context.signing_ctx.has_t_in = true;
     G_context.signing_ctx.t_net += (int64_t)amount;
+    CHECK_MONEY(G_context.signing_ctx.t_net);
     cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher, 0, (uint8_t *) &amount, 8, NULL, 0);
 
     return io_send_sw(SW_OK);
@@ -197,9 +200,9 @@ int add_t_output(t_out_t *output, bool confirmation) {
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.signing_ctx.hasher;
     cx_hash(ph, 0, (uint8_t *) &output->amount, 8, NULL, 0);  // output amount
-    cx_hash(ph, 0, (uint8_t *) &PAY2PKH_1, 4, NULL, 0);       // <size> OP_DUP OP_HASH160 <key size>
+    cx_hash(ph, 0, PAY2PKH_1, 4, NULL, 0);       // <size> OP_DUP OP_HASH160 <key size>
     cx_hash(ph, 0, output->address_hash, 20, NULL, 0);  // pk hash
-    cx_hash(ph, 0, (uint8_t *) &PAY2PKH_2, 2, NULL, 0);              // OP_EQUALVERIFY OP_CHECKSIG
+    cx_hash(ph, 0, PAY2PKH_2, 2, NULL, 0);              // OP_EQUALVERIFY OP_CHECKSIG
 
     if (confirmation)
         return ui_confirm_t_out(output);
@@ -220,11 +223,6 @@ int add_s_output(s_out_t *output, bool confirmation) {
 
     G_context.signing_ctx.has_s_out = true;
     G_context.signing_ctx.amount_s_out += output->amount;
-
-#ifndef TEST
-    // In production, wallet clients cannot by pass user confirmation
-    confirmation = true;
-#endif
 
     if ((memcmp(output->address, G_context.exp_sk_info.d, 11) == 0 &&
         memcmp(output->address + 11, G_context.exp_sk_info.pk_d, 32) == 0)
@@ -269,11 +267,6 @@ int add_o_action(o_action_t *action, bool confirmation) {
     ui_display_processing("o-out");
     G_context.signing_ctx.has_o_action = true;
     G_context.signing_ctx.amount_o_out += action->amount;
-
-#ifndef TEST
-    // In production, wallet clients cannot by pass user confirmation
-    confirmation = true;
-#endif
 
     if (memcmp(action->address, G_context.orchard_key_info.address, 43) == 0 || 
         action->amount == 0)
@@ -359,11 +352,6 @@ int confirm_fee(bool confirmation) {
         reset_app();
         return io_send_sw(SW_BAD_STATE);
     }
-
-#ifndef TEST
-    // In production, wallet clients cannot by pass user confirmation
-    confirmation = true;
-#endif
 
     int64_t fee = G_context.signing_ctx.t_net + G_context.signing_ctx.s_net + G_context.signing_ctx.o_net;
     transparent_bundle_hash();

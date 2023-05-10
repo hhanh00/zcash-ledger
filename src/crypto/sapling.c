@@ -644,6 +644,11 @@ void e_to_u(uint8_t *ub, const jj_e_t *p) {
     cx_bn_destroy(&u);
 }
 
+/// @brief hash into an extended point
+/// @param p 
+/// @param msg 
+/// @param len 
+/// @return CX_INVALID_PARAMETER if hash does not correspond to a point
 int hash_to_e(jj_e_t *p, const uint8_t *msg, size_t len) {
     int error = 0;
     memset(&G_store.hash_params, 0, sizeof(G_store.hash_params));
@@ -741,6 +746,13 @@ void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk) {
     ivk[31] &= 0x07;
 }
 
+/// @brief computes the note commitment
+/// @param cmu 
+/// @param d 
+/// @param pkd 
+/// @param value 
+/// @param rseed 
+/// throws if address is not valid
 void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed) {
     cx_bn_lock(32, 0);
     init_mont(fq_m);
@@ -756,7 +768,7 @@ void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rs
     update_ph(&G_store.ph, &perso, 6);
     update_ph(&G_store.ph, (uint8_t *)&value, 64); // value
     jj_e_t Gd; alloc_e(&Gd);
-    hash_to_e(&Gd, d, 11);
+    CX_THROW(hash_to_e(&Gd, d, 11)); // check if d is a good diversifier
     e_to_bytes(G_store.Gdb, &Gd);
     destroy_e(&Gd);
     PRINTF("Gd %.*H\n", 32, G_store.Gdb);

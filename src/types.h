@@ -21,6 +21,13 @@ void check_canary_inner();
 #define check_canary()
 #endif
 
+// 20 million in zats 20e6*1e8 = 2e15
+#define MAX_MONEY 2000000000000000LL
+
+#define CHECK_MONEY(x) while(0) { \
+    if ((x) < -MAX_MONEY || (x) > MAX_MONEY) return io_send_sw(SW_INVALID_PARAM); \
+}
+
 /**
  * Enumeration for the status of IO.
  */

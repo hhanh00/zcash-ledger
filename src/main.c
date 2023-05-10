@@ -112,10 +112,10 @@ void app_main() {
             }
             CATCH_OTHER(e) {
                 io_send_sw(e);
+                cx_bn_unlock();
             }
             FINALLY {
                 check_canary();
-                PRINTF("check stack passed\n");
             }
             END_TRY;
         }

@@ -43,12 +43,16 @@
 
 #ifdef TEST
 #define RSEED_LEN 32
+#define OVERRIDE_CONFIRMATION() {}
 #else
 #define RSEED_LEN 0
+#define OVERRIDE_CONFIRMATION() while (0) { confirmation = true; }
 #endif
 
 #define SAPLING_OUT_LEN (43+8+32+52+RSEED_LEN)
 #define ORCHARD_OUT_LEN (32+43+8+32+52+RSEED_LEN)
+
+
 
 const uint8_t VERSION[] = { 1, 0, 1 };
 
@@ -59,6 +63,7 @@ int apdu_dispatcher(const command_t *cmd) {
 
     uint8_t *p;
     uint8_t has_orchard = 0;
+    bool confirmation;
     switch (cmd->ins) {
         case GET_VERSION:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -153,6 +158,8 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != TRANSPARENT_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
+            confirmation = cmd->p1;
+            OVERRIDE_CONFIRMATION();
             {
                 memset(&G_context.t_out, 0, sizeof(t_out_t));
                 p = cmd->data;
@@ -161,7 +168,12 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(G_context.t_out, address_type);
                 MOVE_FIELD(G_context.t_out, address_hash);
 
-                return add_t_output(&G_context.t_out, cmd->p1 == 1);
+                // Check parameters, any address_hash is technically valid
+                CHECK_MONEY(G_context.t_out.amount);
+                if (G_context.t_out.address_type != 0)
+                    return io_send_sw(SW_INVALID_PARAM);
+
+                return add_t_output(&G_context.t_out, confirmation);
             }
 
         case ADD_S_OUT:
@@ -171,6 +183,8 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != SAPLING_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
+            confirmation = cmd->p1;
+            OVERRIDE_CONFIRMATION();
             {
                 memset(&G_context.s_out, 0, sizeof(s_out_t));
                 p = cmd->data;
@@ -184,7 +198,10 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(G_context.s_out, rseed);
                 #endif
 
-                return add_s_output(&G_context.s_out, cmd->p1 == 1);
+                // Check parameters
+                // diversifier is checked later
+                CHECK_MONEY(G_context.s_out.amount);
+                return add_s_output(&G_context.s_out, confirmation);
             }
 
         case ADD_O_ACTION:
@@ -195,6 +212,8 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != ORCHARD_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
+            confirmation = cmd->p1;
+            OVERRIDE_CONFIRMATION();
             {
                 memset(&G_context.o_action, 0, sizeof(o_action_t));
                 p = cmd->data;
@@ -209,7 +228,9 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(G_context.o_action, rseed);
                 #endif
 
-                return add_o_action(&G_context.o_action, cmd->p1 == 1);
+                // Check parameters
+                CHECK_MONEY(G_context.o_action.amount);
+                return add_o_action(&G_context.o_action, confirmation);
             }
             #else
                 return io_send_sw(SW_INS_NOT_SUPPORTED);
@@ -225,6 +246,7 @@ int apdu_dispatcher(const command_t *cmd) {
             p = cmd->data;
             int64_t net;
             memmove(&net, p, 8);
+            CHECK_MONEY(net);
             return set_s_net(net);
 
         case SET_O_NET:
@@ -236,6 +258,7 @@ int apdu_dispatcher(const command_t *cmd) {
 
             p = cmd->data;
             memmove(&net, p, 8);
+            CHECK_MONEY(net);
             #ifdef ORCHARD
             return set_o_net(net);
             #else
@@ -293,8 +316,10 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
+            confirmation = cmd->p1;
+            OVERRIDE_CONFIRMATION();
 
-            return confirm_fee(cmd->p1);
+            return confirm_fee(confirmation);
 
         case GET_PROOFGEN_KEY: {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -320,7 +345,6 @@ int apdu_dispatcher(const command_t *cmd) {
             }
             if (cmd->lc != 0)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
-
             return sign_sapling();
 
         case SIGN_ORCHARD:
