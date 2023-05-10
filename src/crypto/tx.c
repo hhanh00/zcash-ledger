@@ -27,6 +27,7 @@
 
 #include "../globals.h"
 #include "fr.h"
+#include "key.h"
 #include "transparent.h"
 #include "sapling.h"
 #include "tx.h"

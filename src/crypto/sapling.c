@@ -26,11 +26,14 @@
 #include "blake2s.h"
 
 #include "sw.h"
+#include "key.h"
 #include "ff1.h"
 #include "address.h"
 #include "tx.h"
+#include "transparent.h"
 #include "globals.h"
-
+#include "../ui/display.h"
+#include "../ui/menu.h"
 #include "../helper/send_response.h"
 
 #define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
@@ -157,8 +160,7 @@ static uint8_t buffer[64];
  * stack usage = hash (2) + spk + ask + nsk + ovk + dk + ak + nk + ivk + d (1/3) + pkd
 */
 void sapling_derive_spending_key(uint8_t account) {
-    cx_bn_lock(32, 0);
-    BN_DEF(rM); cx_bn_init(rM, fr_m, 32);
+    ui_display_processing("z-key");
     expanded_spending_key_t *pkeys = &G_context.exp_sk_info;
     PRINTF("Derive sapling keys for account %d\n", account);
 
@@ -166,6 +168,8 @@ void sapling_derive_spending_key(uint8_t account) {
 
     derive_spending_key(spk, account);
     PRINTF("Spending key %.*H\n", 32, spk);
+    cx_bn_lock(32, 0);
+    BN_DEF(rM); cx_bn_init(rM, fr_m, 32);
     init_mont(fq_m);
 
     // derive the first layer of keys
@@ -212,7 +216,6 @@ void sapling_derive_spending_key(uint8_t account) {
     PRINTF("dk %.*H\n", 32, pkeys->dk);
     jj_e_t Gd; alloc_e(&Gd);
     for (;i < 500;) {
-        PRINTF("i %d\n", i);
         memset(pkeys->d, 0, 11);
         memmove(pkeys->d, &i, 4); // Try this index
         ff1_inplace(pkeys->dk, pkeys->d); // Shuffle with ff1
@@ -242,6 +245,7 @@ void sapling_derive_spending_key(uint8_t account) {
     // to_address_bech32(G_context.address, pkeys->d, pkeys->pk_d);
     // PRINTF("address %s\n", G_context.address);
     cx_bn_unlock();
+    ui_menu_main();
 }
 
 void sapling_sign(uint8_t *signature, uint8_t *sig_hash) {
@@ -366,12 +370,7 @@ static void reduce_wide_bytes(uint8_t *dest, uint8_t *src, cx_bn_t mod) {
 /// @param account 
 /// @return 
 static int derive_spending_key(uint8_t *spk, uint8_t account) {
-    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
-    os_perso_derive_node_bip32(CX_CURVE_256K1,
-                                bip32_path,
-                                5,
-                                spk,
-                                NULL);
+    derive_tsk(spk, account);
 
     cx_blake2b_init2_no_throw(&G_context.sapling_derive_ctx.hasher, 256,
                               NULL, 0,
@@ -384,14 +383,14 @@ static int derive_spending_key(uint8_t *spk, uint8_t account) {
 }
 
 /// @brief blake2b(key|t) with perso = Zcash_ExpandSeed
-/// @param buffer hash, 64 bytes
+/// @param pbuffer hash, 64 bytes
 /// @param key
 /// @param t domain
-static void prf_expand_spending_key(uint8_t *buffer, uint8_t *key, uint8_t t) {
+static void prf_expand_spending_key(uint8_t *pbuffer, uint8_t *key, uint8_t t) {
     cx_blake2b_init2_no_throw(&G_context.sapling_derive_ctx.hasher, 512, NULL, 0, (uint8_t *)"Zcash_ExpandSeed", 16);
     cx_hash_t *ph = (cx_hash_t *)&G_context.sapling_derive_ctx.hasher;
     cx_hash(ph, 0, key, 32, NULL, 0);
-    cx_hash(ph, CX_LAST, &t, 1, buffer, 64);
+    cx_hash(ph, CX_LAST, &t, 1, pbuffer, 64);
 }
 
 static void alloc_e(jj_e_t *r) {

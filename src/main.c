@@ -35,15 +35,11 @@ bolos_ux_params_t G_ux_params;
 global_ctx_t G_context;
 temp_t G_store;
 
+
+#ifdef CHECK_STACK
 // This symbol is defined by the link script to be at the start of the stack
 // area.
 extern unsigned long _stack;
-
-
-#ifdef ORCHARD
-void init_canary() {}
-void check_canary_inner() {}
-#else
 #define STACK_CANARY (*((volatile uint32_t*) &_stack))
 
 void init_canary() {
@@ -55,6 +51,9 @@ void check_canary_inner() {
         THROW(EXCEPTION_OVERFLOW);
     PRINTF("stack checked\n");
 }
+#else
+void init_canary() {}
+void check_canary_inner() {}
 #endif
 
 /**

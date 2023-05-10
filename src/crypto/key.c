@@ -27,11 +27,16 @@
 #include "ua.h"
 #include "../globals.h"
 
+int derive_tsk(uint8_t *tsk, uint8_t account) {
+    uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
+    os_perso_derive_node_bip32(CX_CURVE_256K1, bip32_path, 5,
+        tsk, NULL);
+    return 0;
+}
+
 static void derive_keys_inner(uint8_t account) {
     transparent_derive_pubkey(account);
-    check_canary();
     sapling_derive_spending_key(account);
-    check_canary();
     #ifdef ORCHARD
     orchard_derive_spending_key(account);
     #endif

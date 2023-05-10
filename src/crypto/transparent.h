@@ -2,12 +2,6 @@
 
 #include "../types.h"
 
-/// @brief Derive the transparent secret key
-/// @param tsk 
-/// @param account 
-/// @return 
-int derive_tsk(uint8_t *tsk, uint8_t account);
-
 /// @brief Derive the transparent address
 /// @param pkh public key hash, 20 bytes
 /// @param account 

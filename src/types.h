@@ -15,10 +15,10 @@
 
 void check_canary_inner();
 
-#ifdef ORCHARD
-#define check_canary()
-#else // Only check on NanoS
+#ifdef CHECK_STACK
 #define check_canary() check_canary_inner()
+#else // Only check on NanoS
+#define check_canary()
 #endif
 
 /**
