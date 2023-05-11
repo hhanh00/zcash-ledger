@@ -15,13 +15,17 @@
 #include "sapling.h"
 
 void check_canary_inner();
-int canary_depth(void *p);
+int canary_depth_inner(void *p);
 uint32_t get_canary();
 
 #ifdef CHECK_STACK
 #define check_canary() check_canary_inner()
+#define canary_depth(p) canary_depth_inner(p)
+#define CHECK_STACK_ONLY(expr) while(0) { expr; }
 #else // Only check on NanoS
 #define check_canary()
+#define canary_depth(p)
+#define CHECK_STACK_ONLY(expr)
 #endif
 
 // 20 million in zats 20e6*1e8 = 2e15

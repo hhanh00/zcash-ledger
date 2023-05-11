@@ -62,7 +62,7 @@ int apdu_dispatcher(const command_t *cmd) {
     uint8_t *p;
     uint8_t has_orchard = 0;
     bool confirmation;
-    PRINTF("apdu_dispatcher stack %d\n", canary_depth(&confirmation));
+    CHECK_STACK_ONLY(PRINTF("apdu_dispatcher stack %d\n", canary_depth(&confirmation)));
     switch (cmd->ins) {
         case GET_VERSION:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

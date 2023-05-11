@@ -51,14 +51,13 @@ void check_canary_inner() {
         THROW(EXCEPTION_OVERFLOW);
     PRINTF("stack checked\n");
 }
-int canary_depth(void *p) { 
+int canary_depth_inner(void *p) { 
     return (uint8_t *)p - (uint8_t *)(&_stack);
 }
 uint32_t get_canary() { return STACK_CANARY; }
 #else
 void init_canary() {}
 void check_canary_inner() {}
-int canary_depth(void *p) { return 0; }
 uint32_t get_canary() { return 0; }
 #endif
 
@@ -71,7 +70,6 @@ void app_main() {
     int input_len = 0;
     // Structured APDU command
     command_t cmd;
-    PRINTF("app_main stack %d\n", canary_depth(&input_len));
 
     io_init();
 

@@ -530,15 +530,11 @@ int sign_transparent(uint8_t *txin_sig_digest) {
     PRINTF("SIGNING\n");
     derive_tsk(G_store.tsk, G_context.account);
     uint32_t info = 0;
-    PRINTF("sign_transparent stack depth %d\n", canary_depth(&info));
     cx_ecfp_init_private_key_no_throw(CX_CURVE_SECP256K1, G_store.tsk, 32, &G_store.t_prvk);
     check_canary();
-    PRINTF("sign_transparent stack depth %d %x\n", canary_depth(&info), get_canary());
     size_t sig_len = 80;
     cx_ecdsa_sign_no_throw(&G_store.t_prvk, CX_RND_RFC6979 | CX_LAST, CX_SHA256, 
         G_store.sig_hash, 32, G_store.signature, &sig_len, &info);
-    PRINTF("sig_len %d\n", sig_len);
-    PRINTF("sign_transparent stack depth %d %x\n", canary_depth(&info), get_canary());
 
     check_canary();
     PRINTF("SIGNED\n");

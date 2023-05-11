@@ -14,3 +14,6 @@ def test_keys(backend):
 
     rapdu = client.send_request_no_params(InsType.GET_OFVK)
     assert(binascii.hexlify(rapdu.data) == b"461c8edb0254123802935845a4240aae706a8ee492d9c325d28f1ab0ef65d7091eeac7a99f6b50bb52e4a63b5b7a86552f455199a51fca4aa1a9b7be50264835f436bb28d989bf9a0ab8986d66633ce06057e482ac4d8dfd2bfa4d84f5f1c204")
+
+    rapdu = client.send_request_no_params(InsType.GET_PROOF_KEY)
+    assert(binascii.hexlify(rapdu.data) == b"e081cdca695f86a98c603a799509d987ad2b1a26487d89e63e2b0c2e0595c642c022ff80f6b31aa346e92434307f2d98c932e492cad6af752b853fdf2e782d01")

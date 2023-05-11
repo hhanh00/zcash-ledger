@@ -16,12 +16,11 @@ class InsType(IntEnum):
     GET_PUBKEY = 0x06
     GET_FVK = 0x07
     GET_OFVK = 0x08
+    GET_PROOF_KEY = 0x09
     INIT_TX = 0x10
-
 
 def split_message(message: bytes, max_size: int) -> List[bytes]:
     return [message[x:x + max_size] for x in range(0, len(message), max_size)]
-
 
 class ZcashCommandSender:
     def __init__(self, backend: BackendInterface) -> None:
