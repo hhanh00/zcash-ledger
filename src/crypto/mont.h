@@ -41,7 +41,13 @@ static void mont_mul(cx_bn_t r, cx_bn_t a, cx_bn_t b) {
     cx_bn_mod_mul(r, a, b, M);
     from_mont(r);
 }
-
+#elif defined(NO_MONTGOMERY)
+static void init_mont(const uint8_t *fx_m) {
+    cx_bn_alloc_init(&M, 32, fx_m, 32);
+}
+#define FROM_MONT(a) 
+#define TO_MONT(a) 
+#define CX_MUL(r, a, b) cx_bn_mod_mul(r, a, b, M)
 #else
 static cx_bn_t H;
 static cx_bn_mont_ctx_t MONT_CTX;

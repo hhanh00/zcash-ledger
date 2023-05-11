@@ -6,6 +6,7 @@
 #include <lcx_blake2.h>
 #include <lcx_sha256.h>
 #include <lcx_ripemd160.h>
+#include <lcx_ecdsa.h>
 #include <ox_bn.h>
 #include "constants.h"
 #include "tx.h"
@@ -14,6 +15,8 @@
 #include "sapling.h"
 
 void check_canary_inner();
+int canary_depth(void *p);
+uint32_t get_canary();
 
 #ifdef CHECK_STACK
 #define check_canary() check_canary_inner()
@@ -25,7 +28,7 @@ void check_canary_inner();
 #define MAX_MONEY 2000000000000000LL
 
 #define CHECK_MONEY(x) while(0) { \
-    if ((x) < -MAX_MONEY || (x) > MAX_MONEY) return io_send_sw(SW_INVALID_PARAM); \
+    if (((int64_t)x) < -MAX_MONEY || ((int64_t)x) > MAX_MONEY) return io_send_sw(SW_INVALID_PARAM); \
 }
 
 /**
@@ -240,6 +243,12 @@ typedef struct {
             uint8_t hash[32]; 
             pedersen_state_t ph;
             uint8_t Gdb[32];
+        };
+        struct { // transparent sign
+            uint8_t sig_hash[32];
+            uint8_t tsk[32];
+            cx_ecfp_private_key_t t_prvk;
+            uint8_t signature[80];
         };
         struct { // UA
             uint8_t receivers[UA_LEN];

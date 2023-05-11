@@ -523,21 +523,27 @@ int sign_transparent(uint8_t *txin_sig_digest) {
     }
     ui_display_processing("sign t");
 
-    uint8_t sig_hash[32];
-    finish_sighash(sig_hash, txin_sig_digest);
-    PRINTF("TRANSPARENT SIG HASH: %.*H\n", 32, sig_hash);
+    finish_sighash(G_store.sig_hash, txin_sig_digest);
+    PRINTF("TRANSPARENT SIG HASH: %.*H\n", 32, G_store.sig_hash);
+    check_canary();
 
-    uint8_t tsk[32];
-    derive_tsk(tsk, G_context.account);
-    cx_ecfp_private_key_t t_prvk;
-    uint32_t info;
-    uint8_t signature[80];
-    cx_ecfp_init_private_key_no_throw(CX_CURVE_SECP256K1, tsk, 32, &t_prvk);
-    int sig_len = cx_ecdsa_sign(&t_prvk, CX_RND_RFC6979 | CX_LAST, CX_SHA256, sig_hash,
-        32, signature, sizeof(signature), &info);
+    PRINTF("SIGNING\n");
+    derive_tsk(G_store.tsk, G_context.account);
+    uint32_t info = 0;
+    PRINTF("sign_transparent stack depth %d\n", canary_depth(&info));
+    cx_ecfp_init_private_key_no_throw(CX_CURVE_SECP256K1, G_store.tsk, 32, &G_store.t_prvk);
+    check_canary();
+    PRINTF("sign_transparent stack depth %d %x\n", canary_depth(&info), get_canary());
+    size_t sig_len = 80;
+    cx_ecdsa_sign_no_throw(&G_store.t_prvk, CX_RND_RFC6979 | CX_LAST, CX_SHA256, 
+        G_store.sig_hash, 32, G_store.signature, &sig_len, &info);
+    PRINTF("sig_len %d\n", sig_len);
+    PRINTF("sign_transparent stack depth %d %x\n", canary_depth(&info), get_canary());
 
+    check_canary();
+    PRINTF("SIGNED\n");
     ui_menu_main();
-    return helper_send_response_bytes(signature, sig_len); // signature has variable length in DER
+    return helper_send_response_bytes(G_store.signature, sig_len); // signature has variable length in DER
 }
 
 int sign_sapling() {

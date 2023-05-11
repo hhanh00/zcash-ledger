@@ -52,8 +52,6 @@
 #define SAPLING_OUT_LEN (43+8+32+52+RSEED_LEN)
 #define ORCHARD_OUT_LEN (32+43+8+32+52+RSEED_LEN)
 
-
-
 const uint8_t VERSION[] = { 1, 0, 1 };
 
 int apdu_dispatcher(const command_t *cmd) {
@@ -64,6 +62,7 @@ int apdu_dispatcher(const command_t *cmd) {
     uint8_t *p;
     uint8_t has_orchard = 0;
     bool confirmation;
+    PRINTF("apdu_dispatcher stack %d\n", canary_depth(&confirmation));
     switch (cmd->ins) {
         case GET_VERSION:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
