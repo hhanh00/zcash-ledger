@@ -39,12 +39,12 @@
 #include "../crypto/ua.h"
 #include "../crypto/tx.h"
 #include "../crypto/orchard.h"
+#include "../crypto/key.h"
 
 int handler_test_math() {
     int error = 0;
     BEGIN_TRY {
         TRY {
-            // Test code removed
         }
         CATCH_OTHER(e) {
             error = e;

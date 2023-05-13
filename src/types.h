@@ -14,6 +14,14 @@
 #include "blake2s.h"
 #include "sapling.h"
 
+#ifdef TEST
+#define TEST_ONLY_FILL(array, value, length) memset(array, value, length)
+#define TEST_ONLY(s) do { s; } while(0);
+#else
+#define TEST_ONLY_FILL(array, value, length)
+#define TEST_ONLY(s)
+#endif
+
 void check_canary_inner();
 int canary_depth_inner(void *p);
 uint32_t get_canary();
@@ -21,7 +29,7 @@ uint32_t get_canary();
 #ifdef CHECK_STACK
 #define check_canary() check_canary_inner()
 #define canary_depth(p) canary_depth_inner(p)
-#define CHECK_STACK_ONLY(expr) while(0) { expr; }
+#define CHECK_STACK_ONLY(expr) do { expr; } while(0);
 #else // Only check on NanoS
 #define check_canary()
 #define canary_depth(p)
@@ -31,9 +39,9 @@ uint32_t get_canary();
 // 20 million in zats 20e6*1e8 = 2e15
 #define MAX_MONEY 2000000000000000LL
 
-#define CHECK_MONEY(x) while(0) { \
+#define CHECK_MONEY(x) do { \
     if (((int64_t)x) < -MAX_MONEY || ((int64_t)x) > MAX_MONEY) return io_send_sw(SW_INVALID_PARAM); \
-}
+} while(0);
 
 /**
  * Enumeration for the status of IO.
@@ -75,6 +83,7 @@ typedef enum {
     GET_S_SIGHASH = 0x24,
     END_TX = 0x30,
     GET_T_SIGHASH = 0x83,
+    TEST_CMU = 0xF0,
     GET_DEBUG_BUFFER = 0xFE,
     TEST_MATH = 0xFF,
 } command_e;
@@ -125,11 +134,6 @@ typedef struct {
     jubjub_point_t nk; // nullifier key
 } proofk_ctx_t;
 
-typedef struct {
-    jubjub_point_t ak; // authorizing key
-    fr_t nsk; // nullifier key
-} proofgen_key_t;
-
 typedef enum {
     IDLE,
     T_IN,
@@ -164,7 +168,6 @@ typedef struct {
 #endif
 
 typedef struct {
-    cx_blake2b_t hasher;
     cx_blake2b_t transparent_hasher;
     int64_t fee;
     uint64_t amount_s_out;
@@ -192,10 +195,6 @@ typedef struct {
     bool has_o_action;
 } tx_signing_ctx_t;
 
-typedef struct {
-    cx_blake2b_t hasher;
-} sapling_derive_ctx_t;
-
 /**
  * Structure for global context.
  */
@@ -205,9 +204,10 @@ typedef struct {
         t_out_t t_out;
         s_out_t s_out;
         o_action_t o_action;
+        uint8_t txin_sig_digest[32];
     };
     bool keys_derived;
-    sapling_derive_ctx_t sapling_derive_ctx;
+    cx_blake2b_t hasher;
     transparent_key_t transparent_key_info;
     expanded_spending_key_t exp_sk_info;
     #ifdef ORCHARD
@@ -236,7 +236,12 @@ typedef struct {
 /// if we are sure we don't use two sections
 /// at the same time
 typedef struct {
+    struct { // display on screen
+        char address[UA_LEN*2];
+        char amount[23];
+    };
     union {
+        cx_blake2b_t hasher;
         struct { // transparent address
             cx_sha256_t sha_hasher;
             cx_ripemd160_t ripemd_hasher;
@@ -260,10 +265,6 @@ typedef struct {
         };
         struct { // out buffer to client
             uint8_t out_buffer[128];
-        };
-        struct { // display on screen
-            char address[UA_LEN*2];
-            char amount[23];
         };
     };
 } temp_t;

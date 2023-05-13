@@ -9,7 +9,7 @@
  * Adding two numbers can result in a number greater than the modulus
  * We reduce it by subtracting 0
 */
-#ifndef MOD_ADD_FIX
+#ifdef MOD_ADD_FIX
 #define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m); cx_bn_mod_sub(a, a, zero, m)
 #else
 #define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m)
@@ -84,6 +84,6 @@ void print_bn_internal(const char *label, cx_bn_t bn);
 
 bool ff_is_zero(uint8_t *v);
 
-#define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
+#define BN_DEF(a) cx_bn_t a; CX_THROW(cx_bn_alloc(&a, 32));
 #define BN_DEF_ZERO BN_DEF(zero); cx_bn_set_u32(zero, 0);
 

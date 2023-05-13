@@ -43,10 +43,10 @@ void orchard_derive_spending_key(int8_t account) {
     ui_display_processing("o-key");
     derive_tsk(spending_key, account);
 
-    cx_blake2b_init2_no_throw(&G_context.signing_ctx.hasher, 256,
+    cx_blake2b_init2_no_throw(&G_context.hasher, 256,
                               NULL, 0,
                               (uint8_t *) "ZOrchardSeedHash", 16);
-    cx_hash((cx_hash_t *) &G_context.signing_ctx.hasher,
+    cx_hash((cx_hash_t *) &G_context.hasher,
             CX_LAST,
             spending_key, 32,
             spending_key, 32);

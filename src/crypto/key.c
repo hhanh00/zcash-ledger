@@ -27,6 +27,13 @@
 #include "ua.h"
 #include "../globals.h"
 
+#ifdef USE_TEST_KEY
+// Speculos test key
+static const uint8_t TEST_KEY[] = {
+    0xA6, 0x1C, 0x4B, 0xA2, 0xCD, 0x68, 0xC2, 0xE9, 0x50, 0x17, 0xE6, 0xD9, 0x02, 0x11, 0x5C, 0x04, 0x9F, 0xBE, 0x16, 0xF7, 0xC8, 0xD4, 0xC1, 0xF4, 0x68, 0x0C, 0x4F, 0x6E, 0xC8, 0xFC, 0xCD, 0xBF
+};
+#endif
+
 /// @brief Derive the master seed
 /// @param tsk transparent secret key, seed of sapling and orchard keys
 /// @param account 
@@ -35,6 +42,12 @@ int derive_tsk(uint8_t *tsk, uint8_t account) {
     uint32_t bip32_path[5] = {0x8000002C, 0x80000085, 0x80000000 | (uint32_t)account, 0, 0};
     os_perso_derive_node_bip32(CX_CURVE_256K1, bip32_path, 5,
         tsk, NULL);
+
+    #ifdef USE_TEST_KEY
+    memmove(tsk, TEST_KEY, 32);
+    #endif
+
+    PRINTF("TOP level key %.*H\n", 32, tsk);
     return 0;
 }
 
@@ -46,6 +59,7 @@ static void derive_keys_inner(uint8_t account) {
     #endif
     G_context.account = account;
     G_context.keys_derived = true;
+    check_canary();
 }
 
 void derive_default_keys() {

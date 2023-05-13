@@ -30,6 +30,10 @@ You can install the app on a Nano S+ via sideloading.
 ```
 python3 -m ledgerblue.loadApp --curve secp256k1 --appFlags 0x000 --path "44'/133'" --tlv --targetId 0x33100004 --apiLevel 1 --delete --fileName bin/app.hex --appName "Zcash" --appVersion "1.0.1" --dataSize 0 
 ```
+or
+```
+python3 -m ledgerblue.runScript --scp --fileName bin/app.apdu --elfFile bin/app.elf
+```
 
 ## YWallet 
 

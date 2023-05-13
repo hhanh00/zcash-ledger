@@ -33,7 +33,7 @@ int set_s_merkle_proof(s_proofs_t *s_proofs);
 int set_o_merkle_proof(o_proofs_t *o_proofs);
 
 // Signing function, users must have confirmed the tx
-int sign_transparent(uint8_t *txin_sig_digest);
+int sign_transparent();
 int sign_sapling();
 int sign_orchard();
 

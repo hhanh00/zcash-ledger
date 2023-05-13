@@ -16,9 +16,12 @@
 */
 #include <ox_bn.h>
 
+static cx_bn_t zero;
+
 #ifdef MONTGOMERY_EMU
 static cx_bn_t R, RInv, mont_temp;
 static void init_mont(const uint8_t *fx_m) {
+    cx_bn_alloc(&zero, 32); cx_bn_set_u32(zero, 0);
     cx_bn_alloc_init(&M, 32, fx_m, 32);
     cx_bn_alloc(&mont_temp, 32);
     cx_bn_alloc_init(&R, 32, mont_h, 32);
@@ -43,6 +46,7 @@ static void mont_mul(cx_bn_t r, cx_bn_t a, cx_bn_t b) {
 }
 #elif defined(NO_MONTGOMERY)
 static void init_mont(const uint8_t *fx_m) {
+    cx_bn_alloc(&zero, 32); cx_bn_set_u32(zero, 0);
     cx_bn_alloc_init(&M, 32, fx_m, 32);
 }
 #define FROM_MONT(a) 
@@ -52,6 +56,7 @@ static void init_mont(const uint8_t *fx_m) {
 static cx_bn_t H;
 static cx_bn_mont_ctx_t MONT_CTX;
 static void init_mont(const uint8_t *fx_m) {
+    cx_bn_alloc(&zero, 32); cx_bn_set_u32(zero, 0);
     cx_bn_alloc_init(&M, 32, fx_m, 32);
     cx_bn_alloc_init(&H, 32, mont_h, 32);
     cx_mont_alloc(&MONT_CTX, 32);

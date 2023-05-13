@@ -106,9 +106,6 @@ void print_mont(jac_p_bn_t *p) {
 }
 #endif
 
-#define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
-#define BN_DEF_ZERO BN_DEF(zero); cx_bn_set_u32(zero, 0);
-
 static void pallas_to_mont(jac_p_bn_t *p) {
     TO_MONT(p->x);
     TO_MONT(p->y);
@@ -180,7 +177,6 @@ static void hash_to_field(fp_t *h, uint8_t *dst, size_t dst_len, uint8_t *msg, s
 static void map_to_curve_simple_swu(jac_p_bn_t *p, cx_bn_t u) {
     BN_DEF(temp);
     BN_DEF(temp2);
-    BN_DEF_ZERO;
     BN_DEF(one); cx_bn_set_u32(one, 1); TO_MONT(one);
     BN_DEF(z); cx_bn_init(z, Z, 32); TO_MONT(z);
 
@@ -302,7 +298,6 @@ static void map_to_curve_simple_swu(jac_p_bn_t *p, cx_bn_t u) {
 
     cx_bn_destroy(&temp);
     cx_bn_destroy(&temp2);
-    cx_bn_destroy(&zero);
     cx_bn_destroy(&one);
     cx_bn_destroy(&z);
     cx_bn_destroy(&u2);
@@ -327,7 +322,6 @@ static void map_to_curve_simple_swu(jac_p_bn_t *p, cx_bn_t u) {
 }
 
 static void iso_map(jac_p_bn_t *res, const jac_p_bn_t *p) {
-    BN_DEF_ZERO;
     BN_DEF(temp);
     BN_DEF(temp2);
 
@@ -424,7 +418,6 @@ static void iso_map(jac_p_bn_t *res, const jac_p_bn_t *p) {
     cx_bn_copy(res->y, yo);
     cx_bn_copy(res->z, zo);
 
-    cx_bn_destroy(&zero);
     cx_bn_destroy(&temp);
     cx_bn_destroy(&temp2);
     cx_bn_destroy(&z2);
@@ -457,7 +450,6 @@ void hash_to_curve(jac_p_t *res, uint8_t *domain, size_t domain_len, uint8_t *ms
         map_to_curve_simple_swu(&p[i], hh);
     }
 
-    BN_DEF_ZERO;
     // print_mont(p);
     // print_mont(p + 1);
     pallas_add_jac(p, p, p + 1);
@@ -484,7 +476,6 @@ int pallas_from_bytes(jac_p_t *res, uint8_t *a) {
     }
     cx_bn_lock(32, 0);
     init_mont((uint8_t *)fp_m);
-    BN_DEF_ZERO;
     BN_DEF(x0); cx_bn_init(x0, tmp, 32);
     BN_DEF(x3);
     CX_BN_MOD_MUL(x3, x0, x0);
@@ -553,7 +544,6 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b) {
     if (pallas_is_identity(a)) pallas_copy_jac_bn(res, b);
     else if (pallas_is_identity(b)) pallas_copy_jac_bn(res, a);
     else {
-        BN_DEF_ZERO;
         // print_mont_bn("a.x", a->x);
         // print_mont_bn("a.y", a->y);
         // print_mont_bn("a.z", a->z);
@@ -638,7 +628,6 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b) {
         cx_bn_copy(res->y, y3);
         cx_bn_copy(res->z, z3);
 
-        cx_bn_destroy(&zero);
         cx_bn_destroy(&temp);
         cx_bn_destroy(&z1z1);
         cx_bn_destroy(&z2z2);
@@ -664,7 +653,6 @@ void pallas_add_jac(jac_p_bn_t *res, const jac_p_bn_t *a, const jac_p_bn_t *b) {
 
 void pallas_double_jac(jac_p_bn_t *v) {
     // TODO: Montgommery 
-    BN_DEF_ZERO;
     BN_DEF(temp);
     BN_DEF(a);
     CX_MUL(a, v->x, v->x);
@@ -711,7 +699,6 @@ void pallas_double_jac(jac_p_bn_t *v) {
     cx_bn_copy(v->y, y3);
     cx_bn_copy(v->z, z3);
 
-    cx_bn_destroy(&zero);
     cx_bn_destroy(&temp);
     cx_bn_destroy(&a);
     cx_bn_destroy(&b);

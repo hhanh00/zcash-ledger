@@ -43,10 +43,10 @@
 
 #ifdef TEST
 #define RSEED_LEN 32
-#define OVERRIDE_CONFIRMATION() {}
+#define OVERRIDE_CONFIRMATION(p) do { confirmation = p; } while(0);
 #else
 #define RSEED_LEN 0
-#define OVERRIDE_CONFIRMATION() while (0) { confirmation = true; }
+#define OVERRIDE_CONFIRMATION(p) do { confirmation = true; } while(0);
 #endif
 
 #define SAPLING_OUT_LEN (43+8+32+52+RSEED_LEN)
@@ -157,8 +157,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != TRANSPARENT_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            confirmation = cmd->p1;
-            OVERRIDE_CONFIRMATION();
+            OVERRIDE_CONFIRMATION(cmd->p1);
             {
                 memset(&G_context.t_out, 0, sizeof(t_out_t));
                 p = cmd->data;
@@ -182,8 +181,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != SAPLING_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            confirmation = cmd->p1;
-            OVERRIDE_CONFIRMATION();
+            OVERRIDE_CONFIRMATION(cmd->p1);
             {
                 memset(&G_context.s_out, 0, sizeof(s_out_t));
                 p = cmd->data;
@@ -192,10 +190,8 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(G_context.s_out, amount);
                 MOVE_FIELD(G_context.s_out, epk);
                 MOVE_FIELD(G_context.s_out, enc);
-                #ifdef TEST
                 // in prod, rseed is picked by our PRNG, not the client's
-                MOVE_FIELD(G_context.s_out, rseed);
-                #endif
+                TEST_ONLY(MOVE_FIELD(G_context.s_out, rseed));
 
                 // Check parameters
                 // diversifier is checked later
@@ -211,8 +207,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->lc != ORCHARD_OUT_LEN)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            confirmation = cmd->p1;
-            OVERRIDE_CONFIRMATION();
+            OVERRIDE_CONFIRMATION(cmd->p1);
             {
                 memset(&G_context.o_action, 0, sizeof(o_action_t));
                 p = cmd->data;
@@ -222,10 +217,8 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(G_context.o_action, amount);
                 MOVE_FIELD(G_context.o_action, epk);
                 MOVE_FIELD(G_context.o_action, enc);
-                #ifdef TEST
                 // in prod, rseed is picked by our PRNG, not the client's
-                MOVE_FIELD(G_context.o_action, rseed);
-                #endif
+                TEST_ONLY(MOVE_FIELD(G_context.o_action, rseed));
 
                 // Check parameters
                 CHECK_MONEY(G_context.o_action.amount);
@@ -315,8 +308,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            confirmation = cmd->p1;
-            OVERRIDE_CONFIRMATION();
+            OVERRIDE_CONFIRMATION(cmd->p1);
 
             return confirm_fee(confirmation);
 
@@ -336,7 +328,8 @@ int apdu_dispatcher(const command_t *cmd) {
             }
             if (cmd->lc != 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
-            return sign_transparent(cmd->data);
+            memmove(G_context.txin_sig_digest, cmd->data, 32);
+            return sign_transparent();
 
         case SIGN_SAPLING:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -392,6 +385,12 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
             return handler_test_math();
+
+        case TEST_CMU:
+            if (cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            return test_cmu(cmd->data);
 #endif
             
         default:

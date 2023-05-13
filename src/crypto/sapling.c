@@ -36,13 +36,6 @@
 #include "../ui/menu.h"
 #include "../helper/send_response.h"
 
-#define BN_DEF(a) cx_bn_t a; cx_bn_alloc(&a, 32);
-#ifndef MOD_ADD_FIX
-#define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m); cx_bn_mod_sub(a, a, zero, m)
-#else
-#define cx_bn_mod_add_fixed(a, b, c, m) cx_bn_mod_add(a, b, c, m)
-#endif
-
 static cx_bn_t M; // M is the modulus in the base field of jubjub, Fq
 static const uint8_t mont_h[] = {
     0x07, 0x48, 0xd9, 0xd9, 0x9f, 0x59, 0xff, 0x11, 0x05, 0xd3, 0x14, 0x96, 0x72, 0x54, 0x39, 0x8f, 0x2b, 0x6c, 0xed, 0xcb, 0x87, 0x92, 0x5c, 0x23, 0xc9, 0x99, 0xe9, 0x90, 0xf3, 0xf2, 0x9c, 0x6d
@@ -107,7 +100,7 @@ static void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk);
 static int derive_spending_key(uint8_t *spk, uint8_t account);
 
 static void prf_expand_spending_key(uint8_t *buffer, uint8_t *key, uint8_t t);
-static void reduce_wide_bytes(uint8_t *dest, uint8_t *src, cx_bn_t M);
+static void reduce_wide_bytes(cx_bn_t dest, uint8_t *src, cx_bn_t M);
 
 static void alloc_e(jj_e_t *r);
 static void alloc_en(jj_en_t *r);
@@ -167,19 +160,25 @@ void sapling_derive_spending_key(uint8_t account) {
     uint8_t spk[32];
 
     derive_spending_key(spk, account);
+
     PRINTF("Spending key %.*H\n", 32, spk);
     cx_bn_lock(32, 0);
     BN_DEF(rM); cx_bn_init(rM, fr_m, 32);
     init_mont(fq_m);
 
+    BN_DEF(temp);
     // derive the first layer of keys
     // ask, nsk are scalars obtained by hashing into 512 bit integer and then reducing mod R
     // ovk, dk are the first 256 bits of the 512 bit hash
     prf_expand_spending_key(buffer, spk, 0);
-    reduce_wide_bytes(pkeys->ask, buffer, rM);
+    PRINTF("ask %.*H\n", 64, buffer);
+    reduce_wide_bytes(temp, buffer, rM);
+    cx_bn_export(temp, pkeys->ask, 32);
 
     prf_expand_spending_key(buffer, spk, 1);
-    reduce_wide_bytes(pkeys->nsk, buffer, rM);
+    reduce_wide_bytes(temp, buffer, rM);
+    cx_bn_export(temp, pkeys->nsk, 32);
+    cx_bn_destroy(&temp);
 
     prf_expand_spending_key(buffer, spk, 2);
     memmove(pkeys->ovk, buffer, 32);
@@ -198,14 +197,15 @@ void sapling_derive_spending_key(uint8_t account) {
     sk_to_pk(G_context.proofk_info.ak, &G, ask);
     PRINTF("ak %.*H\n", 32, G_context.proofk_info.ak);
     cx_bn_destroy(&ask);
+    destroy_en(&G);
 
     // same thing with nsk -> nk
-    BN_DEF(nsk); cx_bn_init(ask, pkeys->nsk, 32);
-    load_en(&G, &PROOF_GEN);
-    sk_to_pk(G_context.proofk_info.nk, &G, nsk);
+    BN_DEF(nsk); cx_bn_init(nsk, pkeys->nsk, 32);
+    jj_en_t G2; alloc_en(&G2); load_en(&G2, &PROOF_GEN);
+    sk_to_pk(G_context.proofk_info.nk, &G2, nsk);
     PRINTF("nk %.*H\n", 32, G_context.proofk_info.nk);
     cx_bn_destroy(&nsk);
-    destroy_en(&G);
+    destroy_en(&G2);
 
     get_ivk(pkeys->pk_d, G_context.proofk_info.ak, G_context.proofk_info.nk); // use pk_d as ivk to save on space
     PRINTF("ivk %.*H\n", 32, pkeys->pk_d);
@@ -242,6 +242,7 @@ void sapling_derive_spending_key(uint8_t account) {
     PRINTF("pkd %.*H\n", 32, pkeys->pk_d);
     // to_address_bech32(G_context.address, pkeys->d, pkeys->pk_d);
     // PRINTF("address %s\n", G_context.address);
+
     cx_bn_unlock();
     ui_menu_main();
 }
@@ -272,10 +273,8 @@ void sapling_sign(uint8_t *signature, uint8_t *sig_hash) {
     // generate a random alpha in Fr
     prf_chacha(&chacha_alpha_rng, signature, 64); // pick a random alpha (64 bytes)
     // PRINTF("pre-ALPHA %.*H\n", 64, signature);
-    swap_endian(signature, 64);
-    cx_bn_init(wide, signature, 64);
     BN_DEF(rsk); // it is going to be r but use it for alpha for now
-    cx_bn_reduce(rsk, wide, rM);
+    reduce_wide_bytes(rsk, signature, rM);
     // print_bn("ALPHA", rsk);
 
     // rerandomize the authorization key with alpha as ask
@@ -301,9 +300,7 @@ void sapling_sign(uint8_t *signature, uint8_t *sig_hash) {
     // PRINTF("H* %.*H\n", 64, signature);
 
     // reduce to scalar field like we did for alpha
-    swap_endian(signature, 64);
-    cx_bn_init(wide, signature, 64);
-    cx_bn_reduce(rsk, wide, rM);
+    reduce_wide_bytes(rsk, signature, rM);
     // print_bn("rsk", rsk);
 
     en_mul(&ak, &G, rsk); // ak = R = r.G
@@ -323,10 +320,7 @@ void sapling_sign(uint8_t *signature, uint8_t *sig_hash) {
     // reduce to scalar
     // PRINTF("H* %.*H\n", 64, signature);
 
-    swap_endian(signature, 64);
-    cx_bn_init(wide, signature, 64);
-    BN_DEF(ar);
-    cx_bn_reduce(ar, wide, rM);
+    BN_DEF(ar); reduce_wide_bytes(ar, signature, rM);
     // print_bn("S", ar);
     // S = H(R|A|sig_hash) [rM]
 
@@ -356,13 +350,10 @@ void sk_to_pk(uint8_t *pkb, jj_en_t *G, cx_bn_t sk) {
 /// @param dest 32 bytes
 /// @param src 64 bytes, src is modified!
 /// @param mod
-static void reduce_wide_bytes(uint8_t *dest, uint8_t *src, cx_bn_t mod) {
+static void reduce_wide_bytes(cx_bn_t dest, uint8_t *src, cx_bn_t mod) {
     swap_endian(src, 64);
     cx_bn_t SRC; cx_bn_alloc_init(&SRC, 64, src, 64);
-    BN_DEF(DEST);
-    cx_bn_reduce(DEST, SRC, mod);
-    cx_bn_export(DEST, dest, 32);
-    cx_bn_destroy(&DEST);
+    cx_bn_reduce(dest, SRC, mod);
     cx_bn_destroy(&SRC);
 }
 
@@ -375,10 +366,10 @@ static void reduce_wide_bytes(uint8_t *dest, uint8_t *src, cx_bn_t mod) {
 static int derive_spending_key(uint8_t *spk, uint8_t account) {
     derive_tsk(spk, account);
 
-    cx_blake2b_init2_no_throw(&G_context.sapling_derive_ctx.hasher, 256,
+    cx_blake2b_init2_no_throw(&G_context.hasher, 256,
                               NULL, 0,
                               (uint8_t *) "ZSaplingSeedHash", 16);
-    cx_hash((cx_hash_t *) &G_context.sapling_derive_ctx.hasher,
+    cx_hash((cx_hash_t *) &G_context.hasher,
             CX_LAST,
             spk, 32,
             spk, 32);
@@ -390,15 +381,15 @@ static int derive_spending_key(uint8_t *spk, uint8_t account) {
 /// @param key
 /// @param t domain
 static void prf_expand_spending_key(uint8_t *pbuffer, uint8_t *key, uint8_t t) {
-    cx_blake2b_init2_no_throw(&G_context.sapling_derive_ctx.hasher, 512, NULL, 0, (uint8_t *)"Zcash_ExpandSeed", 16);
-    cx_hash_t *ph = (cx_hash_t *)&G_context.sapling_derive_ctx.hasher;
+    cx_blake2b_init2_no_throw(&G_store.hasher, 512, NULL, 0, (uint8_t *)"Zcash_ExpandSeed", 16);
+    cx_hash_t *ph = (cx_hash_t *)&G_store.hasher;
     cx_hash(ph, 0, key, 32, NULL, 0);
     cx_hash(ph, CX_LAST, &t, 1, pbuffer, 64);
 }
 
 static void alloc_e(jj_e_t *r) {
-    cx_bn_alloc(&r->v, 32);
     cx_bn_alloc(&r->u, 32);
+    cx_bn_alloc(&r->v, 32);
     cx_bn_alloc(&r->z, 32);
     cx_bn_alloc(&r->t1, 32);
     cx_bn_alloc(&r->t2, 32);
@@ -650,7 +641,7 @@ void e_to_u(uint8_t *ub, const jj_e_t *p) {
 /// @param len 
 /// @return CX_INVALID_PARAMETER if hash does not correspond to a point
 int hash_to_e(jj_e_t *p, const uint8_t *msg, size_t len) {
-    int error = 0;
+    int cx_error = 0;
     memset(&G_store.hash_params, 0, sizeof(G_store.hash_params));
     G_store.hash_params.digest_length = 32;
     G_store.hash_params.fanout = 1;
@@ -679,7 +670,7 @@ int hash_to_e(jj_e_t *p, const uint8_t *msg, size_t len) {
     int diff;
     cx_bn_cmp(v, M, &diff);
     if (diff >= 0) {
-        error = CX_INVALID_PARAMETER;
+        cx_error = CX_INVALID_PARAMETER;
         goto end;
     }
 
@@ -696,9 +687,9 @@ int hash_to_e(jj_e_t *p, const uint8_t *msg, size_t len) {
     CX_BN_MOD_MUL(u2, v2m1, temp); // u2 = (v2-1)/(v2*D+1)
     print_bn("u2", u2);
 
-    error = cx_bn_mod_sqrt(u, u2, M, sign);
-    if (error) {
-        error = CX_INVALID_PARAMETER;
+    cx_error = cx_bn_mod_sqrt(u, u2, M, sign);
+    if (cx_error) {
+        cx_error = CX_INVALID_PARAMETER;
         goto end;
     }
     TO_MONT(u);
@@ -728,7 +719,7 @@ end:
     // PRINTF("z %.*H\n", 32, r->z);
     // PRINTF("t2d %.*H\n", 32, r->t2d);
 
-    return error;
+    return cx_error;
 }
 
 void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk) {
@@ -746,6 +737,43 @@ void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk) {
     ivk[31] &= 0x07;
 }
 
+#ifdef TEST
+uint8_t debug[250];
+static uint8_t *pdebug;
+
+static void write_debug(uint8_t label, uint8_t *data, size_t len) {
+    *pdebug++ = label;
+    memmove(pdebug, data, len); pdebug += len;
+}
+static void write_debug_bn(uint8_t label, cx_bn_t x) {
+    uint8_t v[32];
+    cx_bn_export(x, v, 32);
+    write_debug(label, v, 5);
+}
+static cx_sha256_t sha_hasher;
+static void write_debug_bn_hash(cx_bn_t x) {
+    uint8_t v[32];
+    cx_bn_export(x, v, 32);
+    cx_sha256_init_no_throw(&sha_hasher);
+    cx_hash_no_throw((cx_hash_t *)&sha_hasher, CX_LAST, v, 32, v, 32);
+    *pdebug++ = v[0];
+    // memmove(pdebug, v, 1); pdebug += 1;
+}
+static void write_debug_bn_tail(cx_bn_t x) {
+    uint8_t v[32];
+    cx_bn_export(x, v, 32);
+    PRINTF("%.*H\n", 32, v);
+    memmove(pdebug, v+28, 4); pdebug += 4;
+}
+static void write_debug_mont(uint8_t label, cx_bn_t x) {
+    BN_DEF(t); cx_bn_copy(t, x); FROM_MONT(t);
+    uint8_t v[32];
+    cx_bn_export(t, v, 32);
+    write_debug(label, v, 5);
+    cx_bn_destroy(&t);
+}
+#endif
+
 /// @brief computes the note commitment
 /// @param cmu 
 /// @param d 
@@ -753,13 +781,14 @@ void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk) {
 /// @param value 
 /// @param rseed 
 /// throws if address is not valid
-void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed) {
+void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rseed) {    
     cx_bn_lock(32, 0);
     init_mont(fq_m);
     BN_DEF(rM); cx_bn_init(rM, fr_m, 32);
     uint8_t rcmb[32];
-    prf_expand_spending_key(buffer, rseed, 4);
-    reduce_wide_bytes(rcmb, buffer, rM);
+    BN_DEF(rcm); prf_expand_spending_key(buffer, rseed, 4);
+    reduce_wide_bytes(rcm, buffer, rM);
+    cx_bn_export(rcm, rcmb, 32);
     PRINTF("rcm %.*H\n", 32, rcmb);
 
     PRINTF("init ph\n");
@@ -767,6 +796,7 @@ void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rs
     uint8_t perso = 0x3F;
     update_ph(&G_store.ph, &perso, 6);
     update_ph(&G_store.ph, (uint8_t *)&value, 64); // value
+    PRINTF("value %.*H\n", 8, (uint8_t *)&value);
     jj_e_t Gd; alloc_e(&Gd);
     CX_THROW(hash_to_e(&Gd, d, 11)); // check if d is a good diversifier
     e_to_bytes(G_store.Gdb, &Gd);
@@ -778,7 +808,6 @@ void get_cmu(uint8_t *cmu, uint8_t *d, uint8_t *pkd, uint64_t value, uint8_t *rs
     finalize_ph(&G_store.ph);
 
     jj_en_t Gcmu; alloc_en(&Gcmu); load_en(&Gcmu, &CMU_RAND_GEN);
-    BN_DEF(rcm); cx_bn_init(rcm, rcmb, 32);
     jj_e_t pkcmu; alloc_e(&pkcmu);
     en_mul(&pkcmu, &Gcmu, rcm);
     e_to_en(&Gcmu, &pkcmu);
@@ -912,3 +941,22 @@ static void process_acc(pedersen_state_t *state) {
     destroy_e(&pk);
     destroy_en(&G);
 }
+
+#ifdef TEST
+int test_cmu(uint8_t *data) {
+    pdebug = debug;
+    cx_bn_lock(32, 0);
+    init_mont(fq_m);
+    PRINTF("init ph\n");
+    init_ph(&G_store.ph);
+    uint8_t perso = 0x3F;
+    update_ph(&G_store.ph, &perso, 6);
+    update_ph(&G_store.ph, data, (8+32+32)*8);
+    finalize_ph(&G_store.ph);
+    uint8_t cmu[32];
+    e_to_u(cmu, &G_store.ph.hash);
+    PRINTF("cmu %.*H\n", 32, cmu);
+    cx_bn_unlock();
+    return helper_send_response_bytes(debug, 250);
+}
+#endif
