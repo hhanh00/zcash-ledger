@@ -518,21 +518,12 @@ int sign_transparent() {
 
     finish_sighash(G_store.sig_hash, G_context.txin_sig_digest);
     PRINTF("TRANSPARENT SIG HASH: %.*H\n", 32, G_store.sig_hash);
-    check_canary();
 
-    PRINTF("SIGNING\n");
     derive_tsk(G_store.tsk, G_context.account);
-    uint32_t info = 0;
-    cx_ecfp_init_private_key_no_throw(CX_CURVE_SECP256K1, G_store.tsk, 32, &G_store.t_prvk);
-    check_canary();
-    size_t sig_len = 80;
-    cx_ecdsa_sign_no_throw(&G_store.t_prvk, CX_RND_RFC6979 | CX_LAST, CX_SHA256, 
-        G_store.sig_hash, 32, G_store.signature, &sig_len, &info);
+    transparent_ecdsa(G_store.signature, G_store.tsk, G_store.sig_hash);
 
-    check_canary();
-    PRINTF("SIGNED\n");
     ui_menu_main();
-    return helper_send_response_bytes(G_store.signature, sig_len); // signature has variable length in DER
+    return helper_send_response_bytes(G_store.signature, 64);
 }
 
 int sign_sapling() {

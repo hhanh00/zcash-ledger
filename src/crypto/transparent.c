@@ -26,6 +26,7 @@
 #include <lcx_hash.h>
 
 #include "key.h"
+#include "fr.h"
 #include "globals.h"
 #include "address.h"
 
@@ -67,4 +68,73 @@ int transparent_derive_pubkey(uint8_t account) {
     derive_taddress(G_context.transparent_key_info.pkh, account);
 
     return 0;
+}
+
+void transparent_ecdsa(uint8_t *signature, uint8_t *key, const uint8_t *hash) {
+    cx_get_random_bytes(G_store.rnd, 32);
+
+    // compute the sig
+    CX_THROW(cx_bn_lock(32, 0));
+
+    cx_ecpoint_t Q;
+    // --> compute Q = k.G
+    cx_ecpoint_alloc(&Q, CX_CURVE_SECP256K1);
+    cx_ecdomain_generator_bn(CX_CURVE_SECP256K1, &Q);
+
+    CX_THROW(cx_ecpoint_rnd_scalarmul(&Q, G_store.rnd, 32));
+
+    // load order
+    BN_DEF(n);
+    cx_ecdomain_parameter_bn(CX_CURVE_SECP256K1, CX_CURVE_PARAM_Order, n);
+
+    // compute r
+    BN_DEF(r);
+    cx_ecpoint_export_bn(&Q, &r, NULL);
+    cx_ecpoint_destroy(&Q);
+    int diff;
+    cx_bn_cmp(r, n, &diff);
+    if (diff >= 0)
+        cx_bn_sub(r, r, n);
+
+    BN_DEF(s);
+    BN_DEF(t);
+    BN_DEF(v);
+    BN_DEF(t1);
+    BN_DEF(t2);
+    BN_DEF(zero); cx_bn_set_u32(zero, 0);
+
+    // compute s = kinv(h+d.x)
+    //
+    // t random, 0 <= t < n
+    // v = d - t
+    // u = h + (d-t)*x +t*x  = h + v*x + t*x
+    // s = k_inv*u
+    //
+
+    cx_bn_rng(t, n);
+    cx_bn_init(t1, key, 32);
+    cx_bn_mod_sub(v, t1, t, n);                         // v
+    cx_bn_mod_mul(t2, v, r, n);                         // v.x
+    cx_bn_mod_mul(t1, t, r, n);                         // t.x
+
+    cx_bn_init(v, hash, 32);                            // v = h
+    cx_bn_mod_add(v, v, t1, n);                         // v += t.x
+    cx_bn_mod_add(v, v, t2, n);                         // v += v.x
+    cx_bn_mod_sub(v, v, zero, n);
+    cx_bn_init(t1, G_store.rnd, 32);                            // k
+    cx_bn_mod_invert_nprime(t2, t1, n);                 // k_inv
+    cx_bn_mod_mul(s, v, t2, n);                         // s = k_inv*u
+
+    // if s > order/2, s = -s = order-s
+    cx_bn_sub(t1, n, s);
+    cx_bn_shr(n, 1);
+    cx_bn_cmp(s, n, &diff);
+    if (diff > 0) {
+        cx_bn_copy(s, t1);
+    }
+
+    cx_bn_export(r, signature, 32);
+    cx_bn_export(s, signature + 32, 32);
+
+    cx_bn_unlock();
 }

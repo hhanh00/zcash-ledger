@@ -256,8 +256,8 @@ typedef struct {
         struct { // transparent sign
             uint8_t sig_hash[32];
             uint8_t tsk[32];
-            cx_ecfp_private_key_t t_prvk;
-            uint8_t signature[80];
+            uint8_t signature[64];
+            uint8_t rnd[32];
         };
         struct { // UA
             uint8_t receivers[UA_LEN];

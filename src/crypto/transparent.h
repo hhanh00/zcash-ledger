@@ -18,3 +18,10 @@ int derive_pubkey(uint8_t *pk, uint8_t account);
 /// @param account 
 /// @return 
 int transparent_derive_pubkey(uint8_t account);
+
+/// @brief ECDSA on secp256k1
+/// Could not use cx_ecdsa_sign because the stack usage is too high for NanoS
+/// @param signature 
+/// @param key 
+/// @param hash 
+void transparent_ecdsa(uint8_t *signature, uint8_t *key, const uint8_t *hash);
