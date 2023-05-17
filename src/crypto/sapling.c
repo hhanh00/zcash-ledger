@@ -37,10 +37,11 @@
 #include "../helper/send_response.h"
 
 static cx_bn_t M; // M is the modulus in the base field of jubjub, Fq
+#ifndef NO_MONTGOMERY
 static const uint8_t mont_h[] = {
     0x07, 0x48, 0xd9, 0xd9, 0x9f, 0x59, 0xff, 0x11, 0x05, 0xd3, 0x14, 0x96, 0x72, 0x54, 0x39, 0x8f, 0x2b, 0x6c, 0xed, 0xcb, 0x87, 0x92, 0x5c, 0x23, 0xc9, 0x99, 0xe9, 0x90, 0xf3, 0xf2, 0x9c, 0x6d
 };
-
+#endif
 #include "fr.h"
 #include "mont.h"
 #include "sapling.h"
@@ -738,7 +739,7 @@ void get_ivk(uint8_t *ivk, uint8_t *ak, uint8_t *nk) {
 }
 
 #ifdef TEST
-uint8_t debug[250];
+uint8_t debug[80];
 static uint8_t *pdebug;
 
 static void write_debug(uint8_t label, uint8_t *data, size_t len) {

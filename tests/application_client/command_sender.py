@@ -17,6 +17,7 @@ class InsType(IntEnum):
     GET_FVK = 0x07
     GET_OFVK = 0x08
     GET_PROOF_KEY = 0x09
+    HAS_ORCHARD = 0x0A
     INIT_TX = 0x10
 
 def split_message(message: bytes, max_size: int) -> List[bytes]:
@@ -43,10 +44,10 @@ class ZcashCommandSender:
 
     def send_request_no_params(self, ins) -> RAPDU:
         return self.backend.exchange(cla=CLA,
-                                     ins=ins,
-                                     p1=0,
-                                     p2=0,
-                                     data=b"")
+                                    ins=ins,
+                                    p1=0,
+                                    p2=0,
+                                    data=b"")
 
     def send_and_check_message(self, msg):
         req = binascii.unhexlify(msg['req'])
@@ -56,9 +57,12 @@ class ZcashCommandSender:
         if req_type != InsType.INIT_TX: # INIT_TXT returns a random seed that changes every time
             assert (rep == expected)
 
-    # def test_math(self) -> RAPDU:
-    #     return self.backend.exchange(cla=CLA,
-    #                                  ins=InsType.TEST_MATH,
-    #                                  p1=P1.P1_START,
-    #                                  p2=P2.P2_LAST,
-    #                                  data=b"")
+    def has_orchard(self) -> bool:
+        rep = self.backend.exchange(cla=CLA,
+                                    ins=InsType.HAS_ORCHARD,
+                                    p1=0,
+                                    p2=0,
+                                    data=b"")
+        data = rep.data
+        data[0] == 1
+
