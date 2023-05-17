@@ -715,8 +715,9 @@ void pallas_base_mult(jac_p_t *res, const jac_p_t *base, fv_t *x) {
     cx_bn_lock(32, 0);
     init_mont((uint8_t *)fp_m);
 
-    jac_p_bn_t acc;
+    jac_p_bn_t acc, id;
     pallas_jac_alloc(&acc);
+    pallas_jac_alloc(&id);
 
     jac_p_bn_t b;
     pallas_jac_init(&b, base);
@@ -734,6 +735,8 @@ void pallas_base_mult(jac_p_t *res, const jac_p_t *base, fv_t *x) {
                 // print_bn("acc y", acc.y);
                 // print_bn("acc z", acc.z);
             }
+            else 
+                pallas_add_jac(&acc, &acc, &id);
         }
         j0 = 0;
     }

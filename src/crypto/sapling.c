@@ -435,6 +435,8 @@ static void load_en(jj_en_t *dest, const ff_jj_en_t *src) {
 void en_mul(jj_e_t *pk, jj_en_t *G, cx_bn_t sk) {
     bool bit;
     e_set0(pk);
+    jj_en_t id; alloc_en(&id);
+    e_to_en(&id, pk);
     // Skip the higest 4 bits as they are always 0 for Fr
     for (uint16_t i = 4; i < 256; i++) {
         cx_bn_tst_bit(sk, 255 - i, &bit);
@@ -444,7 +446,10 @@ void en_mul(jj_e_t *pk, jj_en_t *G, cx_bn_t sk) {
             PRINTF("+");
             een_add_assign(pk, G);
         }
+        else 
+            een_add_assign(pk, &id); // make it constant time
     }
+    destroy_en(&id);
     PRINTF("\n");
     // print_mont("u", pk->u);
     // print_mont("v", pk->v);
