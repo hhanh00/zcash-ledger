@@ -20,6 +20,7 @@
 #include "validate.h"
 #include "../menu.h"
 #include "../../sw.h"
+#include "crypto/tx.h"
 #include "../../globals.h"
 #include "../../helper/send_response.h"
 
@@ -35,7 +36,10 @@ void validate_address(bool choice) {
 void validate_out(bool choice) {
     if (choice) {
         ui_menu_main();
-        io_send_sw(SW_OK);
+        if (G_context.signing_ctx.flags && G_context.signing_ctx.stage == S_OUT)
+            helper_send_response_bytes(G_store.out_buffer, 32);
+        else 
+            io_send_sw(SW_OK);
     } else {
         reset_app();
         io_send_sw(SW_DENY);
@@ -45,7 +49,10 @@ void validate_out(bool choice) {
 void validate_fee(bool choice) {
     if (choice) {
         G_context.signing_ctx.stage = SIGN; // last confirmation approved - ok to sign
-        io_send_sw(SW_OK);
+        if (G_context.signing_ctx.flags)
+            get_shielded_hashes();
+        else 
+            io_send_sw(SW_OK);
     } else {
         reset_app();
         io_send_sw(SW_DENY);

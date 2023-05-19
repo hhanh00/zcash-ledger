@@ -256,26 +256,29 @@ void sapling_derive_spending_key(uint8_t account) {
 void sapling_sign(uint8_t *signature, uint8_t *sig_hash) {
     // PRINTF("sig hash %.*H\n", 32, sig_hash);
     cx_bn_lock(32, 0); 
+    init_mont(fq_m);
     BN_DEF(rM); cx_bn_alloc_init(&rM, 32, fr_m, 32); // Use scalar field
+
     // use signature buffer as temporary storage
     // signature has 64 bytes, it will be used to store H* output
-    // wide is a BN with 64 bytes used for the same purpose
-    cx_bn_t wide; cx_bn_alloc(&wide, 64);
-
+    memset(signature, 0, 64);
     cx_blake2b_t hasher; // Hasher for H*
     cx_hash_t *ph = (cx_hash_t *)&hasher;
     cx_blake2b_init2_no_throw(&hasher, 512,
                               NULL, 0, (uint8_t *) "Zcash_RedJubjubH", 16);
+    #ifndef TEST
     cx_get_random_bytes(signature, 64);
+    #endif
     cx_hash(ph, 0, signature, 64, NULL, 0);
+
+    #ifndef TEST
     cx_get_random_bytes(signature, 16);
+    #endif
     cx_hash(ph, 0, signature, 16, NULL, 0); // first 80 bytes are random
 
-    // generate a random alpha in Fr
-    prf_chacha(&chacha_alpha_rng, signature, 64); // pick a random alpha (64 bytes)
-    // PRINTF("pre-ALPHA %.*H\n", 64, signature);
+    // PRINTF("pre-ALPHA %.*H\n", 64, G_context.alpha);
     BN_DEF(rsk); // it is going to be r but use it for alpha for now
-    reduce_wide_bytes(rsk, signature, rM);
+    reduce_wide_bytes(rsk, G_context.alpha, rM);
     // print_bn("ALPHA", rsk);
 
     // rerandomize the authorization key with alpha as ask
@@ -285,7 +288,6 @@ void sapling_sign(uint8_t *signature, uint8_t *sig_hash) {
     cx_bn_mod_add_fixed(ask, ask, rsk, rM); // ask is now re-randomized by alpha
     // print_bn("SK", ask);
 
-    init_mont(fq_m);
     // generate a unique keypair
     // nonce = H*(random|Abar|sig_hash)
     // where Abar = bytes(ask.G)

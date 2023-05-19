@@ -226,18 +226,12 @@ int add_s_output(s_out_t *output, bool confirmation) {
         || output->amount == 0)
         confirmation = false;
 
-    uint8_t rseed[32];
-    prf_chacha(&chacha_rseed_rng, rseed, 32);
-
-    // take rseed from the client during testing
-    TEST_ONLY(memmove(rseed, output->rseed, 32));
-
     uint8_t cmu[32];
     PRINTF("ADDRESS: %.*H\n", 43, output->address);
-    PRINTF("RSEED: %.*H\n", 32, rseed);
+    PRINTF("RSEED: %.*H\n", 32, output->rseed);
     PRINTF("AMOUNT: %.*H\n", 8, &output->amount);
 
-    get_cmu(cmu, output->address, output->address + 11, output->amount, rseed);
+    get_cmu(cmu, output->address, output->address + 11, output->amount, output->rseed);
     PRINTF("CMU %.*H\n", 32, cmu);
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.hasher;
@@ -247,9 +241,12 @@ int add_s_output(s_out_t *output, bool confirmation) {
 
     PRINTF("CONFIRMATION %d\n", confirmation);
     PRINTF("AMOUNT: %.*H\n", 8, &output->amount);
+    memmove(G_store.out_buffer, cmu, 32);
     if (confirmation)
         return ui_confirm_s_out(output);
     ui_menu_main();
+    if (G_context.signing_ctx.flags)
+        return helper_send_response_bytes(cmu, 32);
     return io_send_sw(SW_OK);
 }
 
@@ -273,17 +270,10 @@ int add_o_action(o_action_t *action, bool confirmation) {
     PRINTF("amount %.*H\n", 8, &action->amount);
     PRINTF("epk %.*H\n", 32, &action->epk);
     PRINTF("enc %.*H\n", 52, &action->enc);
-
-    uint8_t rseed[32];
-    prf_chacha(&chacha_rseed_rng, rseed, 32);
-
-    // take rseed from the client during testing
-    TEST_ONLY(memmove(rseed, action->rseed, 32));
-
-    PRINTF("rseed %.*H\n", 32, rseed);
+    PRINTF("rseed %.*H\n", 32, action->rseed);
 
     u_int8_t note_cmx[32];
-    cmx(note_cmx, action->address, action->amount, rseed, action->nf);
+    cmx(note_cmx, action->address, action->amount, action->rseed, action->nf);
     swap_endian(note_cmx, 32); // to_repr
 
     cx_hash_t *ph = (cx_hash_t *) &G_context.hasher;
@@ -362,6 +352,8 @@ int confirm_fee(bool confirmation) {
     else 
         G_context.signing_ctx.stage = SIGN;
 
+    if (G_context.signing_ctx.flags)
+        return get_shielded_hashes();
     return io_send_sw(SW_OK);
 }
 
@@ -553,6 +545,14 @@ int sign_orchard() {
     do_sign_orchard(signature);
     ui_menu_main();
     return helper_send_response_bytes(signature, 64);
+}
+
+// These hashes are checked against the client values. If there is a mismatch
+// it indicates a miscalculation
+int get_shielded_hashes() {
+    memmove(G_store.out_buffer, G_context.signing_ctx.sapling_bundle_hash, 32);
+    memmove(G_store.out_buffer + 32, G_context.signing_ctx.orchard_bundle_hash, 32);
+    return helper_send_response_bytes(G_store.out_buffer, 64);
 }
 
 int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len) {

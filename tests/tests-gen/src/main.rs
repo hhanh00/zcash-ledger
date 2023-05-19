@@ -3,18 +3,24 @@ use ::orchard::keys::{Scope};
 use anyhow::{Result};
 use blake2b_simd::{Hash, Params};
 use byteorder::{WriteBytesExt, LE};
-use std::io::Write;
+use std::io::{stdout, Write};
 use std::path::Path;
+use hex_literal::hex;
+use jubjub::Fr;
+use pasta_curves::group::GroupEncoding;
 
 use rand::rngs::OsRng;
-use rand::{RngCore};
+use rand::{RngCore, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 
 use secp256k1::SecretKey;
 
 use zcash_primitives::consensus::{BlockHeight, BranchId};
+use zcash_primitives::constants::SPENDING_KEY_GENERATOR;
 
 use zcash_primitives::legacy::TransparentAddress;
 use zcash_primitives::sapling::keys::PreparedIncomingViewingKey;
+use zcash_primitives::sapling::redjubjub::{PublicKey, Signature};
 
 use zcash_primitives::sapling::SaplingIvk;
 
@@ -71,7 +77,7 @@ fn generate_amounts(c: u32, base: u32) -> Vec<u64> {
     vec![base as u64; c as usize]
 }
 
-pub fn main() -> Result<()> {
+pub fn test_all_tx_types() -> Result<()> {
     let mut test_writer = TestWriter::new(Path::new("test.json"));
 
     for i in 1..8 {
@@ -92,6 +98,89 @@ pub fn main() -> Result<()> {
     }
 
     test_writer.close();
+    Ok(())
+}
+
+pub fn test_z2z_in_depth() -> Result<()> {
+    let mut test_writer = TestWriter::new(Path::new("test-z2z.json"));
+    for _ in 0..10 {
+        for i in 1..3 {
+            for j in 0..3 {
+                let config = TxConfig {
+                    t_ins: 0,
+                    t_outs: 0,
+                    s_ins: i,
+                    s_outs: j,
+                    o_ins: 0,
+                    o_outs: 0,
+                };
+
+                println!("{:?}", config);
+
+                assert!(test_sighash(&config.to_string(), config, &mut test_writer, OsRng)?);
+            }
+        }
+    }
+    test_writer.close();
+
+    Ok(())
+}
+
+pub fn test_sapling_sign() -> Result<()> {
+    let mut test_writer = TestWriter::new(Path::new("sapling_sign.json"));
+    test_writer.ledger_init()?;
+    let pgk = test_writer.ledger_get_proofgen_key()?;
+    let mut rng = ChaCha20Rng::from_seed([0; 32]);
+
+    // Run test 100 times
+    for i in 0..100 {
+        print!("\rRun {}", i);
+        stdout().flush()?;
+        // random alpha
+        let mut alpha = [0u8; 64];
+        rng.fill_bytes(&mut alpha);
+        let ar = Fr::from_bytes_wide(&alpha);
+        let rk = PublicKey(pgk.ak.clone().into()).randomize(ar, SPENDING_KEY_GENERATOR);
+
+        // random sig_hash
+        let mut sig_hash = [0u8; 32];
+        rng.fill_bytes(&mut sig_hash);
+
+        // sign
+        let signature = test_writer.ledger_sapling_sign(&alpha, &sig_hash)?;
+
+        // verify
+        let signature = Signature::read(&*signature)?;
+        let mut message = vec![];
+        message.write_all(&rk.0.to_bytes())?;
+        message.write_all(sig_hash.as_ref())?;
+        let verified = rk.verify_with_zip216(&message, &signature, SPENDING_KEY_GENERATOR, true);
+        if !verified {
+            anyhow::bail!("Invalid Sapling signature");
+        }
+    }
+
+    Ok(())
+}
+
+pub fn test_raw_sign() -> Result<()> {
+    let mut test_writer = TestWriter::new(Path::new("raw.json"));
+    test_writer.ledger_init()?;
+    for _ in 0..100 {
+        let res = test_writer.apdu(&hex!("e0800000601320a058d7b3566bd520daaa3ed2bf0ac5b8b120fb852773c3639734b45c91a42dd4cb83f8840d2eedb158131062ac3f1f2cf8ff6dcd1856e86a1e6c3167167ee5a688742b47c5adfb59d4df76fd1db1e51ee03b1ca9f82aca173edb8b729347"))?;
+        println!("{}", hex::encode(&res));
+        assert_eq!(res, hex!("2c14c682123f6e2e02c78b283e0d58f01fbc7c97910df48f1633beb4efb19440c37e021e5fff51b763026af1d8c7c399a53af117009d30278c640f3e8d617c0a"));
+    }
+
+    Ok(())
+}
+
+pub fn main() -> Result<()> {
+    // test_all_tx_types()?;
+    // test_z2z_in_depth()?;
+    test_sapling_sign()?;
+    // test_raw_sign()?;
+
     Ok(())
 }
 

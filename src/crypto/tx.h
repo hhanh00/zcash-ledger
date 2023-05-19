@@ -37,6 +37,9 @@ int sign_transparent();
 int sign_sapling();
 int sign_orchard();
 
+// Verification
+int get_shielded_hashes();
+
 // Private
 int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len);
 int get_sighash(uint8_t *txin_sig_hash);

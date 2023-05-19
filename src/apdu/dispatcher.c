@@ -42,15 +42,17 @@
 #define TRANSPARENT_OUT_LEN (8+1+20)
 
 #ifdef TEST
-#define RSEED_LEN 32
 #define OVERRIDE_CONFIRMATION(p) do { confirmation = p; } while(0);
+#define OVERRIDE_RSEED(s)
+#define OVERRIDE_ALPHA(a)
 #else
-#define RSEED_LEN 0
 #define OVERRIDE_CONFIRMATION(p) do { confirmation = true; } while(0);
+#define OVERRIDE_RSEED(s) do { prf_chacha(&chacha_rseed_rng, s.rseed, 32); } while(0);
+#define OVERRIDE_ALPHA(a) do { prf_chacha(&chacha_alpha_rng, a, 64); } while(0);
 #endif
 
-#define SAPLING_OUT_LEN (43+8+32+52+RSEED_LEN)
-#define ORCHARD_OUT_LEN (32+43+8+32+52+RSEED_LEN)
+#define SAPLING_OUT_LEN (43+8+32+52+32)
+#define ORCHARD_OUT_LEN (32+43+8+32+52+32)
 
 const uint8_t VERSION[] = { 1, 0, 1 };
 
@@ -75,7 +77,7 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
             return helper_send_response_bytes((uint8_t *)"Zcash", 5);
-        
+
         case INITIALIZE:
             if (cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -107,7 +109,7 @@ int apdu_dispatcher(const command_t *cmd) {
             memmove(G_store.out_buffer + 96, &G_context.exp_sk_info.dk, 32);
             return helper_send_response_bytes(G_store.out_buffer, 128);
             }
-        
+
         case GET_OFVK: {
             #ifdef ORCHARD
             derive_default_keys();
@@ -175,10 +177,10 @@ int apdu_dispatcher(const command_t *cmd) {
             }
 
         case ADD_S_OUT:
-            if (cmd->p1 > 1 || cmd->p2 != 0) {
+            if (cmd->p1 > 1 || cmd->p2 > 1) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != SAPLING_OUT_LEN)
+            if (cmd->lc != SAPLING_OUT_LEN && cmd->lc != SAPLING_OUT_LEN - 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             OVERRIDE_CONFIRMATION(cmd->p1);
@@ -190,12 +192,16 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(G_context.s_out, amount);
                 MOVE_FIELD(G_context.s_out, epk);
                 MOVE_FIELD(G_context.s_out, enc);
+                if (cmd->lc == SAPLING_OUT_LEN)
+                    MOVE_FIELD(G_context.s_out, rseed);
+
                 // in prod, rseed is picked by our PRNG, not the client's
-                TEST_ONLY(MOVE_FIELD(G_context.s_out, rseed));
+                OVERRIDE_RSEED(G_context.s_out);
 
                 // Check parameters
                 // diversifier is checked later
                 CHECK_MONEY(G_context.s_out.amount);
+                G_context.signing_ctx.flags = cmd->p2; // 1 when we want to return the CMU
                 return add_s_output(&G_context.s_out, confirmation);
             }
 
@@ -204,7 +210,7 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != ORCHARD_OUT_LEN)
+            if (cmd->lc != ORCHARD_OUT_LEN && cmd->lc != ORCHARD_OUT_LEN - 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             OVERRIDE_CONFIRMATION(cmd->p1);
@@ -217,8 +223,11 @@ int apdu_dispatcher(const command_t *cmd) {
                 MOVE_FIELD(G_context.o_action, amount);
                 MOVE_FIELD(G_context.o_action, epk);
                 MOVE_FIELD(G_context.o_action, enc);
+                if (cmd->lc == ORCHARD_OUT_LEN)
+                    MOVE_FIELD(G_context.o_action, rseed);
+
                 // in prod, rseed is picked by our PRNG, not the client's
-                TEST_ONLY(MOVE_FIELD(G_context.o_action, rseed));
+                OVERRIDE_RSEED(G_context.o_action);
 
                 // Check parameters
                 CHECK_MONEY(G_context.o_action.amount);
@@ -305,11 +314,12 @@ int apdu_dispatcher(const command_t *cmd) {
             return change_stage(cmd->p1);
 
         case CONFIRM_FEE:
-            if (cmd->p2 != 0) {
+            if (cmd->p2 > 1) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
             OVERRIDE_CONFIRMATION(cmd->p1);
 
+            G_context.signing_ctx.flags = cmd->p2;
             return confirm_fee(confirmation);
 
         case GET_PROOFGEN_KEY: {
@@ -335,8 +345,14 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 0)
+            if (cmd->lc != 0 && cmd->lc != 64)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
+            memset(G_context.alpha, 0, 64);
+            if (cmd->lc == 64)
+                memmove(G_context.alpha, cmd->data, 64);
+            // In prod, alpha is picked by our PRNG, not the client's
+            OVERRIDE_ALPHA(G_context.alpha);
+
             return sign_sapling();
 
         case SIGN_ORCHARD:
@@ -344,8 +360,13 @@ int apdu_dispatcher(const command_t *cmd) {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 0)
+            if (cmd->lc != 0 && cmd->lc != 64)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
+            memset(G_context.alpha, 0, 64);
+            if (cmd->lc == 64)
+                memmove(G_context.alpha, cmd->data, 64);
+            // In prod, alpha is picked by our PRNG, not the client's
+            OVERRIDE_ALPHA(G_context.alpha);
 
             return sign_orchard();
             #else
@@ -371,6 +392,16 @@ int apdu_dispatcher(const command_t *cmd) {
             return io_send_sw(SW_OK);
 
 #ifdef TEST
+        case TEST_SAPLING_SIGN:
+            if (cmd->p1 != 0 || cmd->p2 != 0) {
+                return io_send_sw(SW_WRONG_P1P2);
+            }
+            if (cmd->lc != 96)
+                return io_send_sw(SW_WRONG_DATA_LENGTH);
+            memmove(G_context.alpha, cmd->data, 64);
+            sapling_sign(G_store.out_buffer, cmd->data + 64);
+            return helper_send_response_bytes(G_store.out_buffer, 64);
+
         case GET_T_SIGHASH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -392,7 +423,7 @@ int apdu_dispatcher(const command_t *cmd) {
             }
             return test_cmu(cmd->data);
 #endif
-            
+
         default:
             return io_send_sw(SW_INS_NOT_SUPPORTED);
     }

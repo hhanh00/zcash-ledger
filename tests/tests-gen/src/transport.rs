@@ -7,7 +7,13 @@ use reqwest::blocking::Client;
 use serde_json::Value;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use jubjub::{Fr, SubgroupPoint};
+use ledger_apdu::APDUCommand;
+use ledger_transport_hid::hidapi::HidApi;
+use ledger_transport_hid::TransportNativeHID;
+use pasta_curves::group::GroupEncoding;
 use struson::writer::{JsonStreamWriter, JsonWriter};
+use zcash_primitives::sapling::ProofGenerationKey;
 
 const TEST_SERVER_IP: Option<&'static str> = option_env!("LEDGER_IP");
 
@@ -41,7 +47,8 @@ impl TestWriter {
         }
     }
 
-    fn apdu(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+    #[cfg(feature="speculos")]
+    pub fn apdu(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         self.json_writer.begin_object()?;
         self.json_writer.name("req").unwrap();
         self.json_writer.string_value(&hex::encode(data)).unwrap();
@@ -61,6 +68,34 @@ impl TestWriter {
         Self::handle_error_code(error_code)?;
         self.json_writer.end_object()?;
         Ok(data[..data.len() - 2].to_vec())
+    }
+
+    #[cfg(not(feature="speculos"))]
+    pub fn apdu(&self, data: &[u8]) -> Result<Vec<u8>> {
+        let api = HidApi::new()?;
+        let transport = TransportNativeHID::new(&api)?;
+        let command = APDUCommand {
+            cla: data[0],
+            ins: data[1],
+            p1: data[2],
+            p2: data[3],
+            data: &data[5..],
+        };
+        println!("ins {} {}", data[1], hex::encode(data));
+        let response = transport.exchange(&command)?;
+        let error_code = response.retcode();
+        println!("error_code {}", error_code);
+        Self::handle_error_code(error_code)?;
+        let rep = response.data().to_vec();
+        println!("rep {}", hex::encode(&rep));
+        Ok(rep)
+    }
+
+    pub fn ledger_init(&mut self) -> Result<()> {
+        let mut bb: Vec<u8> = vec![];
+        bb.write_all(&hex!("E005000000"))?;
+        self.apdu(&bb)?;
+        Ok(())
     }
 
     pub fn ledger_init_tx(&mut self, tx_name: &str) -> Result<Vec<u8>> {
@@ -109,16 +144,16 @@ impl TestWriter {
         address: &[u8],
         enc_compact: &[u8],
         rseed: &[u8],
-    ) -> Result<()> {
+    ) -> Result<Vec<u8>> {
         let mut bb: Vec<u8> = vec![];
-        bb.write_all(&hex!("E0140000A7"))?;
+        bb.write_all(&hex!("E0140001A7"))?;
         bb.write_all(address)?;
         bb.write_u64::<LE>(amount)?;
         bb.write_all(epk)?;
         bb.write_all(enc_compact)?;
         bb.write_all(rseed)?;
-        self.apdu(&bb)?;
-        Ok(())
+        let cmu = self.apdu(&bb)?;
+        Ok(cmu)
     }
 
     pub fn ledger_add_o_action(
@@ -234,6 +269,26 @@ impl TestWriter {
         bb.write_all(txin_digest)?;
         let sighash = self.apdu(&bb)?;
         Ok(sighash)
+    }
+
+    pub fn ledger_sapling_sign(&mut self, alpha: &[u8], sig_hash: &[u8]) -> Result<Vec<u8>> {
+        let mut bb: Vec<u8> = vec![];
+        bb.write_all(&hex!("E080000060"))?;
+        bb.write_all(alpha)?;
+        bb.write_all(sig_hash)?;
+        let signature = self.apdu(&bb)?;
+        Ok(signature)
+    }
+
+    pub fn ledger_get_proofgen_key(&mut self) -> Result<ProofGenerationKey> {
+        let mut bb: Vec<u8> = vec![];
+        bb.write_all(&hex!("E009000000"))?;
+        let proofgen_key = self.apdu(&bb)?;
+        let proofgen_key = ProofGenerationKey {
+            ak: SubgroupPoint::from_bytes(proofgen_key[0..32].try_into().unwrap()).unwrap(),
+            nsk: Fr::from_bytes(proofgen_key[32..64].try_into().unwrap()).unwrap(),
+        };
+        Ok(proofgen_key)
     }
 
     pub fn ledger_end_tx(&mut self) -> Result<()> {

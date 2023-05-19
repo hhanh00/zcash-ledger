@@ -32,6 +32,9 @@ reqwest = { version = "0.11.4", features = ["blocking", "json", "rustls-tls"] }
 serde_json = "1.0"
 struson = "0.1.0"
 
+ledger-transport-hid = { version = "0.10" }
+ledger-apdu = { version = "0.10" }
+
 [patch.crates-io]
 halo2_gadgets  = { git = "https://github.com/zcash/halo2.git", rev = "642924d614305d882cc122739c59144109f4bd3f" }
 halo2_proofs = { git = "https://github.com/zcash/halo2.git", rev = "642924d614305d882cc122739c59144109f4bd3f" }
@@ -42,3 +45,5 @@ orchard = { git = "https://github.com/hhanh00/orchard.git", rev = "fa4ec31bd17b7
 zcash_primitives = { path = "../../../../ywallet/librustzcash/zcash_primitives", features = [ "transparent-inputs" ] }
 zcash_client_backend = { path = "../../../../ywallet/librustzcash/zcash_client_backend" }
 
+[features]
+speculos = []

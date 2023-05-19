@@ -165,8 +165,9 @@ pub fn build_sapling_bundle<R: RngCore>(
             out_ciphertext,
             zkproof: [0; 192],
         });
-        test_writer.ledger_add_s_output(*output, epk.to_bytes().as_ref(),
+        let ledger_cmu = test_writer.ledger_add_s_output(*output, epk.to_bytes().as_ref(),
             &recipient_address.to_bytes(), &enc_ciphertext[0..52], &rseed_bytes)?;
+        assert_eq!(&ledger_cmu, &cmu.to_bytes())
     }
     test_writer.ledger_set_stage(4)?;
 

@@ -206,14 +206,12 @@ int cmx(uint8_t *cmx, uint8_t *address, uint64_t value, uint8_t *rseed, uint8_t 
 }
 
 void do_sign_orchard(uint8_t *signature) {
-    uint8_t alpha[64];
-    prf_chacha(&chacha_alpha_rng, alpha, 64);
-    fv_from_wide(alpha);
-    PRINTF("ALPHA: %.*H\n", 32, alpha);
+    fv_from_wide(G_context.alpha);
+    PRINTF("ALPHA: %.*H\n", 32, G_context.alpha);
 
     PRINTF("ASK: %.*H\n", 32, &G_context.orchard_key_info.ask);
     fv_t ask; // rerandomized ask
-    fv_add(&ask, &G_context.orchard_key_info.ask, (fv_t *)alpha);
+    fv_add(&ask, &G_context.orchard_key_info.ask, (fv_t *)G_context.alpha);
     PRINTF("R ASK: %.*H\n", 32, ask);
 
     uint8_t msg[64];

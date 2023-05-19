@@ -82,10 +82,14 @@ typedef enum {
     SIGN_ORCHARD = 0x23,
     GET_S_SIGHASH = 0x24,
     END_TX = 0x30,
+    // These MUST NOT be exposed in prod
+#ifdef TEST
+    TEST_SAPLING_SIGN = 0x80,
     GET_T_SIGHASH = 0x83,
     TEST_CMU = 0xF0,
     GET_DEBUG_BUFFER = 0xFE,
     TEST_MATH = 0xFF,
+#endif
 } command_e;
 
 /**
@@ -113,7 +117,7 @@ typedef uint8_t fv_t[32];
 
 /**
  * Diversifiable viewing key
-*/ 
+*/
 typedef struct {
     fr_t ask;
     fr_t nsk;
@@ -125,7 +129,7 @@ typedef struct {
 
 /**
  * Diversifiable viewing key
- * We display it as a full viewing key because it has no official 
+ * We display it as a full viewing key because it has no official
  * encoding
  * It is ok because we are not deriving any child key from it
 */
@@ -193,6 +197,7 @@ typedef struct {
     bool has_s_in;
     bool has_s_out;
     bool has_o_action;
+    uint8_t flags;
 } tx_signing_ctx_t;
 
 /**
@@ -205,6 +210,7 @@ typedef struct {
         s_out_t s_out;
         o_action_t o_action;
         uint8_t txin_sig_digest[32];
+        uint8_t alpha[64];
     };
     bool keys_derived;
     cx_blake2b_t hasher;
@@ -230,7 +236,7 @@ typedef struct {
 } pedersen_state_t;
 
 /// @brief Storage for temporary variables
-/// that we cannot put on the stack because 
+/// that we cannot put on the stack because
 /// of limited space on Nano S
 /// we use union to overlap memory which is ok
 /// if we are sure we don't use two sections
@@ -249,7 +255,7 @@ typedef struct {
         struct { // jubjub point hash
             blake2s_state hash_ctx;
             blake2s_param hash_params;
-            uint8_t hash[32]; 
+            uint8_t hash[32];
             pedersen_state_t ph;
             uint8_t Gdb[32];
         };
