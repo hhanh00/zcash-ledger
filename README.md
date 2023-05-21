@@ -69,3 +69,28 @@ You can check it to make sure the app is correctly loaded.
 ## YWallet 
 
 [YWallet documentation](https://ywallet.app/advanced/ledger/)
+
+## Performance
+
+| Action | Duration |
+|---|---|
+| Sapling Key Derivation | 0:30 |
+| Orchard Key Derivation | 1:30 |
+| Sapling Output | 1:15 |
+| Sapling Input | 0:30 |
+| Orchard Action | 1:15 + 0:15 |
+
+Keys are derived once per session, i.e. execution of the Zcash app. The first transaction will
+take an extra 2 mn during which keys are calculated. Afterward, they are kept in memory until
+the app is closed or the device unplugged. One useful trick is to use the "Get UA" menu to trigger
+key derivation while you are preparing the transaction.
+
+Example A: **1 sapling input, 2 sapling outputs** will take 2x1:15 + 0:30 = **3 minutes**
+
+Example B: **1 orchard input, 2 orchard outputs**. Orchard counts in "actions". An action combines
+an input and an output. This transaction requires 2 actions (with 1 dummy input).
+It will take 2x(1:15+0:15) = 2x1:30 = **3 minutes**. Even though signing is faster with Orchard,
+in this case we had to sign a dummy spend, therefore the duration was the same as the previous
+example.
+
+The signing algorithms run in constant time in order to avoid side channel attacks.
