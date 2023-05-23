@@ -28,7 +28,6 @@
 #include "../common/buffer.h"
 #include "../crypto/transparent.h"
 #include "../crypto/sapling.h"
-#include "../crypto/orchard.h"
 #include "../crypto/tx.h"
 #include "../ui/action/validate.h"
 #include "../handler/test_math.h"
@@ -62,7 +61,6 @@ int apdu_dispatcher(const command_t *cmd) {
     }
 
     uint8_t *p;
-    uint8_t has_orchard = 0;
     bool confirmation;
     CHECK_STACK_ONLY(PRINTF("apdu_dispatcher stack %d\n", canary_depth(&confirmation)));
     switch (cmd->ins) {
@@ -110,27 +108,6 @@ int apdu_dispatcher(const command_t *cmd) {
             return helper_send_response_bytes(G_store.out_buffer, 128);
             }
 
-        case GET_OFVK: {
-            #ifdef ORCHARD
-            derive_default_keys();
-            memmove(G_store.out_buffer, G_context.orchard_key_info.ak, 32);
-            memmove(G_store.out_buffer + 32, G_context.orchard_key_info.nk, 32);
-            swap_endian(G_store.out_buffer + 32, 32);
-            memmove(G_store.out_buffer + 64, G_context.orchard_key_info.rivk, 32);
-            swap_endian(G_store.out_buffer + 64, 32);
-            return helper_send_response_bytes(G_store.out_buffer, 96);
-            #else
-            return io_send_sw(SW_INS_NOT_SUPPORTED);
-            #endif
-        }
-
-        case HAS_ORCHARD: {
-            #ifdef ORCHARD
-            has_orchard = 1;
-            #endif
-            return helper_send_response_bytes(&has_orchard, 1);
-        }
-
         case INIT_TX:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -139,6 +116,9 @@ int apdu_dispatcher(const command_t *cmd) {
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
             return init_tx();
+
+        case ADD_HEADER:
+            io_send_sw(SW_OK);
 
         case ADD_T_IN:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
@@ -176,6 +156,9 @@ int apdu_dispatcher(const command_t *cmd) {
                 return add_t_output(&G_context.t_out, confirmation);
             }
 
+        case ADD_S_IN:
+            io_send_sw(SW_OK);
+
         case ADD_S_OUT:
             if (cmd->p1 > 1 || cmd->p2 > 1) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -205,38 +188,6 @@ int apdu_dispatcher(const command_t *cmd) {
                 return add_s_output(&G_context.s_out, confirmation);
             }
 
-        case ADD_O_ACTION:
-            #ifdef ORCHARD
-            if (cmd->p1 > 1 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != ORCHARD_OUT_LEN && cmd->lc != ORCHARD_OUT_LEN - 32)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            OVERRIDE_CONFIRMATION(cmd->p1);
-            {
-                memset(&G_context.o_action, 0, sizeof(o_action_t));
-                p = cmd->data;
-
-                MOVE_FIELD(G_context.o_action, nf);
-                MOVE_FIELD(G_context.o_action, address);
-                MOVE_FIELD(G_context.o_action, amount);
-                MOVE_FIELD(G_context.o_action, epk);
-                MOVE_FIELD(G_context.o_action, enc);
-                if (cmd->lc == ORCHARD_OUT_LEN)
-                    MOVE_FIELD(G_context.o_action, rseed);
-
-                // in prod, rseed is picked by our PRNG, not the client's
-                OVERRIDE_RSEED(G_context.o_action);
-
-                // Check parameters
-                CHECK_MONEY(G_context.o_action.amount);
-                return add_o_action(&G_context.o_action, confirmation);
-            }
-            #else
-                return io_send_sw(SW_INS_NOT_SUPPORTED);
-            #endif
-
         case SET_S_NET:
             if (cmd->p1 > 1 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -249,62 +200,6 @@ int apdu_dispatcher(const command_t *cmd) {
             memmove(&net, p, 8);
             CHECK_MONEY(net);
             return set_s_net(net);
-
-        case SET_O_NET:
-            if (cmd->p1 > 1 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != sizeof(int64_t))
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            p = cmd->data;
-            memmove(&net, p, 8);
-            CHECK_MONEY(net);
-            #ifdef ORCHARD
-            return set_o_net(net);
-            #else
-            return io_send_sw(net != 0 ? SW_INS_NOT_SUPPORTED : SW_OK);
-            #endif
-
-        case SET_HEADER_DIGEST:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 32)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            return set_header_digest(cmd->data);
-
-        case SET_T_MERKLE_PROOF:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 3 * 32)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            return set_t_merkle_proof((t_proofs_t *)cmd->data);
-
-        case SET_S_MERKLE_PROOF:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 3 * 32)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            return set_s_merkle_proof((s_proofs_t *)cmd->data);
-
-        case SET_O_MERKLE_PROOF:
-            #ifdef ORCHARD
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 3 * 32)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            return set_o_merkle_proof((o_proofs_t *)cmd->data);
-            #else
-                return io_send_sw(SW_OK);
-            #endif
 
         case CHANGE_STAGE:
             if (cmd->p2 != 0) {
@@ -354,24 +249,6 @@ int apdu_dispatcher(const command_t *cmd) {
             OVERRIDE_ALPHA(G_context.alpha);
 
             return sign_sapling();
-
-        case SIGN_ORCHARD:
-            #ifdef ORCHARD
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 0 && cmd->lc != 64)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-            memset(G_context.alpha, 0, 64);
-            if (cmd->lc == 64)
-                memmove(G_context.alpha, cmd->data, 64);
-            // In prod, alpha is picked by our PRNG, not the client's
-            OVERRIDE_ALPHA(G_context.alpha);
-
-            return sign_orchard();
-            #else
-                return io_send_sw(SW_INS_NOT_SUPPORTED);
-            #endif
 
         case GET_S_SIGHASH:
             if (cmd->p1 != 0 || cmd->p2 != 0) {

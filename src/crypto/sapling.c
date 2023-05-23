@@ -241,8 +241,8 @@ void sapling_derive_spending_key(uint8_t account) {
     destroy_en(&G);
 
     PRINTF("pkd %.*H\n", 32, pkeys->pk_d);
-    // to_address_bech32(G_context.address, pkeys->d, pkeys->pk_d);
-    // PRINTF("address %s\n", G_context.address);
+    to_address_bech32(G_store.address, pkeys->d, pkeys->pk_d);
+    PRINTF("address %s\n", G_store.address);
 
     cx_bn_unlock();
     ui_menu_main();
@@ -371,7 +371,7 @@ static int derive_spending_key(uint8_t *spk, uint8_t account) {
 
     cx_blake2b_init2_no_throw(&G_context.hasher, 256,
                               NULL, 0,
-                              (uint8_t *) "ZSaplingSeedHash", 16);
+                              (uint8_t *) "YSaplingSeedHash", 16);
     cx_hash((cx_hash_t *) &G_context.hasher,
             CX_LAST,
             spk, 32,

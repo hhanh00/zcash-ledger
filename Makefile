@@ -27,21 +27,21 @@ APP_LOAD_PARAMS += --appFlags 0x200  # APPLICATION_FLAG_BOLOS_SETTINGS
 else
 APP_LOAD_PARAMS += --appFlags 0x000
 endif
-APP_LOAD_PARAMS += --path "44'/133'"
+APP_LOAD_PARAMS += --path "44'/347'"
 APP_LOAD_PARAMS += $(COMMON_LOAD_PARAMS)
 
-APPNAME      = "Zcash"
+APPNAME      = "Ycash"
 APPVERSION_M = 1
 APPVERSION_N = 0
 APPVERSION_P = 1
 APPVERSION   = "$(APPVERSION_M).$(APPVERSION_N).$(APPVERSION_P)"
 
 ifeq ($(TARGET_NAME),TARGET_NANOS)
-    ICONNAME=icons/nanos_zcash.gif
+    ICONNAME=icons/nanos_ycash.gif
 else ifeq ($(TARGET_NAME),TARGET_STAX)
     $(error STAX is NOT SUPPORTED)
 else
-    ICONNAME=icons/nanox_zcash.gif
+    ICONNAME=icons/nanox_ycash.gif
 endif
 
 DEFINES += $(DEFINES_LIB)
@@ -63,7 +63,7 @@ endif
 ifeq ($(TARGET_NAME),TARGET_NANOS)
     DEFINES += IO_SEPROXYHAL_BUFFER_SIZE_B=128 NO_MONTGOMERY CHECK_STACK
 else
-    DEFINES += IO_SEPROXYHAL_BUFFER_SIZE_B=300 ORCHARD
+    DEFINES += IO_SEPROXYHAL_BUFFER_SIZE_B=300
 endif
 
 ifeq ($(TARGET_NAME),TARGET_STAX)
@@ -123,4 +123,4 @@ delete:
 include $(BOLOS_SDK)/Makefile.rules
 
 listvariants:
-	@echo VARIANTS COIN zcash
+	@echo VARIANTS COIN ycash

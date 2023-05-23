@@ -37,7 +37,7 @@ void to_address_bech32(char *address, uint8_t *d, uint8_t *pk_d) {
     memmove(data + 11, pk_d, 32);
     size_t buffer_len = 0;
     convert_bits(buffer, &buffer_len, 5, data, 43, 8, 1);
-    bech32_encode(address, "zs", buffer, buffer_len, BECH32_ENCODING_BECH32);
+    bech32_encode(address, "ys", buffer, buffer_len, BECH32_ENCODING_BECH32);
 }
 
 /**

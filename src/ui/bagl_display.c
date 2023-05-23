@@ -144,16 +144,6 @@ int ui_confirm_s_out(s_out_t *s_out) {
     return 0;
 }
 
-int ui_confirm_o_out(o_action_t *action) {
-    g_validate_callback = &validate_out;
-
-    format_u_address(action->address);
-    format_amount(action->amount);
-
-    ux_flow_init(0, ux_confirm_out_flow, NULL);
-    return 0;
-}
-
 int ui_confirm_fee(int64_t fee) {
     g_validate_callback = &validate_fee;
 

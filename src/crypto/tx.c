@@ -31,7 +31,6 @@
 #include "transparent.h"
 #include "sapling.h"
 #include "tx.h"
-#include "orchard.h"
 #include "../ui/display.h"
 #include "../ui/menu.h"
 #include "../helper/send_response.h"
@@ -122,15 +121,6 @@ int change_stage(uint8_t new_stage) {
                                       0,
                                       (uint8_t *) "ZTxIdSOutC__Hash",
                                       16);
-            break;
-        case O_ACTION:
-            cx_hash(ph, CX_LAST,
-                    NULL, 0,
-                    G_context.signing_ctx.s_compact_hash, 32);
-            PRINTF("S OUTPUTS COMPACT: %.*H\n", 32, G_context.signing_ctx.s_compact_hash);
-            cx_blake2b_init2_no_throw(&G_context.hasher, 256,
-                                      NULL, 0,
-                                      (uint8_t *) "ZTxIdOrcActCHash", 16);
             break;
         case FEE:
             #ifdef ORCHARD
@@ -250,45 +240,6 @@ int add_s_output(s_out_t *output, bool confirmation) {
     return io_send_sw(SW_OK);
 }
 
-#ifdef ORCHARD
-int add_o_action(o_action_t *action, bool confirmation) { 
-    if (G_context.signing_ctx.stage != O_ACTION) {
-        reset_app();
-        return io_send_sw(SW_BAD_STATE);
-    }
-    ui_display_processing("o-out");
-    G_context.signing_ctx.has_o_action = true;
-    G_context.signing_ctx.amount_o_out += action->amount;
-
-    if (memcmp(action->address, G_context.orchard_key_info.address, 43) == 0 || 
-        action->amount == 0)
-        confirmation = false;
-
-    PRINTF("d %.*H\n", 11, action->address);
-    PRINTF("pk_d %.*H\n", 32, action->address + 11);
-    PRINTF("rho %.*H\n", 32, action->nf);
-    PRINTF("amount %.*H\n", 8, &action->amount);
-    PRINTF("epk %.*H\n", 32, &action->epk);
-    PRINTF("enc %.*H\n", 52, &action->enc);
-    PRINTF("rseed %.*H\n", 32, action->rseed);
-
-    u_int8_t note_cmx[32];
-    cmx(note_cmx, action->address, action->amount, action->rseed, action->nf);
-    swap_endian(note_cmx, 32); // to_repr
-
-    cx_hash_t *ph = (cx_hash_t *) &G_context.hasher;
-    cx_hash(ph, 0, action->nf, 32, NULL, 0);   // nf
-    cx_hash(ph, 0, note_cmx, 32, NULL, 0);     // cmx
-    cx_hash(ph, 0, action->epk, 32, NULL, 0);  // ephemeral key
-    cx_hash(ph, 0, action->enc, 52, NULL, 0);  // first 52 bytes of encrypted note
-
-    if (confirmation)
-        return ui_confirm_o_out(action);
-    ui_menu_main();
-    return io_send_sw(SW_OK);
-}
-#endif
-
 int set_s_net(int64_t balance) {
     G_context.signing_ctx.has_s_in = balance != (int64_t)G_context.signing_ctx.amount_s_out;
     G_context.signing_ctx.s_net = balance;
@@ -296,50 +247,15 @@ int set_s_net(int64_t balance) {
     return io_send_sw(SW_OK);
 }
 
-#ifdef ORCHARD
-int set_o_net(int64_t balance) { 
-    G_context.signing_ctx.o_net = balance;
-
-    return io_send_sw(SW_OK);
-}
-#endif
-
-int set_header_digest(uint8_t *hash) {
-    memmove(&G_context.signing_ctx.header_hash, hash, sizeof(t_proofs_t));
-
-    return io_send_sw(SW_OK);
-}
-
-int set_t_merkle_proof(t_proofs_t *t_proofs) {
-    memmove(&G_context.signing_ctx.t_proofs, t_proofs, sizeof(t_proofs_t));
-
-    return io_send_sw(SW_OK);
-}
-
-int set_s_merkle_proof(s_proofs_t *s_proofs) {
-    memmove(&G_context.signing_ctx.s_proofs, s_proofs, sizeof(s_proofs_t));
-
-    return io_send_sw(SW_OK);
-}
-
-#ifdef ORCHARD
-int set_o_merkle_proof(o_proofs_t *o_proofs) { 
-    memmove(&G_context.signing_ctx.o_proofs, o_proofs, sizeof(o_proofs_t));
-
-    return io_send_sw(SW_OK);
-}
-#endif
-
 int confirm_fee(bool confirmation) {
     if (G_context.signing_ctx.stage != FEE) {
         reset_app();
         return io_send_sw(SW_BAD_STATE);
     }
 
-    int64_t fee = G_context.signing_ctx.t_net + G_context.signing_ctx.s_net + G_context.signing_ctx.o_net;
+    int64_t fee = G_context.signing_ctx.t_net + G_context.signing_ctx.s_net;
     transparent_bundle_hash();
     sapling_bundle_hash();
-    orchard_bundle_hash();    
     
     // Compute the shielded sighash
     // when there is no t_in, do not include the tx_in_hash at all
@@ -370,93 +286,61 @@ int transparent_bundle_hash() {
         Notice every shielded signature is computed on the same sig_hash
     */
 
-    cx_hash_t *ph = (cx_hash_t *)&G_context.signing_ctx.transparent_hasher;
-    cx_blake2b_init2_no_throw(&G_context.signing_ctx.transparent_hasher, 256,
-                            NULL, 0,
-                            (uint8_t *) "ZTxIdTranspaHash", 16);
-    if (G_context.signing_ctx.has_t_in || G_context.signing_ctx.has_t_out) {
-        // Without t-in, the sighash is the same as the txid
-        if (G_context.signing_ctx.has_t_in) {
-            uint8_t hash_type = 1;
-            cx_hash(ph, 0, &hash_type, 1, NULL, 0);
-        }
-        cx_hash(ph, 0, G_context.signing_ctx.t_proofs.prevouts_sig_digest, 32, NULL, 0);
-        if (G_context.signing_ctx.has_t_in) {
-            cx_hash(ph, 0, G_context.signing_ctx.amount_hash, 32, NULL, 0);
-            cx_hash(ph, 0, G_context.signing_ctx.t_proofs.scriptpubkeys_sig_digest, 32, NULL, 0);
-        }
-        cx_hash(ph, 0, G_context.signing_ctx.t_proofs.sequence_sig_digest, 32, NULL, 0);
-        cx_hash(ph, 0, G_context.signing_ctx.t_outputs_hash, 32, NULL, 0);
-        // transparent_hasher has transparent mid state
-    }
-    else {
-        PRINTF(">> EMPTY TRANSPARENT BUNDLE\n");
-    }
+    // cx_hash_t *ph = (cx_hash_t *)&G_context.signing_ctx.transparent_hasher;
+    // cx_blake2b_init2_no_throw(&G_context.signing_ctx.transparent_hasher, 256,
+    //                         NULL, 0,
+    //                         (uint8_t *) "ZTxIdTranspaHash", 16);
+    // if (G_context.signing_ctx.has_t_in || G_context.signing_ctx.has_t_out) {
+    //     // Without t-in, the sighash is the same as the txid
+    //     if (G_context.signing_ctx.has_t_in) {
+    //         uint8_t hash_type = 1;
+    //         cx_hash(ph, 0, &hash_type, 1, NULL, 0);
+    //     }
+    //     cx_hash(ph, 0, G_context.signing_ctx.t_proofs.prevouts_sig_digest, 32, NULL, 0);
+    //     if (G_context.signing_ctx.has_t_in) {
+    //         cx_hash(ph, 0, G_context.signing_ctx.amount_hash, 32, NULL, 0);
+    //         cx_hash(ph, 0, G_context.signing_ctx.t_proofs.scriptpubkeys_sig_digest, 32, NULL, 0);
+    //     }
+    //     cx_hash(ph, 0, G_context.signing_ctx.t_proofs.sequence_sig_digest, 32, NULL, 0);
+    //     cx_hash(ph, 0, G_context.signing_ctx.t_outputs_hash, 32, NULL, 0);
+    //     // transparent_hasher has transparent mid state
+    // }
+    // else {
+    //     PRINTF(">> EMPTY TRANSPARENT BUNDLE\n");
+    // }
 
     return 0;
 }
 
 int sapling_bundle_hash() {
-    cx_hash_t *ph = (cx_hash_t *) &G_context.hasher;
-    cx_blake2b_init2_no_throw(&G_context.hasher, 256,
-                              NULL, 0,
-                              (uint8_t *) "ZTxIdSOutputHash", 16);
-    if (G_context.signing_ctx.has_s_out) {                            
-        cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
-        cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_outputs_memos_digest, 32, NULL, 0);
-        cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_outputs_noncompact_digest, 32, NULL, 0);
-    }
-    cx_hash(ph,
-            CX_LAST, NULL, 0,
-            G_context.signing_ctx.sapling_bundle_hash, 32);
-    cx_blake2b_init2_no_throw(&G_context.hasher, 256,
-                              NULL, 0,
-                              (uint8_t *) "ZTxIdSaplingHash", 16);
-    if (G_context.signing_ctx.has_s_in || G_context.signing_ctx.has_s_out) {                              
-        PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_proofs.sapling_spends_digest);
-        PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
-        PRINTF(">> SAPLING BUNDLE: %.*H\n", 8, (uint8_t *)&G_context.signing_ctx.s_net);
-        cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_spends_digest, 32, NULL, 0);
-        cx_hash(ph, 0, G_context.signing_ctx.sapling_bundle_hash, 32, NULL, 0);
-        cx_hash(ph, 0, (uint8_t *)&G_context.signing_ctx.s_net, 8, NULL, 0);
-    }
-    else {
-        PRINTF(">> EMPTY SAPLING BUNDLE\n");
-    }
-    cx_hash(ph, CX_LAST, NULL, 0, G_context.signing_ctx.sapling_bundle_hash, 32);
-    PRINTF("SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
-
-    return 0;
-}
-
-int orchard_bundle_hash() {
-    cx_hash_t *ph = (cx_hash_t *) &G_context.hasher;
-    cx_blake2b_init2_no_throw(&G_context.hasher, 256,
-                              NULL, 0,
-                              (uint8_t *) "ZTxIdOrchardHash", 16);
-    #ifdef ORCHARD
-    if (G_context.signing_ctx.has_o_action) {
-        uint8_t flags = 3;
-        PRINTF("%.*H\n", 32, G_context.signing_ctx.o_compact_hash);
-        PRINTF("%.*H\n", 32, G_context.signing_ctx.o_proofs.orchard_memos_digest);
-        PRINTF("%.*H\n", 32, G_context.signing_ctx.o_proofs.orchard_noncompact_digest);
-        PRINTF("%.*H\n", 1, &flags);
-        PRINTF("%.*H\n", 8, &G_context.signing_ctx.o_net);
-        PRINTF("%.*H\n", 32, &G_context.signing_ctx.o_proofs.orchard_anchor);
-
-        cx_hash(ph, 0, G_context.signing_ctx.o_compact_hash, 32, NULL, 0);
-        cx_hash(ph, 0, G_context.signing_ctx.o_proofs.orchard_memos_digest, 32, NULL, 0);
-        cx_hash(ph, 0, G_context.signing_ctx.o_proofs.orchard_noncompact_digest, 32, NULL, 0);
-        cx_hash(ph, 0, &flags, 1, NULL, 0);
-        cx_hash(ph, 0, (uint8_t *)&G_context.signing_ctx.o_net, 8, NULL, 0);
-        cx_hash(ph, 0, G_context.signing_ctx.o_proofs.orchard_anchor, 32, NULL, 0);
-    }
-    else {
-        PRINTF(">> EMPTY ORCHARD BUNDLE\n");
-    }
-    #endif
-    cx_hash(ph, CX_LAST, NULL, 0, G_context.signing_ctx.orchard_bundle_hash, 32);
-    PRINTF("ORCHARD BUNDLE: %.*H\n", 32, G_context.signing_ctx.orchard_bundle_hash);
+    // cx_hash_t *ph = (cx_hash_t *) &G_context.hasher;
+    // cx_blake2b_init2_no_throw(&G_context.hasher, 256,
+    //                           NULL, 0,
+    //                           (uint8_t *) "ZTxIdSOutputHash", 16);
+    // if (G_context.signing_ctx.has_s_out) {                            
+    //     cx_hash(ph, 0, G_context.signing_ctx.s_compact_hash, 32, NULL, 0);
+    //     cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_outputs_memos_digest, 32, NULL, 0);
+    //     cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_outputs_noncompact_digest, 32, NULL, 0);
+    // }
+    // cx_hash(ph,
+    //         CX_LAST, NULL, 0,
+    //         G_context.signing_ctx.sapling_bundle_hash, 32);
+    // cx_blake2b_init2_no_throw(&G_context.hasher, 256,
+    //                           NULL, 0,
+    //                           (uint8_t *) "ZTxIdSaplingHash", 16);
+    // if (G_context.signing_ctx.has_s_in || G_context.signing_ctx.has_s_out) {                              
+    //     PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.s_proofs.sapling_spends_digest);
+    //     PRINTF(">> SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
+    //     PRINTF(">> SAPLING BUNDLE: %.*H\n", 8, (uint8_t *)&G_context.signing_ctx.s_net);
+    //     cx_hash(ph, 0, G_context.signing_ctx.s_proofs.sapling_spends_digest, 32, NULL, 0);
+    //     cx_hash(ph, 0, G_context.signing_ctx.sapling_bundle_hash, 32, NULL, 0);
+    //     cx_hash(ph, 0, (uint8_t *)&G_context.signing_ctx.s_net, 8, NULL, 0);
+    // }
+    // else {
+    //     PRINTF(">> EMPTY SAPLING BUNDLE\n");
+    // }
+    // cx_hash(ph, CX_LAST, NULL, 0, G_context.signing_ctx.sapling_bundle_hash, 32);
+    // PRINTF("SAPLING BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
 
     return 0;
 }
@@ -466,28 +350,28 @@ int orchard_bundle_hash() {
  * 
 */
 static int finish_sighash(uint8_t *sighash, const uint8_t *txin_sig_digest) {
-    cx_blake2b_t tx_t_hasher;
-    memmove(&tx_t_hasher, &G_context.signing_ctx.transparent_hasher, sizeof(cx_blake2b_t));
-    cx_hash_t *ph = (cx_hash_t *) &tx_t_hasher;
-    uint8_t transparent_hash[32];
-    if (txin_sig_digest)
-        cx_hash(ph, 0, txin_sig_digest, 32, NULL, 0);
-    cx_hash(ph, CX_LAST, NULL, 0, transparent_hash, 32);
+    // cx_blake2b_t tx_t_hasher;
+    // memmove(&tx_t_hasher, &G_context.signing_ctx.transparent_hasher, sizeof(cx_blake2b_t));
+    // cx_hash_t *ph = (cx_hash_t *) &tx_t_hasher;
+    // uint8_t transparent_hash[32];
+    // if (txin_sig_digest)
+    //     cx_hash(ph, 0, txin_sig_digest, 32, NULL, 0);
+    // cx_hash(ph, CX_LAST, NULL, 0, transparent_hash, 32);
 
-    PRINTF("HEADER: %.*H\n", 32, G_context.signing_ctx.header_hash);
-    PRINTF("TRANSPARENT SIG BUNDLE: %.*H\n", 32, transparent_hash);
+    // PRINTF("HEADER: %.*H\n", 32, G_context.signing_ctx.header_hash);
+    // PRINTF("TRANSPARENT SIG BUNDLE: %.*H\n", 32, transparent_hash);
 
-    cx_blake2b_init2_no_throw(&tx_t_hasher, 256,
-                              NULL, 0,
-                              (uint8_t *) "ZcashTxHash_\xB4\xD0\xD6\xC2", 16); // BranchID
-    cx_hash(ph, 0, G_context.signing_ctx.header_hash, 32, NULL, 0);
-    cx_hash(ph, 0, transparent_hash, 32, NULL, 0);
-    cx_hash(ph, 0, G_context.signing_ctx.sapling_bundle_hash, 32, NULL, 0);
-    cx_hash(ph, CX_LAST, G_context.signing_ctx.orchard_bundle_hash, 32, sighash, 32);
+    // cx_blake2b_init2_no_throw(&tx_t_hasher, 256,
+    //                           NULL, 0,
+    //                           (uint8_t *) "ZcashTxHash_\xB4\xD0\xD6\xC2", 16); // BranchID
+    // cx_hash(ph, 0, G_context.signing_ctx.header_hash, 32, NULL, 0);
+    // cx_hash(ph, 0, transparent_hash, 32, NULL, 0);
+    // cx_hash(ph, 0, G_context.signing_ctx.sapling_bundle_hash, 32, NULL, 0);
+    // cx_hash(ph, CX_LAST, G_context.signing_ctx.orchard_bundle_hash, 32, sighash, 32);
 
-    PRINTF("SAPLING SIG BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
-    PRINTF("ORCHARD SIG BUNDLE: %.*H\n", 32, G_context.signing_ctx.orchard_bundle_hash);
-    PRINTF("TXID: %.*H\n", 32, sighash);
+    // PRINTF("SAPLING SIG BUNDLE: %.*H\n", 32, G_context.signing_ctx.sapling_bundle_hash);
+    // PRINTF("ORCHARD SIG BUNDLE: %.*H\n", 32, G_context.signing_ctx.orchard_bundle_hash);
+    // PRINTF("TXID: %.*H\n", 32, sighash);
 
     return 0;
 }
@@ -534,25 +418,11 @@ int sign_sapling() {
     return helper_send_response_bytes(signature, 64);
 }
 
-int sign_orchard() { 
-    if (G_context.signing_ctx.stage != SIGN) {
-        reset_app();
-        return io_send_sw(SW_BAD_STATE);
-    }
-    ui_display_processing("sign o");
-
-    uint8_t signature[64];
-    do_sign_orchard(signature);
-    ui_menu_main();
-    return helper_send_response_bytes(signature, 64);
-}
-
 // These hashes are checked against the client values. If there is a mismatch
 // it indicates a miscalculation
 int get_shielded_hashes() {
     memmove(G_store.out_buffer, G_context.signing_ctx.sapling_bundle_hash, 32);
-    memmove(G_store.out_buffer + 32, G_context.signing_ctx.orchard_bundle_hash, 32);
-    return helper_send_response_bytes(G_store.out_buffer, 64);
+    return helper_send_response_bytes(G_store.out_buffer, 32);
 }
 
 int prf_chacha(cx_chacha_context_t *rng, uint8_t *v, size_t len) {

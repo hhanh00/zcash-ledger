@@ -42,26 +42,6 @@ void swap_bit_endian(uint8_t *data, int8_t len) {
     }
 }
 
-void fp_from_wide(uint8_t *data_512) {
-    swap_endian(data_512, 64);
-    fp_from_wide_be(data_512);
-}
-
-void fp_from_wide_be(uint8_t *data_512) {
-    cx_math_modm_no_throw(data_512, 64, fp_m, 32);
-    memmove(data_512, data_512 + 32, 32);
-}
-
-void fv_from_wide(uint8_t *data_512) {
-    swap_endian(data_512, 64);
-    fv_from_wide_be(data_512);
-}
-
-void fv_from_wide_be(uint8_t *data_512) {
-    cx_math_modm_no_throw(data_512, 64, fv_m, 32);
-    memmove(data_512, data_512 + 32, 32);
-}
-
 #ifdef TEST
 void print_bn_internal(const char *label, cx_bn_t bn) {
     uint8_t v[32];

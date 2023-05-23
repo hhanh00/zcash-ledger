@@ -32,13 +32,8 @@
 #include "../helper/send_response.h"
 #include "../crypto/fr.h"
 #include "../crypto/prf.h"
-#include "../crypto/pallas.h"
-#include "../crypto/sinsemilla.h"
 #include "../crypto/ff1.h"
-#include "../crypto/f4jumble.h"
-#include "../crypto/ua.h"
 #include "../crypto/tx.h"
-#include "../crypto/orchard.h"
 #include "../crypto/key.h"
 
 int handler_test_math() {
