@@ -33,32 +33,6 @@ void validate_address(bool choice) {
     }
 }
 
-void validate_out(bool choice) {
-    if (choice) {
-        ui_menu_main();
-        if (G_context.signing_ctx.flags && G_context.signing_ctx.stage == S_OUT)
-            helper_send_response_bytes(G_store.out_buffer, 32);
-        else 
-            io_send_sw(SW_OK);
-    } else {
-        reset_app();
-        io_send_sw(SW_DENY);
-    }
-}
-
-void validate_fee(bool choice) {
-    if (choice) {
-        G_context.signing_ctx.stage = SIGN; // last confirmation approved - ok to sign
-        if (G_context.signing_ctx.flags)
-            get_shielded_hashes();
-        else 
-            io_send_sw(SW_OK);
-    } else {
-        reset_app();
-        io_send_sw(SW_DENY);
-    }
-}
-
 void reset_app() {
     G_context.signing_ctx.stage = IDLE;
     ui_menu_main();

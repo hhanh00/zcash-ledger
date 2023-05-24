@@ -249,11 +249,11 @@ impl TestWriter {
         Ok(())
     }
 
-    pub fn ledger_confirm_fee(&mut self) -> Result<()> {
+    pub fn ledger_confirm_fee(&mut self) -> Result<Vec<u8> {
         let mut bb: Vec<u8> = vec![];
-        bb.write_all(&hex!("E01C000000"))?;
-        self.apdu(&bb)?;
-        Ok(())
+        bb.write_all(&hex!("E01C000100"))?;
+        let hashes = self.apdu(&bb)?;
+        Ok(hashes)
     }
 
     pub fn ledger_get_shielded_sighash(&mut self) -> Result<Vec<u8>> {

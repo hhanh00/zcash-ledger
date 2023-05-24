@@ -37,13 +37,6 @@
 #include "../helper/formatters.h"
 #include "menu.h"
 
-static action_validate_cb g_validate_callback;
-
-static void ui_action_validate_address(bool choice) {
-    validate_address(choice);
-    ui_menu_main();
-}
-
 char processing_msg[20];
 
 // Step with icon and text
@@ -57,34 +50,6 @@ UX_STEP_NOCB(ux_display_address_step,
                  .title = "Address",
                  .text = G_store.address,
              });
-UX_STEP_NOCB(ux_display_amount_step,
-             bnnn_paging,
-             {
-                 .title = "Amount",
-                 .text = G_store.amount,
-             });
-UX_STEP_NOCB(ux_display_fee_step,
-             bnnn_paging,
-             {
-                 .title = "Fee",
-                 .text = G_store.amount,
-             });
-// Step with approve button
-UX_STEP_CB(ux_display_approve_step,
-           pb,
-           (*g_validate_callback)(true),
-           {
-               &C_icon_validate_14,
-               "Approve",
-           });
-// Step with reject button
-UX_STEP_CB(ux_display_reject_step,
-           pb,
-           (*g_validate_callback)(false),
-           {
-               &C_icon_crossmark,
-               "Reject",
-           });
 
 UX_FLOW(ux_processing_flow,
         &ux_show_processing_step);
@@ -92,64 +57,6 @@ UX_FLOW(ux_processing_flow,
 int ui_display_processing(const char *msg) {
     strlcpy(processing_msg, msg, 20);
     ux_flow_init(0, ux_processing_flow, NULL);
-    return 0;
-}
-
-// FLOW to display address:
-// #1 screen: eye icon + "Confirm Address"
-// #2 screen: display address
-// #3 screen: approve button
-// #4 screen: reject button
-UX_FLOW(ux_display_address_flow,
-        &ux_display_confirm_addr_step,
-        &ux_display_address_step,
-        &ux_display_approve_step,
-        &ux_display_reject_step);
-
-int ui_display_address() {
-    g_validate_callback = &ui_action_validate_address;
-
-    ux_flow_init(0, ux_display_address_flow, NULL);
-    return 0;
-}
-
-UX_FLOW(ux_confirm_out_flow,
-        &ux_display_address_step,
-        &ux_display_amount_step,
-        &ux_display_approve_step,
-        &ux_display_reject_step);
-
-UX_FLOW(ux_confirm_fee_flow,
-        &ux_display_fee_step,
-        &ux_display_approve_step,
-        &ux_display_reject_step);
-
-int ui_confirm_t_out(t_out_t *t_out) {
-    g_validate_callback = &validate_out;
-
-    format_t_address(t_out->address_hash);
-    format_amount(t_out->amount);
-
-    ux_flow_init(0, ux_confirm_out_flow, NULL);
-    return 0;
-}
-
-int ui_confirm_s_out(s_out_t *s_out) {
-    g_validate_callback = &validate_out;
-
-    format_s_address(s_out->address);
-    format_amount(s_out->amount);
-
-    ux_flow_init(0, ux_confirm_out_flow, NULL);
-    return 0;
-}
-
-int ui_confirm_fee(int64_t fee) {
-    g_validate_callback = &validate_fee;
-
-    format_amount(fee);
-
-    ux_flow_init(0, ux_confirm_fee_flow, NULL);
     return 0;
 }
 

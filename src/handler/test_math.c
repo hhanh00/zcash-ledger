@@ -31,7 +31,6 @@
 #include "../ui/display.h"
 #include "../helper/send_response.h"
 #include "../crypto/fr.h"
-#include "../crypto/prf.h"
 #include "../crypto/ff1.h"
 #include "../crypto/tx.h"
 #include "../crypto/key.h"

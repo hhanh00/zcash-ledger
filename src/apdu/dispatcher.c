@@ -34,7 +34,6 @@
 #include "../helper/send_response.h"
 
 #include "../crypto/fr.h"
-#include "../crypto/prf.h"
 #include "../crypto/key.h"
 
 #define MOVE_FIELD(s,field) memmove(&s.field, p, sizeof(s.field)); p += sizeof(s.field);
@@ -108,115 +107,6 @@ int apdu_dispatcher(const command_t *cmd) {
             return helper_send_response_bytes(G_store.out_buffer, 128);
             }
 
-        case INIT_TX:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 0)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            return init_tx();
-
-        case ADD_HEADER:
-            io_send_sw(SW_OK);
-
-        case ADD_T_IN:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 8)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            p = cmd->data;
-            uint64_t amount;
-            memmove(&amount, p, 8);
-            return add_t_input_amount(amount);
-
-        case ADD_T_OUT:
-            if (cmd->p1 > 1 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != TRANSPARENT_OUT_LEN)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            OVERRIDE_CONFIRMATION(cmd->p1);
-            {
-                memset(&G_context.t_out, 0, sizeof(t_out_t));
-                p = cmd->data;
-
-                MOVE_FIELD(G_context.t_out, amount);
-                MOVE_FIELD(G_context.t_out, address_type);
-                MOVE_FIELD(G_context.t_out, address_hash);
-
-                // Check parameters, any address_hash is technically valid
-                CHECK_MONEY(G_context.t_out.amount);
-                if (G_context.t_out.address_type != 0)
-                    return io_send_sw(SW_INVALID_PARAM);
-
-                return add_t_output(&G_context.t_out, confirmation);
-            }
-
-        case ADD_S_IN:
-            io_send_sw(SW_OK);
-
-        case ADD_S_OUT:
-            if (cmd->p1 > 1 || cmd->p2 > 1) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != SAPLING_OUT_LEN && cmd->lc != SAPLING_OUT_LEN - 32)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            OVERRIDE_CONFIRMATION(cmd->p1);
-            {
-                memset(&G_context.s_out, 0, sizeof(s_out_t));
-                p = cmd->data;
-
-                MOVE_FIELD(G_context.s_out, address);
-                MOVE_FIELD(G_context.s_out, amount);
-                MOVE_FIELD(G_context.s_out, epk);
-                MOVE_FIELD(G_context.s_out, enc);
-                if (cmd->lc == SAPLING_OUT_LEN)
-                    MOVE_FIELD(G_context.s_out, rseed);
-
-                // in prod, rseed is picked by our PRNG, not the client's
-                OVERRIDE_RSEED(G_context.s_out);
-
-                // Check parameters
-                // diversifier is checked later
-                CHECK_MONEY(G_context.s_out.amount);
-                G_context.signing_ctx.flags = cmd->p2; // 1 when we want to return the CMU
-                return add_s_output(&G_context.s_out, confirmation);
-            }
-
-        case SET_S_NET:
-            if (cmd->p1 > 1 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != sizeof(int64_t))
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            p = cmd->data;
-            int64_t net;
-            memmove(&net, p, 8);
-            CHECK_MONEY(net);
-            return set_s_net(net);
-
-        case CHANGE_STAGE:
-            if (cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-
-            return change_stage(cmd->p1);
-
-        case CONFIRM_FEE:
-            if (cmd->p2 > 1) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            OVERRIDE_CONFIRMATION(cmd->p1);
-
-            G_context.signing_ctx.flags = cmd->p2;
-            return confirm_fee(confirmation);
-
         case GET_PROOFGEN_KEY: {
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
@@ -233,73 +123,16 @@ int apdu_dispatcher(const command_t *cmd) {
             }
             if (cmd->lc != 32)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
-            memmove(G_context.txin_sig_digest, cmd->data, 32);
-            return sign_transparent();
+            return sign_transparent(cmd->data);
 
         case SIGN_SAPLING:
             if (cmd->p1 != 0 || cmd->p2 != 0) {
                 return io_send_sw(SW_WRONG_P1P2);
             }
-            if (cmd->lc != 0 && cmd->lc != 64)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-            memset(G_context.alpha, 0, 64);
-            if (cmd->lc == 64)
-                memmove(G_context.alpha, cmd->data, 64);
-            // In prod, alpha is picked by our PRNG, not the client's
-            OVERRIDE_ALPHA(G_context.alpha);
-
-            return sign_sapling();
-
-        case GET_S_SIGHASH:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 0)
+            if (cmd->lc != 64)
                 return io_send_sw(SW_WRONG_DATA_LENGTH);
 
-            return get_sighash(NULL);
-
-        case END_TX:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 0)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-            reset_app();
-            return io_send_sw(SW_OK);
-
-#ifdef TEST
-        case TEST_SAPLING_SIGN:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 96)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-            memmove(G_context.alpha, cmd->data, 64);
-            sapling_sign(G_store.out_buffer, cmd->data + 64);
-            return helper_send_response_bytes(G_store.out_buffer, 64);
-
-        case GET_T_SIGHASH:
-            if (cmd->p1 != 0 || cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            if (cmd->lc != 32)
-                return io_send_sw(SW_WRONG_DATA_LENGTH);
-
-            return get_sighash(cmd->data);
-
-        case TEST_MATH:
-            if (cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            return handler_test_math();
-
-        case TEST_CMU:
-            if (cmd->p2 != 0) {
-                return io_send_sw(SW_WRONG_P1P2);
-            }
-            return test_cmu(cmd->data);
-#endif
+            return sign_sapling(cmd->data, cmd->data + 32);
 
         default:
             return io_send_sw(SW_INS_NOT_SUPPORTED);

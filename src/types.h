@@ -214,8 +214,6 @@ typedef struct {
             blake2s_state hash_ctx;
             blake2s_param hash_params;
             uint8_t hash[32];
-            pedersen_state_t ph;
-            uint8_t Gdb[32];
         };
         struct { // transparent sign
             uint8_t sig_hash[32];
